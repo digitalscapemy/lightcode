@@ -1,0 +1,30 @@
+appId: com.mikhail.lightclaude
+productName: LightClaude
+publish:
+  provider: github
+  owner: digitalscapemy
+  repo: lightcode
+  releaseType: release
+directories:
+  buildResources: build
+  output: dist
+files:
+  - out/**
+  - package.json
+asarUnpack:
+  - '**/node_modules/node-pty/**'
+win:
+  icon: build/icon.png
+  target: nsis
+nsis:
+  oneClick: true
+  shortcutName: LightClaude
+mac:
+  icon: build/icon.png
+  category: public.app-category.developer-tools
+  target:
+    - dmg
+    - zip
+  # unsigned build (no Apple Developer account): users right-click > Open,
+  # or run `xattr -cr /Applications/LightClaude.app` once
+  identity: null
