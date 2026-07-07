@@ -16,6 +16,8 @@ asarUnpack:
 win:
   icon: build/icon.png
   target: nsis
+  # no spaces: GitHub rewrites them in asset names, breaking latest.yml lookups
+  artifactName: ${productName}-Setup-${version}.${ext}
 nsis:
   oneClick: true
   shortcutName: LightClaude
