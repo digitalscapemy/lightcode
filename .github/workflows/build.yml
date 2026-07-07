@@ -1,6 +1,8 @@
 # Builds installers for Windows and macOS.
 # - Push a v* tag  -> builds AND publishes a GitHub Release (auto-update feed).
 # - Manual run     -> builds artifacts only (no release).
+# Jobs are serialized (mac waits for windows) so both publish into ONE release
+# instead of racing to create it.
 name: Build
 
 on:
@@ -13,22 +15,8 @@ permissions:
   contents: write
 
 jobs:
-  build:
-    strategy:
-      matrix:
-        include:
-          - os: windows-latest
-            artifact: |
-              dist/*.exe
-              dist/latest.yml
-            name: windows-installer
-          - os: macos-latest
-            artifact: |
-              dist/*.dmg
-              dist/*-mac.zip
-              dist/latest-mac.yml
-            name: mac-installer
-    runs-on: ${{ matrix.os }}
+  windows:
+    runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -40,5 +28,27 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.name }}
-          path: ${{ matrix.artifact }}
+          name: windows-installer
+          path: |
+            dist/*.exe
+            dist/latest.yml
+
+  mac:
+    needs: windows
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - run: npm run dist -- --publish ${{ startsWith(github.ref, 'refs/tags/') && 'always' || 'never' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mac-installer
+          path: |
+            dist/*.dmg
+            dist/*-mac.zip
+            dist/latest-mac.yml
