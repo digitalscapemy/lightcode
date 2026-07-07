@@ -1,0 +1,872 @@
+:root {
+  --bg: #050505;
+  --bg-panel: #0b0b0b;
+  --fg: #d4d4d4;
+  --fg-muted: #9d9d9d;
+  --border: #1f1f1f;
+  --accent: #4c9aff;
+  --tab-hover: #151515;
+  --tab-active-bg: #050505;
+  --term-bg: #050505;
+  --overlay: rgba(5, 5, 5, 0.85);
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  font-family: 'Segoe UI Variable Text', 'Segoe UI', sans-serif;
+  font-size: 13px;
+  color: var(--fg);
+  background: var(--bg);
+}
+
+#app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+/* ---------- Tab bar ---------- */
+
+#tabbar {
+  display: flex;
+  align-items: stretch;
+  height: 36px;
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+  flex: 0 0 auto;
+  user-select: none;
+  -webkit-app-region: drag; /* frameless window: empty tabbar area drags the window */
+}
+
+#tabs,
+#tabs *,
+.tab,
+.tab *,
+#add-tab,
+.tabbar-btn,
+.tabbar-btn *,
+#win-controls,
+#win-controls * {
+  -webkit-app-region: no-drag;
+}
+
+#tabs {
+  display: flex;
+  overflow-x: auto;
+  scrollbar-width: none;
+  min-width: 0;
+}
+
+.tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 6px 0 12px;
+  border-right: 1px solid var(--border);
+  cursor: default;
+  white-space: nowrap;
+  color: var(--fg-muted);
+  position: relative;
+}
+
+.tab:hover {
+  background: var(--tab-hover);
+}
+
+.tab.active {
+  background: var(--term-bg);
+  color: var(--fg);
+}
+
+.tab.dragging {
+  opacity: 0.92;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+  background: var(--bg-panel);
+  cursor: grabbing;
+  z-index: 10;
+}
+
+.tab.active.dragging {
+  background: var(--term-bg);
+}
+
+body.tab-dragging,
+body.tab-dragging * {
+  cursor: grabbing !important;
+}
+
+.tab-label {
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tab-close {
+  border: none;
+  background: transparent;
+  color: inherit;
+  font-size: 14px;
+  width: 18px;
+  height: 18px;
+  line-height: 1;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.tab-close:hover {
+  background: var(--border);
+}
+
+.tab-rename {
+  font: inherit;
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  padding: 1px 4px;
+  width: 140px;
+  outline: none;
+}
+
+#add-tab {
+  flex: 0 0 auto;
+  align-self: center;
+  width: 26px;
+  height: 26px;
+  margin-left: 6px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--fg-muted);
+  font-size: 16px;
+  cursor: pointer;
+}
+
+#add-tab:hover {
+  background: var(--tab-hover);
+  color: var(--fg);
+}
+
+.spacer {
+  flex: 1;
+}
+
+/* ---------- Window controls (frameless) ---------- */
+
+.tabbar-divider {
+  width: 1px;
+  align-self: center;
+  height: 16px;
+  background: var(--border);
+  margin: 0 2px;
+  -webkit-app-region: no-drag;
+}
+
+.tabbar-btn {
+  width: 34px;
+  border: none;
+  background: transparent;
+  color: var(--fg-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+}
+
+.tabbar-btn:hover {
+  background: var(--tab-hover);
+  color: var(--fg);
+}
+
+.version-btn {
+  width: auto;
+  padding: 0 10px;
+  font-size: 11px;
+  font-family: 'Cascadia Mono', Consolas, monospace;
+}
+
+#win-controls {
+  display: flex;
+  align-items: stretch;
+}
+
+/* macOS: native traffic lights live top-left; our controls are redundant. */
+.platform-darwin #win-controls {
+  display: none;
+}
+
+.platform-darwin #tabbar {
+  padding-left: 78px;
+}
+
+#win-controls button {
+  width: 44px;
+  border: none;
+  background: transparent;
+  color: var(--fg-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: default;
+  padding: 0;
+}
+
+#win-controls button:hover {
+  background: var(--tab-hover);
+  color: var(--fg);
+}
+
+#win-close:hover {
+  background: #e81123 !important;
+  color: #ffffff !important;
+}
+
+/* ---------- Content / splits ---------- */
+
+#content {
+  flex: 1;
+  position: relative;
+  min-height: 0;
+  background: var(--term-bg);
+}
+
+.tab-view {
+  position: absolute;
+  inset: 0;
+  display: flex;
+}
+
+.tab-view > * {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+}
+
+.split {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+}
+
+.split-child {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.split-child > * {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+}
+
+.gutter {
+  flex: 0 0 auto;
+  background: var(--border);
+  touch-action: none;
+  z-index: 1;
+  position: relative;
+}
+
+/* Invisible expanded hit area so the thin divider stays easy to grab. */
+.gutter::before {
+  content: '';
+  position: absolute;
+  z-index: 1;
+}
+
+.gutter-h {
+  width: 2px;
+  cursor: col-resize;
+}
+
+.gutter-h::before {
+  inset: 0 -3px;
+}
+
+.gutter-v {
+  height: 2px;
+  cursor: row-resize;
+}
+
+.gutter-v::before {
+  inset: -3px 0;
+}
+
+.gutter:hover,
+.gutter:active {
+  background: var(--accent);
+}
+
+/* ---------- Terminal pane ---------- */
+
+.pane {
+  position: relative;
+  background: var(--term-bg);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.pane-header {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 4px 0 10px;
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--fg-muted);
+  user-select: none;
+}
+
+.pane-title {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pane-usage {
+  flex: 0 0 auto;
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 8px;
+  background: var(--border);
+  color: var(--fg-muted);
+  white-space: nowrap;
+}
+
+.pane-rename {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  padding: 1px 4px;
+  outline: none;
+}
+
+.pane-kill,
+.pane-menu-btn {
+  flex: 0 0 auto;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font-size: 14px;
+  width: 20px;
+  height: 20px;
+  line-height: 1;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.pane-kill:hover,
+.pane-menu-btn:hover {
+  background: var(--border);
+}
+
+.pane-menu {
+  position: absolute;
+  top: 26px;
+  right: 4px;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  min-width: 150px;
+  padding: 4px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+}
+
+.pane-menu-item {
+  border: none;
+  background: transparent;
+  color: var(--fg);
+  font: inherit;
+  text-align: left;
+  padding: 6px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.pane-menu-item:hover {
+  background: var(--tab-hover);
+}
+
+.pane-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  position: relative;
+  padding: 5px;
+}
+
+.pane.focused::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border: 1px solid var(--accent);
+  pointer-events: none;
+  z-index: 3;
+}
+
+.pane .xterm {
+  height: 100%;
+}
+
+/* No horizontal scrolling — the terminal reflows to fit its pane. */
+.pane .xterm-viewport {
+  overflow-x: hidden !important;
+}
+
+.pane .xterm-viewport::-webkit-scrollbar {
+  width: 8px;
+}
+
+.pane .xterm-viewport::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.pane .xterm-viewport::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 4px;
+}
+
+.pane:hover .xterm-viewport::-webkit-scrollbar-thumb {
+  background: var(--border);
+}
+
+.loading-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background: var(--term-bg);
+  color: var(--fg-muted);
+  font-size: 12px;
+  z-index: 2;
+}
+
+.spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.exit-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: var(--overlay);
+  color: var(--fg);
+  outline: none;
+  cursor: pointer;
+  z-index: 2;
+}
+
+.exit-overlay .hint {
+  font-size: 12px;
+  color: var(--fg-muted);
+}
+
+/* ---------- Shortcuts modal ---------- */
+
+#shortcuts-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.5);
+}
+
+.shortcuts-modal {
+  width: 560px;
+  max-width: calc(100vw - 48px);
+  max-height: calc(100vh - 80px);
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.55);
+}
+
+.shortcuts-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+  color: var(--fg);
+}
+
+.shortcuts-close {
+  border: none;
+  background: transparent;
+  color: var(--fg-muted);
+  font-size: 16px;
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.shortcuts-close:hover {
+  background: var(--tab-hover);
+  color: var(--fg);
+}
+
+.shortcuts-body {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.shortcuts-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fg);
+  margin-bottom: 2px;
+}
+
+.shortcuts-hint {
+  font-size: 11px;
+  color: var(--fg-muted);
+  margin-bottom: 6px;
+}
+
+.shortcuts-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.shortcuts-empty {
+  font-size: 11px;
+  color: var(--fg-muted);
+  padding: 4px 0;
+}
+
+.shortcuts-row {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.shortcuts-row input {
+  font: inherit;
+  font-size: 12px;
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 4px 6px;
+  outline: none;
+}
+
+.shortcuts-row input:focus {
+  border-color: var(--accent);
+}
+
+.shortcuts-row input.invalid {
+  border-color: #e81123;
+}
+
+.shortcuts-name {
+  width: 140px;
+  flex: 0 0 auto;
+}
+
+.shortcuts-target {
+  flex: 1;
+  min-width: 0;
+}
+
+.shortcuts-icon-btn {
+  flex: 0 0 auto;
+  border: none;
+  background: transparent;
+  color: var(--fg-muted);
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.shortcuts-icon-btn:hover {
+  background: var(--tab-hover);
+  color: var(--fg);
+}
+
+.shortcuts-footer {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-top: 1px solid var(--border);
+}
+
+.shortcuts-status {
+  flex: 1;
+  font-size: 11px;
+  color: var(--fg-muted);
+}
+
+.shortcuts-status.error {
+  color: #ff6b6b;
+}
+
+.shortcuts-primary,
+.shortcuts-secondary {
+  font: inherit;
+  font-size: 12px;
+  border-radius: 4px;
+  padding: 4px 12px;
+  cursor: pointer;
+}
+
+.shortcuts-primary {
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: #ffffff;
+}
+
+.shortcuts-primary:hover {
+  filter: brightness(1.15);
+}
+
+.shortcuts-secondary {
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--fg-muted);
+}
+
+.shortcuts-secondary:hover {
+  background: var(--tab-hover);
+  color: var(--fg);
+}
+
+/* ---------- About modal ---------- */
+
+.about-modal {
+  width: 480px;
+}
+
+.about-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 0 4px;
+}
+
+.about-logo {
+  width: 56px;
+  height: 56px;
+  border-radius: 12px;
+}
+
+.about-name {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--fg);
+}
+
+.about-version {
+  font-family: 'Cascadia Mono', Consolas, monospace;
+  font-size: 12px;
+  color: var(--fg-muted);
+}
+
+.about-developer {
+  font-size: 11px;
+  color: var(--fg-muted);
+}
+
+.about-changelog-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fg);
+  margin-top: 4px;
+}
+
+.about-changelog {
+  max-height: 220px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 10px;
+}
+
+.about-entry-head {
+  font-family: 'Cascadia Mono', Consolas, monospace;
+  font-size: 11px;
+  color: var(--fg);
+  margin: 6px 0 4px;
+}
+
+.about-entry-head:first-child {
+  margin-top: 0;
+}
+
+.about-entry-notes {
+  margin: 0 0 6px;
+  padding-left: 18px;
+  font-size: 11px;
+  line-height: 1.6;
+  color: var(--fg-muted);
+}
+
+/* ---------- Update toast ---------- */
+
+#update-toast {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 260px;
+  max-width: 340px;
+  padding: 12px 14px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+}
+
+.toast-text {
+  font-size: 12px;
+  color: var(--fg);
+}
+
+.toast-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.toast-progress {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--border);
+  overflow: hidden;
+}
+
+.toast-progress-fill {
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.2s ease;
+}
+
+/* ---------- Empty state ---------- */
+
+#empty-state {
+  position: absolute;
+  inset: 36px 0 0 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg);
+}
+
+#empty-state[hidden] {
+  display: none;
+}
+
+.empty-card {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: center;
+}
+
+.empty-logo {
+  width: 96px;
+  height: 96px;
+}
+
+.empty-card h2 {
+  font-weight: 600;
+}
+
+.empty-card p {
+  color: var(--fg-muted);
+}
+
+.empty-card .hint {
+  font-size: 12px;
+  line-height: 2;
+}
+
+.empty-card .hint .key {
+  display: inline-block;
+  font-family: 'Cascadia Mono', Consolas, monospace;
+  font-size: 11px;
+  color: var(--fg);
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 1px 6px;
+  margin-right: 4px;
+}
+
+#empty-open {
+  border: 1px solid var(--border);
+  background: var(--bg-panel);
+  color: var(--fg);
+  padding: 8px 20px;
+  border-radius: 6px;
+  font: inherit;
+  cursor: pointer;
+}
+
+#empty-open:hover {
+  border-color: var(--accent);
+}
