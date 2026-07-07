@@ -742,6 +742,33 @@ body.tab-dragging * {
   padding: 8px 10px;
 }
 
+/* Minimalist grey scrollbar (no arrows) for modal scroll areas. */
+.about-changelog::-webkit-scrollbar,
+.shortcuts-body::-webkit-scrollbar {
+  width: 6px;
+}
+
+.about-changelog::-webkit-scrollbar-track,
+.shortcuts-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.about-changelog::-webkit-scrollbar-thumb,
+.shortcuts-body::-webkit-scrollbar-thumb {
+  background: #3a3a3a;
+  border-radius: 3px;
+}
+
+.about-changelog::-webkit-scrollbar-thumb:hover,
+.shortcuts-body::-webkit-scrollbar-thumb:hover {
+  background: #555555;
+}
+
+.about-changelog::-webkit-scrollbar-button,
+.shortcuts-body::-webkit-scrollbar-button {
+  display: none;
+}
+
 .about-entry-head {
   font-family: 'Cascadia Mono', Consolas, monospace;
   font-size: 11px;

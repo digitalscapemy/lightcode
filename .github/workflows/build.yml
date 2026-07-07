@@ -60,11 +60,11 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release upload "$GITHUB_REF_NAME" dist/*.dmg dist/*.dmg.blockmap dist/*-mac.zip dist/latest-mac.yml --clobber
+          gh release upload "$GITHUB_REF_NAME" dist/*.dmg dist/*.dmg.blockmap dist/*.zip dist/latest-mac.yml --clobber
       - uses: actions/upload-artifact@v4
         with:
           name: mac-installer
           path: |
             dist/*.dmg
-            dist/*-mac.zip
+            dist/*.zip
             dist/latest-mac.yml
