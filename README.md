@@ -1,8 +1,8 @@
 <div align="center">
 
-<img src="src/renderer/public/logo.png" alt="LightClaude" width="96" />
+<img src="src/renderer/public/logo.png" alt="Light Code" width="96" />
 
-# LightClaude
+# Light Code
 
 **A lightweight multi-terminal manager built for Claude Code power users.**
 
@@ -22,13 +22,13 @@ multi-account switching, project shortcuts, and a terminal that stays out of you
 
 ---
 
-## Why LightClaude?
+## Why Light Code?
 
 Running one Claude Code session is easy. Running **six of them across four projects with two
 accounts** is where normal terminals fall apart — you lose track of which pane is which project,
 which account is burning quota, and how close each session is to filling its context window.
 
-LightClaude is a purpose-built cockpit for that workflow: every pane knows its project, its
+Light Code is a purpose-built cockpit for that workflow: every pane knows its project, its
 Claude session, and its token usage — live.
 
 ## Features
@@ -58,7 +58,7 @@ Manage project and account shortcuts from the UI instead of hand-editing your sh
 - Written to your shell profile (PowerShell on Windows, zsh/bash on macOS) inside a clearly
   marked managed block — your existing profile content is never touched
 - One-click **import** of shortcuts you already have in your profile
-- Works in *any* terminal, not just LightClaude
+- Works in *any* terminal, not just Light Code
 
 ### 🗂 Tabs & split panes
 - Each tab is a project; split panes right/down (`Ctrl/Cmd+Shift+E` / `D`), drag dividers,
@@ -89,8 +89,8 @@ Grab the latest installer from **[Releases](https://github.com/digitalscapemy/li
 
 | Platform | File | Notes |
 | --- | --- | --- |
-| Windows 10/11 | `LightClaude Setup x.y.z.exe` | One-click install; auto-updates itself |
-| macOS | `LightClaude-x.y.z.dmg` | Unsigned build — right-click → Open the first time, or run `xattr -cr /Applications/LightClaude.app` |
+| Windows 10/11 | `LightCode-Setup-x.y.z.exe` | One-click install; auto-updates itself |
+| macOS | `LightCode-x.y.z-arm64.dmg` | Unsigned build — right-click → Open the first time, or run `xattr -cr "/Applications/Light Code.app"` |
 
 Requires [Claude Code](https://claude.com/claude-code) for the token-usage features
 (the terminal works with any CLI).

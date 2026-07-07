@@ -1,8 +1,8 @@
 {
   "name": "lightclaude",
-  "productName": "LightClaude",
-  "version": "0.1.0",
-  "description": "Lightweight multi-CLI terminal manager for Claude Code and other CLIs",
+  "productName": "Light Code",
+  "version": "0.1.1",
+  "description": "Light Code — a lightweight multi-terminal manager built for Claude Code power users",
   "main": "./out/main/index.js",
   "author": "Mikhail Aiman",
   "license": "MIT",

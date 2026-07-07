@@ -9,6 +9,15 @@ export const DEVELOPER = 'Digital Scape MY'
 /** Newest first. Add an entry on every release (see release procedure). */
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.1.1',
+    date: '2026-07-07',
+    notes: [
+      'Renamed the app to Light Code.',
+      'Auto-update pipeline reliability fixes: releases are published via GitHub CLI and installer artifacts use space-free names so update downloads always resolve.',
+      'First self-updating release — from here on the app updates itself.'
+    ]
+  },
+  {
     version: '0.1.0',
     date: '2026-07-07',
     notes: [
