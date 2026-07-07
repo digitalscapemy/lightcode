@@ -62,12 +62,14 @@ function openModal(): void {
 
   const logTitle = document.createElement('div')
   logTitle.className = 'about-changelog-title'
-  logTitle.textContent = 'Changelog'
+  logTitle.textContent = "What's new"
   body.appendChild(logTitle)
 
+  // Only the running version's notes — history lives in the repo.
+  const entry = CHANGELOG.find((e) => e.version === version) ?? CHANGELOG[0]
   const log = document.createElement('div')
   log.className = 'about-changelog'
-  for (const entry of CHANGELOG) {
+  if (entry) {
     const head = document.createElement('div')
     head.className = 'about-entry-head'
     head.textContent = `v${entry.version} — ${entry.date}`
