@@ -9,6 +9,15 @@ export const DEVELOPER = 'Digital Scape MY'
 /** Newest first. Add an entry on every release (see release procedure). */
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.1.2',
+    date: '2026-07-07',
+    notes: [
+      'About dialog now shows only the current release notes, with a cleaner minimalist scrollbar.',
+      'Faster releases: automated builds are Windows-only for now.',
+      'Auto-update verification release.'
+    ]
+  },
+  {
     version: '0.1.1',
     date: '2026-07-07',
     notes: [
