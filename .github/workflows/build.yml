@@ -1,8 +1,10 @@
 # Builds installers for Windows and macOS.
-# - Push a v* tag  -> builds AND publishes a GitHub Release (auto-update feed).
+# - Push a v* tag  -> builds AND publishes/updates the GitHub Release (auto-update feed).
 # - Manual run     -> builds artifacts only (no release).
-# Jobs are serialized (mac waits for windows) so both publish into ONE release
-# instead of racing to create it.
+#
+# Publishing uses `gh release` instead of electron-builder's publisher:
+# electron-builder can't append to an already-published release (it silently
+# creates an orphaned draft), while `gh release upload --clobber` is idempotent.
 name: Build
 
 on:
@@ -23,9 +25,15 @@ jobs:
         with:
           node-version: 22
       - run: npm ci
-      - run: npm run dist -- --publish ${{ startsWith(github.ref, 'refs/tags/') && 'always' || 'never' }}
+      - run: npm run dist -- --publish never
+      - name: Publish release (create + upload Windows assets)
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --generate-notes || true
+          gh release upload "$GITHUB_REF_NAME" dist/*.exe dist/*.exe.blockmap dist/latest.yml --clobber
       - uses: actions/upload-artifact@v4
         with:
           name: windows-installer
@@ -42,9 +50,13 @@ jobs:
         with:
           node-version: 22
       - run: npm ci
-      - run: npm run dist -- --publish ${{ startsWith(github.ref, 'refs/tags/') && 'always' || 'never' }}
+      - run: npm run dist -- --publish never
+      - name: Upload macOS assets to the release
+        if: startsWith(github.ref, 'refs/tags/')
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload "$GITHUB_REF_NAME" dist/*.dmg dist/*.dmg.blockmap dist/*-mac.zip dist/latest-mac.yml --clobber
       - uses: actions/upload-artifact@v4
         with:
           name: mac-installer
