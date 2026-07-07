@@ -33,6 +33,10 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --generate-notes || true
+          # drop stale dotted-name assets from pre-artifactName-fix uploads (no-op otherwise)
+          v="${GITHUB_REF_NAME#v}"
+          gh release delete-asset "$GITHUB_REF_NAME" "LightClaude.Setup.$v.exe" -y || true
+          gh release delete-asset "$GITHUB_REF_NAME" "LightClaude.Setup.$v.exe.blockmap" -y || true
           gh release upload "$GITHUB_REF_NAME" dist/*.exe dist/*.exe.blockmap dist/latest.yml --clobber
       - uses: actions/upload-artifact@v4
         with:
