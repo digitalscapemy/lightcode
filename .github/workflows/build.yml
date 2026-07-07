@@ -1,4 +1,4 @@
-# Builds installers for Windows and macOS.
+# Builds the Windows installer.
 # - Push a v* tag  -> builds AND publishes/updates the GitHub Release (auto-update feed).
 # - Manual run     -> builds artifacts only (no release).
 #
@@ -33,10 +33,6 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --generate-notes || true
-          # drop stale dotted-name assets from pre-artifactName-fix uploads (no-op otherwise)
-          v="${GITHUB_REF_NAME#v}"
-          gh release delete-asset "$GITHUB_REF_NAME" "LightClaude.Setup.$v.exe" -y || true
-          gh release delete-asset "$GITHUB_REF_NAME" "LightClaude.Setup.$v.exe.blockmap" -y || true
           gh release upload "$GITHUB_REF_NAME" dist/*.exe dist/*.exe.blockmap dist/latest.yml --clobber
       - uses: actions/upload-artifact@v4
         with:
@@ -44,27 +40,3 @@ jobs:
           path: |
             dist/*.exe
             dist/latest.yml
-
-  mac:
-    needs: windows
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-      - run: npm ci
-      - run: npm run dist -- --publish never
-      - name: Upload macOS assets to the release
-        if: startsWith(github.ref, 'refs/tags/')
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh release upload "$GITHUB_REF_NAME" dist/*.dmg dist/*.dmg.blockmap dist/*.zip dist/latest-mac.yml --clobber
-      - uses: actions/upload-artifact@v4
-        with:
-          name: mac-installer
-          path: |
-            dist/*.dmg
-            dist/*.zip
-            dist/latest-mac.yml
