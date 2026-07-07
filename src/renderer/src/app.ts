@@ -102,7 +102,7 @@ export function activateTab(tabId: string): void {
   for (const [id, view] of tabViews) view.style.display = id === tabId ? '' : 'none'
   renderTabs()
   const tab = activeTab()
-  document.title = tab ? `LightClaude — ${tab.name}` : 'LightClaude'
+  document.title = tab ? `Light Code — ${tab.name}` : 'Light Code'
   requestAnimationFrame(() => {
     const current = activeTab()
     if (!current || current.id !== tabId) return
@@ -152,7 +152,7 @@ export function closeTab(tabId: string): void {
     } else {
       state.activeTabId = null
       renderTabs()
-      document.title = 'LightClaude'
+      document.title = 'Light Code'
     }
   } else {
     renderTabs()
@@ -166,7 +166,7 @@ export function renameTab(tabId: string, name: string): void {
   if (!tab) return
   tab.name = name
   renderTabs()
-  if (tab.id === state.activeTabId) document.title = `LightClaude — ${tab.name}`
+  if (tab.id === state.activeTabId) document.title = `Light Code — ${tab.name}`
   persist()
 }
 

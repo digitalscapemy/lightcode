@@ -17,6 +17,10 @@ import { loadState, saveState } from './stateStore'
 import { initUpdater, scheduleUpdateCheck } from './updater'
 import { UsageWatcher } from './usageWatcher'
 
+// Keep the pre-rename app name so userData stays %APPDATA%\lightclaude —
+// renaming it would silently abandon existing state.json and shortcuts.json.
+app.setName('lightclaude')
+
 const usageWatcher = new UsageWatcher()
 const ptyManager = new PtyManager(usageWatcher)
 let mainWindow: BrowserWindow | null = null

@@ -1,5 +1,7 @@
+# appId deliberately unchanged after the "Light Code" rename: NSIS decides
+# "same app, replace it" by appId, so keeping it lets old installs update over.
 appId: com.mikhail.lightclaude
-productName: LightClaude
+productName: Light Code
 publish:
   provider: github
   owner: digitalscapemy
@@ -17,16 +19,17 @@ win:
   icon: build/icon.png
   target: nsis
   # no spaces: GitHub rewrites them in asset names, breaking latest.yml lookups
-  artifactName: ${productName}-Setup-${version}.${ext}
+  artifactName: LightCode-Setup-${version}.${ext}
 nsis:
   oneClick: true
-  shortcutName: LightClaude
+  shortcutName: Light Code
 mac:
   icon: build/icon.png
   category: public.app-category.developer-tools
   target:
     - dmg
     - zip
+  artifactName: LightCode-${version}-${arch}.${ext}
   # unsigned build (no Apple Developer account): users right-click > Open,
-  # or run `xattr -cr /Applications/LightClaude.app` once
+  # or run `xattr -cr "/Applications/Light Code.app"` once
   identity: null

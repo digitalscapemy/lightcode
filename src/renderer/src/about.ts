@@ -47,10 +47,10 @@ function openModal(): void {
   const logo = document.createElement('img')
   logo.className = 'about-logo'
   logo.src = './logo.png'
-  logo.alt = 'LightClaude'
+  logo.alt = 'Light Code'
   const name = document.createElement('div')
   name.className = 'about-name'
-  name.textContent = 'LightClaude'
+  name.textContent = 'Light Code'
   const ver = document.createElement('div')
   ver.className = 'about-version'
   ver.textContent = `v${version}`
