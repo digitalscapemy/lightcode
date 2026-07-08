@@ -4,6 +4,7 @@ import { IPC } from '../shared/ipc'
 import type {
   LightClaudeApi,
   SpawnOptions,
+  StatusUpdate,
   UpdateAvailableInfo,
   UpdateProgressInfo,
   UsageUpdate
@@ -46,6 +47,11 @@ const api: LightClaudeApi = {
       const listener = (_e: IpcRendererEvent, update: UsageUpdate): void => cb(update)
       ipcRenderer.on(IPC.UsageUpdate, listener)
       return () => ipcRenderer.removeListener(IPC.UsageUpdate, listener)
+    },
+    onStatus: (cb) => {
+      const listener = (_e: IpcRendererEvent, update: StatusUpdate): void => cb(update)
+      ipcRenderer.on(IPC.UsageStatus, listener)
+      return () => ipcRenderer.removeListener(IPC.UsageStatus, listener)
     }
   },
   clipboard: {

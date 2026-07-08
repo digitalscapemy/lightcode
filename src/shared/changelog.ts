@@ -9,6 +9,16 @@ export const DEVELOPER = 'Digital Scape MY'
 /** Newest first. Add an entry on every release (see release procedure). */
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.2.0',
+    date: '2026-07-08',
+    notes: [
+      'Mission Control (Ctrl+Shift+M): one panel showing every running Claude session — live status (working / waiting for you / needs approval), model, context fill, tokens, last tool and idle time. Click a row to jump straight to that pane.',
+      'Per-pane and per-tab status indicators, plus desktop notifications when Claude finishes a turn or gets blocked on a permission prompt.',
+      'Broadcast input: tick target panes in Mission Control and send one command to all of them at once.',
+      'Auto-continue babysitter: opt in per pane to keep long autonomous runs going — it nudges Claude when a turn ends, never auto-approves permission prompts, and stands down after a few nudges.'
+    ]
+  },
+  {
     version: '0.1.2',
     date: '2026-07-07',
     notes: [

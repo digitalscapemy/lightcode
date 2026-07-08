@@ -1,5 +1,5 @@
 import type { TabState } from '../../shared/types'
-import { state } from './store'
+import { state, tabStatus } from './store'
 
 export interface TabBarCallbacks {
   onActivate(tabId: string): void
@@ -40,6 +40,7 @@ export function renderTabs(): void {
     }
     el.classList.toggle('active', tab.id === state.activeTabId)
     if (el.title !== tab.projectPath) el.title = tab.projectPath
+    applyTabStatus(el, tab)
     const label = el.querySelector('.tab-label')
     // Only touch the text node when it actually changed — replacing it between
     // two clicks resets the browser's double-click counter.
@@ -58,6 +59,10 @@ function makeTabEl(tab: TabState): HTMLElement {
   el.className = 'tab' + (tab.id === state.activeTabId ? ' active' : '')
   el.dataset['tabId'] = tab.id
   el.title = tab.projectPath
+
+  const dot = document.createElement('span')
+  dot.className = 'tab-status'
+  el.appendChild(dot)
 
   const label = document.createElement('span')
   label.className = 'tab-label'
@@ -90,6 +95,23 @@ function makeTabEl(tab: TabState): HTMLElement {
   )
 
   return el
+}
+
+/** Colour a tab's status dot by the most attention-worthy pane inside it. */
+function applyTabStatus(el: HTMLElement, tab: TabState): void {
+  const dot = el.querySelector<HTMLElement>('.tab-status')
+  if (!dot) return
+  const status = tabStatus(tab)
+  if (status === 'idle') dot.removeAttribute('data-status')
+  else dot.dataset['status'] = status
+}
+
+/** Re-colour every tab's status dot in place (called on status ticks). */
+export function refreshTabStatuses(): void {
+  for (const [id, el] of tabEls) {
+    const tab = state.tabs.find((t) => t.id === id)
+    if (tab) applyTabStatus(el, tab)
+  }
 }
 
 /**

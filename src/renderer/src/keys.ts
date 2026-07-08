@@ -1,4 +1,9 @@
-export type ShortcutAction = 'split-right' | 'split-down' | 'new-tab' | 'close-pane'
+export type ShortcutAction =
+  | 'split-right'
+  | 'split-down'
+  | 'new-tab'
+  | 'close-pane'
+  | 'mission-control'
 
 const isMac = window.lightclaude.platform === 'darwin'
 
@@ -16,6 +21,8 @@ export function matchShortcut(e: KeyboardEvent): ShortcutAction | null {
       return 'new-tab'
     case 'KeyW':
       return 'close-pane'
+    case 'KeyM':
+      return 'mission-control'
     default:
       return null
   }

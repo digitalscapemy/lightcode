@@ -352,6 +352,81 @@ body.tab-dragging * {
   white-space: nowrap;
 }
 
+/* ---------- Claude activity status ---------- */
+
+:root {
+  --status-working: #3fb950;
+  --status-waiting-input: #d29922;
+  --status-waiting-approval: #f85149;
+}
+
+.pane-status {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: var(--fg-muted);
+  white-space: nowrap;
+}
+
+.pane-status::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--fg-muted);
+  flex: 0 0 auto;
+}
+
+.pane-status[data-status='working']::before {
+  background: var(--status-working);
+}
+
+.pane-status[data-status='waiting-input']::before {
+  background: var(--status-waiting-input);
+}
+
+.pane-status[data-status='waiting-approval']::before {
+  background: var(--status-waiting-approval);
+  animation: status-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes status-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+/* Tab dot — the most attention-worthy pane status inside the tab. */
+.tab-status {
+  flex: 0 0 auto;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+}
+
+.tab-status:not([data-status]) {
+  display: none;
+}
+
+.tab-status[data-status='working'] {
+  background: var(--status-working);
+}
+
+.tab-status[data-status='waiting-input'] {
+  background: var(--status-waiting-input);
+}
+
+.tab-status[data-status='waiting-approval'] {
+  background: var(--status-waiting-approval);
+  animation: status-pulse 1.6s ease-in-out infinite;
+}
+
 .pane-rename {
   flex: 1;
   min-width: 0;
@@ -896,4 +971,269 @@ body.tab-dragging * {
 
 #empty-open:hover {
   border-color: var(--accent);
+}
+
+/* ---------- Mission Control ---------- */
+
+#mission-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.5);
+}
+
+.mission-modal {
+  width: 680px;
+  max-width: calc(100vw - 48px);
+  max-height: calc(100vh - 80px);
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.55);
+}
+
+.mission-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+  color: var(--fg);
+}
+
+.mission-close {
+  border: none;
+  background: transparent;
+  color: var(--fg-muted);
+  font-size: 16px;
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.mission-close:hover {
+  background: var(--tab-hover);
+  color: var(--fg);
+}
+
+.mission-toolbar {
+  display: flex;
+  gap: 6px;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.mission-list {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: 6px 8px;
+  min-height: 80px;
+}
+
+.mission-group {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--fg-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 8px 6px 4px;
+}
+
+.mission-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 6px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.mission-row:hover {
+  background: var(--tab-hover);
+}
+
+.mission-check {
+  flex: 0 0 auto;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.mission-dot {
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--fg-muted);
+}
+
+.mission-dot[data-status='working'] {
+  background: var(--status-working);
+}
+
+.mission-dot[data-status='waiting-input'] {
+  background: var(--status-waiting-input);
+}
+
+.mission-dot[data-status='waiting-approval'] {
+  background: var(--status-waiting-approval);
+  animation: status-pulse 1.6s ease-in-out infinite;
+}
+
+.mission-name {
+  flex: 0 0 auto;
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--fg);
+  font-size: 12px;
+}
+
+.mission-project {
+  flex: 0 0 auto;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--fg-muted);
+  font-size: 11px;
+}
+
+.mission-meta {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--fg-muted);
+  font-size: 11px;
+  font-family: 'Cascadia Mono', Consolas, monospace;
+}
+
+.mission-elapsed {
+  flex: 0 0 auto;
+  color: var(--fg-muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.mission-baby {
+  flex: 0 0 auto;
+  border: 1px solid transparent;
+  background: transparent;
+  border-radius: 6px;
+  padding: 2px 6px;
+  font-size: 11px;
+  line-height: 1.4;
+  cursor: pointer;
+  filter: grayscale(1) opacity(0.5);
+}
+
+.mission-baby:hover {
+  background: var(--border);
+}
+
+.mission-baby.on {
+  filter: none;
+  border-color: var(--accent);
+  color: var(--fg);
+}
+
+.mission-empty {
+  padding: 24px 12px;
+  text-align: center;
+  color: var(--fg-muted);
+  font-size: 12px;
+}
+
+.mission-compose {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-top: 1px solid var(--border);
+}
+
+.mission-compose-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  font: inherit;
+  font-size: 12px;
+  font-family: 'Cascadia Mono', Consolas, monospace;
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 6px 8px;
+  outline: none;
+}
+
+.mission-compose-input:focus {
+  border-color: var(--accent);
+}
+
+.mission-count {
+  flex: 0 0 auto;
+  font-size: 11px;
+  color: var(--fg-muted);
+}
+
+.mission-primary,
+.mission-secondary {
+  font: inherit;
+  font-size: 12px;
+  border-radius: 4px;
+  padding: 4px 12px;
+  cursor: pointer;
+}
+
+.mission-primary {
+  flex: 0 0 auto;
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: #ffffff;
+}
+
+.mission-primary:hover:not(:disabled) {
+  filter: brightness(1.15);
+}
+
+.mission-primary:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.mission-secondary {
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--fg-muted);
+}
+
+.mission-secondary:hover {
+  background: var(--tab-hover);
+  color: var(--fg);
+}
+
+.mission-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.mission-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.mission-list::-webkit-scrollbar-thumb {
+  background: #3a3a3a;
+  border-radius: 3px;
+}
+
+.mission-list::-webkit-scrollbar-thumb:hover {
+  background: #555555;
 }

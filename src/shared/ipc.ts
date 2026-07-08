@@ -30,6 +30,7 @@ export const IPC = {
   UpdateDownloaded: 'update:downloaded',
   UpdateError: 'update:error',
   UsageUpdate: 'usage:update',
+  UsageStatus: 'usage:status',
   ClipboardPaste: 'clipboard:paste',
   WinMinimize: 'win:minimize',
   WinMaximize: 'win:maximize',
@@ -65,6 +66,27 @@ export interface UsageUpdate {
   totals: UsageTotals
   /** Last main-thread assistant message: input + cache read + cache write. */
   contextTokens: number
+}
+
+/**
+ * Live activity state of the Claude Code session assigned to a pane, derived
+ * from its transcript (see usageWatcher):
+ *  - `working`          — transcript appended within the last few seconds.
+ *  - `waiting-input`    — last assistant turn ended (end_turn/stop_sequence);
+ *                         Claude is idle, awaiting the user's next prompt.
+ *  - `waiting-approval` — last assistant message requested a tool that hasn't
+ *                         run — Claude is blocked on a permission prompt.
+ *  - `idle`             — no active session / neutral.
+ */
+export type PaneStatus = 'working' | 'waiting-input' | 'waiting-approval' | 'idle'
+
+export interface StatusUpdate {
+  paneId: string
+  status: PaneStatus
+  /** Name of the most recent tool Claude invoked (Edit/Bash/…), if any. */
+  lastTool: string | null
+  /** Timestamp (ms) of the last transcript change for this session. */
+  lastActivity: number
 }
 
 export interface UpdateAvailableInfo {
@@ -112,6 +134,8 @@ export interface LightClaudeApi {
   }
   usage: {
     onUpdate(cb: (update: UsageUpdate) => void): () => void
+    /** Live per-pane Claude activity state (working / waiting / idle). */
+    onStatus(cb: (update: StatusUpdate) => void): () => void
   }
   clipboard: {
     paste(): Promise<ClipboardPasteResult>

@@ -3,6 +3,7 @@ import './styles.css'
 import * as app from './app'
 import { initAboutUi } from './about'
 import { initShortcuts } from './keys'
+import { openMission, toggleMissionControl } from './missionControl'
 import { initShortcutsUi } from './shortcuts'
 import { initUpdateToast } from './toast'
 import { flushPersist, persist, state } from './store'
@@ -48,6 +49,7 @@ async function boot(): Promise<void> {
   window.lightclaude.pty.onExit((paneId, code) => app.panes.get(paneId)?.showExitOverlay(code))
   window.lightclaude.pty.onCwd((paneId, cwd) => app.setPaneCwd(paneId, cwd))
   window.lightclaude.usage.onUpdate((u) => app.applyUsage(u))
+  window.lightclaude.usage.onStatus((u) => app.applyStatus(u))
 
   window.lightclaude.state.onFlushRequest(() => {
     void flushPersist().finally(() => window.lightclaude.state.flushDone())
@@ -59,8 +61,13 @@ async function boot(): Promise<void> {
     'new-tab': () => void app.addTab(),
     'close-pane': () => {
       if (state.focusedPaneId) app.closePane(state.focusedPaneId)
-    }
+    },
+    'mission-control': () => toggleMissionControl()
   })
+
+  document
+    .getElementById('mission-btn')!
+    .addEventListener('click', () => openMission())
 
   const home = await window.lightclaude.homedir()
   app.setDefaultCwd(home)

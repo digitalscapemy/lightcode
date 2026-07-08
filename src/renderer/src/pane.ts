@@ -1,10 +1,19 @@
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { WebglAddon } from '@xterm/addon-webgl'
+import { isBabysitterOn, toggleBabysitter } from './babysitter'
 import { isAppShortcut } from './keys'
 import { xtermTheme } from './theme'
 
+import type { PaneStatus } from '../../shared/ipc'
 import type { Orientation } from '../../shared/types'
+
+const STATUS_LABEL: Record<PaneStatus, string> = {
+  working: 'Claude working',
+  'waiting-input': 'Waiting for you',
+  'waiting-approval': 'Needs approval',
+  idle: 'Idle'
+}
 
 export interface PaneCallbacks {
   onCloseRequest(paneId: string): void
@@ -14,6 +23,8 @@ export interface PaneCallbacks {
   isMaximized(paneId: string): boolean
   /** Null clears the custom name and resumes shell titles. */
   onRename(paneId: string, name: string | null): void
+  /** A human keystroke reached the terminal (resets the babysitter counter). */
+  onManualInput?(paneId: string): void
 }
 
 /** PowerShell's default window titles are long paths — shorten the noise. */
@@ -35,6 +46,7 @@ export class TerminalPane {
   private loading: HTMLElement | null = null
   private body: HTMLElement
   private titleEl: HTMLElement
+  private statusEl: HTMLElement
   private usageEl: HTMLElement
   private menuBtn: HTMLElement
   private customName: string | null = null
@@ -54,6 +66,9 @@ export class TerminalPane {
     this.titleEl = document.createElement('span')
     this.titleEl.className = 'pane-title'
     this.titleEl.textContent = window.lightclaude.platform === 'win32' ? 'PowerShell' : 'Terminal'
+    this.statusEl = document.createElement('span')
+    this.statusEl.className = 'pane-status'
+    this.statusEl.hidden = true
     this.usageEl = document.createElement('span')
     this.usageEl.className = 'pane-usage'
     this.usageEl.hidden = true
@@ -74,7 +89,7 @@ export class TerminalPane {
       e.stopPropagation()
       this.callbacks.onCloseRequest(this.id)
     })
-    header.append(this.titleEl, this.usageEl, menuBtn, killBtn)
+    header.append(this.titleEl, this.statusEl, this.usageEl, menuBtn, killBtn)
 
     this.body = document.createElement('div')
     this.body.className = 'pane-body'
@@ -111,7 +126,10 @@ export class TerminalPane {
       return true
     })
     this.term.open(this.body)
-    this.term.onData((data) => window.lightclaude.pty.write(this.id, data))
+    this.term.onData((data) => {
+      window.lightclaude.pty.write(this.id, data)
+      this.callbacks.onManualInput?.(this.id)
+    })
     this.term.onResize(({ cols, rows }) => window.lightclaude.pty.resize(this.id, cols, rows))
     this.term.onTitleChange((title) => {
       const tidy = tidyTitle(title)
@@ -204,6 +222,10 @@ export class TerminalPane {
       {
         label: this.callbacks.isMaximized(this.id) ? 'Restore Pane' : 'Maximize Pane',
         action: () => this.callbacks.onToggleMaximize(this.id)
+      },
+      {
+        label: isBabysitterOn(this.id) ? 'Auto-continue: On' : 'Auto-continue: Off',
+        action: () => void toggleBabysitter(this.id)
       }
     ]
     for (const { label, action } of items) {
@@ -245,6 +267,11 @@ export class TerminalPane {
     this.titleEl.textContent = name ?? this.autoTitle
   }
 
+  /** Current display title (custom name or the live shell title). */
+  label(): string {
+    return this.customName ?? this.autoTitle
+  }
+
   /** Inline title edit, mirroring the tab-rename flow. */
   private beginRename(): void {
     if (this.el.querySelector('.pane-rename')) return
@@ -282,6 +309,25 @@ export class TerminalPane {
     this.usageEl.hidden = text === null
     this.usageEl.textContent = text ?? ''
     this.usageEl.title = tooltip
+  }
+
+  /** Claude activity pill; the dot colour carries the state, text stays terse. */
+  setStatus(status: PaneStatus | null, lastTool: string | null = null): void {
+    if (!status || status === 'idle') {
+      this.statusEl.hidden = true
+      this.statusEl.textContent = ''
+      delete this.statusEl.dataset['status']
+      return
+    }
+    this.statusEl.hidden = false
+    this.statusEl.dataset['status'] = status
+    this.statusEl.textContent =
+      status === 'waiting-approval'
+        ? 'needs approval'
+        : status === 'waiting-input'
+          ? 'waiting'
+          : (lastTool?.toLowerCase() ?? '')
+    this.statusEl.title = STATUS_LABEL[status] + (lastTool ? ` · ${lastTool}` : '')
   }
 
   private async pasteClipboard(): Promise<void> {

@@ -1,3 +1,4 @@
+import type { PaneStatus, StatusUpdate, UsageUpdate } from '../../shared/ipc'
 import type { PersistedState, TabState } from '../../shared/types'
 
 export interface AppState {
@@ -10,6 +11,29 @@ export const state: AppState = {
   tabs: [],
   activeTabId: null,
   focusedPaneId: null
+}
+
+/** Latest Claude activity state per pane (ephemeral — never persisted). */
+export const paneStatus = new Map<string, StatusUpdate>()
+
+/** Latest token usage per pane (ephemeral — mirrors what the badge shows). */
+export const paneUsage = new Map<string, UsageUpdate>()
+
+const STATUS_RANK: Record<PaneStatus, number> = {
+  'waiting-approval': 3,
+  'waiting-input': 2,
+  working: 1,
+  idle: 0
+}
+
+/** The most attention-worthy status across a tab's panes (drives the tab dot). */
+export function tabStatus(tab: TabState): PaneStatus {
+  let best: PaneStatus = 'idle'
+  for (const id of collectPaneIds(tab)) {
+    const s = paneStatus.get(id)?.status
+    if (s && STATUS_RANK[s] > STATUS_RANK[best]) best = s
+  }
+  return best
 }
 
 export function newId(prefix: string): string {

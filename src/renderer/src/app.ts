@@ -1,11 +1,12 @@
-import type { UsageUpdate } from '../../shared/ipc'
+import type { PaneStatus, StatusUpdate, UsageUpdate } from '../../shared/ipc'
 import type { LayoutNode, Orientation, PersistedState, TabState } from '../../shared/types'
+import { forgetPane as forgetBabysitter, handleStatusChange, noteManualInput } from './babysitter'
 import { renderLayout } from './layout'
 import { TerminalPane } from './pane'
 import type { PaneCallbacks } from './pane'
-import { activeTab, newId, persist, state, tabOfPane } from './store'
+import { activeTab, newId, paneStatus, paneUsage, persist, state, tabOfPane } from './store'
 import { firstPaneId, paneIds, paneNodes, removePane, splitPane } from './splitTree'
-import { renderTabs } from './tabbar'
+import { refreshTabStatuses, renderTabs } from './tabbar'
 
 export const panes = new Map<string, TerminalPane>()
 const tabViews = new Map<string, HTMLElement>()
@@ -28,7 +29,8 @@ const paneCallbacks: PaneCallbacks = {
   onSplit: (paneId, orientation, before) => void splitAt(paneId, orientation, before),
   onToggleMaximize: (paneId) => toggleMaximizePane(paneId),
   isMaximized: (paneId) => maximizedPane.get(tabOfPane(paneId)?.id ?? '') === paneId,
-  onRename: (paneId, name) => renamePane(paneId, name)
+  onRename: (paneId, name) => renamePane(paneId, name),
+  onManualInput: (paneId) => noteManualInput(paneId)
 }
 
 function createPane(paneId: string, cwd: string): TerminalPane {
@@ -138,6 +140,10 @@ export function closeTab(tabId: string): void {
   for (const pid of paneIds(tab.layout)) {
     panes.get(pid)?.dispose()
     panes.delete(pid)
+    paneStatus.delete(pid)
+    paneUsage.delete(pid)
+    lastNotified.delete(pid)
+    forgetBabysitter(pid)
   }
   tabViews.get(tabId)?.remove()
   tabViews.delete(tabId)
@@ -250,6 +256,10 @@ export function closePane(paneId: string): void {
   maximizedPane.delete(tab.id)
   panes.get(paneId)?.dispose()
   panes.delete(paneId)
+  paneStatus.delete(paneId)
+  paneUsage.delete(paneId)
+  lastNotified.delete(paneId)
+  forgetBabysitter(paneId)
 
   const newLayout = removePane(tab.layout, paneId)
   if (!newLayout) {
@@ -282,6 +292,7 @@ function regenPaneIds(node: LayoutNode): LayoutNode {
 export function applyUsage(u: UsageUpdate): void {
   const pane = panes.get(u.paneId)
   if (!pane) return
+  paneUsage.set(u.paneId, u)
   const total = u.totals.input + u.totals.output + u.totals.cacheRead + u.totals.cacheCreate
   const win = contextWindowFor(u.model)
   const text =
@@ -299,7 +310,68 @@ export function applyUsage(u: UsageUpdate): void {
   pane.setUsage(text, tooltip)
 }
 
-function fmtTokens(n: number): string {
+// ---------- Claude activity status ----------
+
+const lastNotified = new Map<string, number>()
+const NOTIFY_COOLDOWN_MS = 5000
+
+/** Bring a pane into view and focus it (used by clicks / notifications). */
+export function focusPane(paneId: string): void {
+  const tab = tabOfPane(paneId)
+  if (!tab) return
+  lastFocusedInTab.set(tab.id, paneId)
+  if (state.activeTabId !== tab.id) activateTab(tab.id)
+  else panes.get(paneId)?.focus()
+}
+
+/** Human label for a pane in notifications — its tab name. */
+function paneLabel(paneId: string): string {
+  return tabOfPane(paneId)?.name ?? 'Claude'
+}
+
+/** Central status sink: updates the pane pill, tab dot, notifications, babysitter. */
+export function applyStatus(u: StatusUpdate): void {
+  if (!panes.has(u.paneId)) return
+  const prev = paneStatus.get(u.paneId)?.status
+  paneStatus.set(u.paneId, u)
+  panes.get(u.paneId)?.setStatus(u.status, u.lastTool)
+  refreshTabStatuses()
+  maybeNotify(prev, u)
+  handleStatusChange(u.paneId, u.status)
+}
+
+/** OS notification when Claude transitions from working to a waiting state. */
+function maybeNotify(prev: PaneStatus | undefined, u: StatusUpdate): void {
+  if (u.status !== 'waiting-input' && u.status !== 'waiting-approval') return
+  if (prev !== 'working') return // only fire on the working → waiting edge
+  // Don't nag when the user is already looking right at this pane.
+  const tab = tabOfPane(u.paneId)
+  if (document.hasFocus() && tab?.id === state.activeTabId) return
+  const now = Date.now()
+  if (now - (lastNotified.get(u.paneId) ?? 0) < NOTIFY_COOLDOWN_MS) return
+  lastNotified.set(u.paneId, now)
+
+  const name = paneLabel(u.paneId)
+  const title =
+    u.status === 'waiting-approval' ? `${name} — needs approval` : `${name} — waiting for you`
+  const body =
+    u.status === 'waiting-approval'
+      ? u.lastTool
+        ? `Claude wants to run ${u.lastTool}`
+        : 'Claude is waiting for a permission'
+      : 'Claude finished its turn'
+  try {
+    const n = new Notification(title, { body, silent: false })
+    n.onclick = (): void => {
+      window.focus()
+      focusPane(u.paneId)
+    }
+  } catch {
+    // Notifications unavailable / not permitted — status pill still shows it.
+  }
+}
+
+export function fmtTokens(n: number): string {
   if (n < 1000) return String(n)
   if (n < 1e6) return `${Math.round(n / 1000)}k`
   return `${(n / 1e6).toFixed(1)}M`
@@ -310,7 +382,7 @@ function fmtTokens(n: number): string {
  * current-generation models are 1M — Fable/Mythos 5, Opus 4.6+, Sonnet 4.6+
  * and Sonnet 5 — while Haiku and older generations are 200K.
  */
-function contextWindowFor(model: string | null): number {
+export function contextWindowFor(model: string | null): number {
   if (!model) return 200_000
   const m = model.toLowerCase()
   if (m.includes('[1m]') || m.includes('fable') || m.includes('mythos')) return 1_000_000
