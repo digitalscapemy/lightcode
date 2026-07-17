@@ -288,26 +288,42 @@ function regenPaneIds(node: LayoutNode): LayoutNode {
 
 // ---------- Token usage badges ----------
 
-/** Each pane shows its OWN session — main attributes sessions per pane. */
+/**
+ * Each pane shows its OWN session — main attributes sessions per pane.
+ *
+ * The badge shows context fill, and only that. It used to lead with the sum of
+ * every token ever billed, but ~99% of that is cache reads — the same cached
+ * prefix re-counted every turn — so it climbed into the hundreds of millions
+ * and measured nothing. Context is the thing that actually runs out.
+ */
 export function applyUsage(u: UsageUpdate): void {
   const pane = panes.get(u.paneId)
   if (!pane) return
   paneUsage.set(u.paneId, u)
-  const total = u.totals.input + u.totals.output + u.totals.cacheRead + u.totals.cacheCreate
   const win = contextWindowFor(u.model)
   const text =
     u.contextTokens > 0
-      ? `${fmtTokens(total)} · ${fmtTokens(u.contextTokens)}/${fmtTokens(win)}`
-      : fmtTokens(total)
+      ? `${fmtTokens(u.contextTokens)}/${fmtTokens(win)} · ${Math.round((u.contextTokens / win) * 100)}%`
+      : null
   const tooltip =
     `Session ${u.sessionId}\n` +
-    `in ${u.totals.input.toLocaleString()} · out ${u.totals.output.toLocaleString()} · ` +
-    `cache read ${u.totals.cacheRead.toLocaleString()} · cache write ${u.totals.cacheCreate.toLocaleString()}` +
     (u.contextTokens > 0
-      ? `\ncontext ${u.contextTokens.toLocaleString()} / ${win.toLocaleString()}`
+      ? `context ${u.contextTokens.toLocaleString()} / ${win.toLocaleString()}\n`
       : '') +
+    `in ${u.totals.input.toLocaleString()} · out ${u.totals.output.toLocaleString()}\n` +
+    `cache read ${u.totals.cacheRead.toLocaleString()} · cache write ${u.totals.cacheCreate.toLocaleString()}` +
     (u.model ? `\n${u.model}` : '')
   pane.setUsage(text, tooltip)
+}
+
+/** The session behind this pane is gone — drop every trace of it. */
+export function clearPaneSignals(paneId: string): void {
+  paneStatus.delete(paneId)
+  paneUsage.delete(paneId)
+  const pane = panes.get(paneId)
+  pane?.setStatus(null)
+  pane?.setUsage(null)
+  refreshTabStatuses()
 }
 
 // ---------- Claude activity status ----------

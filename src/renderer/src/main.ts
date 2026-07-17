@@ -46,7 +46,10 @@ async function boot(): Promise<void> {
     .addEventListener('click', () => window.lightclaude.window.close())
 
   window.lightclaude.pty.onData((paneId, data) => app.panes.get(paneId)?.write(data))
-  window.lightclaude.pty.onExit((paneId, code) => app.panes.get(paneId)?.showExitOverlay(code))
+  window.lightclaude.pty.onExit((paneId, code) => {
+    app.panes.get(paneId)?.showExitOverlay(code)
+    app.clearPaneSignals(paneId) // the dot/badge would otherwise outlive the session
+  })
   window.lightclaude.pty.onCwd((paneId, cwd) => app.setPaneCwd(paneId, cwd))
   window.lightclaude.usage.onUpdate((u) => app.applyUsage(u))
   window.lightclaude.usage.onStatus((u) => app.applyStatus(u))

@@ -15,8 +15,12 @@ import { paneStatus } from './store'
  */
 
 const MAX_NUDGES = 5
-/** Grace period after a turn ends before nudging (main already waited ~4s). */
-const IDLE_THRESHOLD_MS = 8000
+/**
+ * Grace period after a turn ends before nudging. This is the whole wait: main
+ * now reports `waiting-input` the moment the stop_reason lands, where it used
+ * to sit on a ~4s timer first.
+ */
+const IDLE_THRESHOLD_MS = 12_000
 export const DEFAULT_NUDGE = 'continue'
 
 interface Sitter {

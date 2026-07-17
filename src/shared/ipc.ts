@@ -71,12 +71,18 @@ export interface UsageUpdate {
 /**
  * Live activity state of the Claude Code session assigned to a pane, derived
  * from its transcript (see usageWatcher):
- *  - `working`          — transcript appended within the last few seconds.
+ *  - `working`          — a turn is under way: the prompt or a tool_result has
+ *                         landed and no terminal stop_reason has yet.
  *  - `waiting-input`    — last assistant turn ended (end_turn/stop_sequence);
  *                         Claude is idle, awaiting the user's next prompt.
- *  - `waiting-approval` — last assistant message requested a tool that hasn't
- *                         run — Claude is blocked on a permission prompt.
+ *  - `waiting-approval` — Claude is blocked on a permission prompt.
  *  - `idle`             — no active session / neutral.
+ *
+ * NOTE: `waiting-approval` is never derived from the transcript, because it
+ * cannot be: a permission prompt and a ten-minute build are byte-identical
+ * there (tool_use, then silence). Guessing from silence made the red dot wrong
+ * ~19% of wall-clock. The variant is kept for consumers (babysitter,
+ * notifications) and awaits an honest source — Claude Code's Notification hook.
  */
 export type PaneStatus = 'working' | 'waiting-input' | 'waiting-approval' | 'idle'
 

@@ -257,9 +257,9 @@ function metaText(
       const pct = Math.round((usage.contextTokens / contextWindowFor(usage.model)) * 100)
       parts.push(`ctx ${pct}%`)
     }
-    const total =
-      usage.totals.input + usage.totals.output + usage.totals.cacheRead + usage.totals.cacheCreate
-    if (total > 0) parts.push(fmtTokens(total))
+    // Output tokens, not the all-in sum: that sum is ~99% cache reads (the same
+    // prefix re-counted each turn) and reaches hundreds of millions saying nothing.
+    if (usage.totals.output > 0) parts.push(`out ${fmtTokens(usage.totals.output)}`)
   }
   return parts.join('  ·  ')
 }

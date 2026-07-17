@@ -9,6 +9,18 @@ export const DEVELOPER = 'Digital Scape MY'
 /** Newest first. Add an entry on every release (see release procedure). */
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.2.1',
+    date: '2026-07-17',
+    notes: [
+      'Fixed tabs getting stuck or disappearing when dragged — most often when flicking a tab from the far right while the machine was under load. A drag that lost its pointer left the tab stranded off-screen for good; drags now always clean up after themselves, and reordering no longer thrashes the layout.',
+      'The status indicator now follows the conversation instead of guessing from silence. It stays green for as long as Claude is actually working — including long builds and test runs — and turns amber the moment a turn ends, in a fraction of a second rather than several.',
+      'Removed the red "needs approval" indicator: a permission prompt and a slow tool look identical in the session transcript, so it was frequently wrong. It will return when there is a signal worth trusting.',
+      'The status dot and token badge now clear when a session ends, instead of staying lit forever.',
+      'The token badge now shows context fill — the number that actually runs out. The old headline was mostly cache reads re-counted every turn, which climbed into the millions and measured nothing; the full breakdown moved to the tooltip.',
+      'Token counts keep up in real time. A timestamp-precision bug was hiding most updates until something else happened to trigger a re-read.'
+    ]
+  },
+  {
     version: '0.2.0',
     date: '2026-07-08',
     notes: [

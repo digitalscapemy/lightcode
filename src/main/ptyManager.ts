@@ -59,6 +59,7 @@ export class PtyManager {
       env: { ...(process.env as Record<string, string>), ...shell.env }
     })
     this.ptys.set(paneId, proc)
+    this.usage.resetPane(paneId) // don't dedupe a fresh session against the old one
     this.usage.bindPane(paneId, realCwd)
 
     proc.onData((data) => {
@@ -89,6 +90,9 @@ export class PtyManager {
       lastEnd = CWD_OSC.lastIndex
     }
     if (cwd) {
+      // The hook fires on every prompt render, so reaching here means the
+      // shell is back at a prompt — claude has exited, whatever the cwd says.
+      this.usage.notePrompt(paneId)
       this.usage.bindPane(paneId, cwd)
       this.send(IPC.PtyCwd, paneId, cwd) // renderer persists it for respawn
     }

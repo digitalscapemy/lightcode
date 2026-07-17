@@ -78,6 +78,8 @@ body {
   white-space: nowrap;
   color: var(--fg-muted);
   position: relative;
+  /* Without this, #tabs' horizontal pan swallows touch/pen drags. */
+  touch-action: none;
 }
 
 .tab:hover {

@@ -1,7 +1,7 @@
 {
   "name": "lightclaude",
   "productName": "Light Code",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Light Code — a lightweight multi-terminal manager built for Claude Code power users",
   "main": "./out/main/index.js",
   "author": "Mikhail Aiman",
@@ -11,6 +11,7 @@
     "build": "electron-vite build",
     "start": "electron-vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
+    "test": "vitest run",
     "rebuild": "electron-rebuild -f -w node-pty",
     "dist": "electron-vite build && electron-builder"
   },
@@ -27,6 +28,7 @@
     "electron": "^43.0.0",
     "electron-builder": "^26.15.3",
     "electron-vite": "^5.0.0",
-    "typescript": "^6.0.3"
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.10"
   }
 }
