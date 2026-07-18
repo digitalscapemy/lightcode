@@ -37,6 +37,9 @@ export class PtyManager {
       }
     })
     ipcMain.on(IPC.PtyKill, (_e, paneId: string) => this.kill(paneId))
+    ipcMain.handle(IPC.PtyClaudeActive, (_e, paneId: string): boolean =>
+      this.usage.hasSession(paneId)
+    )
   }
 
   spawn({ paneId, cwd, cols, rows }: SpawnOptions): SpawnResult {

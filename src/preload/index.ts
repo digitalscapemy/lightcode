@@ -32,7 +32,8 @@ const api: LightClaudeApi = {
       const listener = (_e: IpcRendererEvent, paneId: string, cwd: string): void => cb(paneId, cwd)
       ipcRenderer.on(IPC.PtyCwd, listener)
       return () => ipcRenderer.removeListener(IPC.PtyCwd, listener)
-    }
+    },
+    claudeActive: (paneId) => ipcRenderer.invoke(IPC.PtyClaudeActive, paneId)
   },
   state: {
     load: (): Promise<PersistedState | null> => ipcRenderer.invoke(IPC.StateLoad),

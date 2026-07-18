@@ -15,6 +15,18 @@ const STATUS_LABEL: Record<PaneStatus, string> = {
   idle: 'Idle'
 }
 
+interface MenuItem {
+  label: string
+  action: () => void
+  disabled?: boolean
+}
+
+// Monochrome glyphs (fill: currentColor) so the header can tint them one gray.
+const KEY_ICON =
+  '<svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M9.5 1a4.5 4.5 0 0 0-4.28 5.9L1.22 10.9a.75.75 0 0 0-.22.53v2.82c0 .41.34.75.75.75h2.5a.75.75 0 0 0 .75-.75V13h1.25a.75.75 0 0 0 .75-.75V11h1.13l.4-.4A4.5 4.5 0 1 0 9.5 1Zm2 3.25a1.25 1.25 0 1 1-2.5 0 1.25 1.25 0 0 1 2.5 0Z"/></svg>'
+const FOLDER_ICON =
+  '<svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M1.75 2.5A1.25 1.25 0 0 0 .5 3.75v8.5A1.25 1.25 0 0 0 1.75 13.5h12.5a1.25 1.25 0 0 0 1.25-1.25v-6.5A1.25 1.25 0 0 0 14.25 4.5H8.2L6.9 3.02a1.25 1.25 0 0 0-.93-.42H1.75Z"/></svg>'
+
 export interface PaneCallbacks {
   onCloseRequest(paneId: string): void
   onFocus(paneId: string): void
@@ -25,6 +37,21 @@ export interface PaneCallbacks {
   onRename(paneId: string, name: string | null): void
   /** A human keystroke reached the terminal (resets the babysitter counter). */
   onManualInput?(paneId: string): void
+}
+
+/**
+ * Shell-quote a clipboard file path for pasting into the terminal, returning
+ * null if it can't be safely quoted. Control chars are dropped as defence in
+ * depth (already filtered in main) since a pasted CR/LF would run a command.
+ * Windows: `"` is illegal in paths, so double-quoting is safe and a stray `"`
+ * means a spoofed entry → reject. POSIX: single-quote and escape embedded `'`.
+ */
+function quotePath(p: string): string | null {
+  if (/[\r\n\0]/.test(p)) return null
+  if (window.lightclaude.platform === 'win32') {
+    return p.includes('"') ? null : `"${p}"`
+  }
+  return `'${p.replace(/'/g, "'\\''")}'`
 }
 
 /** PowerShell's default window titles are long paths — shorten the noise. */
@@ -49,6 +76,8 @@ export class TerminalPane {
   private statusEl: HTMLElement
   private usageEl: HTMLElement
   private menuBtn: HTMLElement
+  private acctBtn!: HTMLElement
+  private projBtn!: HTMLElement
   private customName: string | null = null
   private autoTitle = window.lightclaude.platform === 'win32' ? 'PowerShell' : 'Terminal'
 
@@ -72,6 +101,24 @@ export class TerminalPane {
     this.usageEl = document.createElement('span')
     this.usageEl.className = 'pane-usage'
     this.usageEl.hidden = true
+    const acctBtn = document.createElement('button')
+    acctBtn.className = 'pane-acct-btn'
+    acctBtn.innerHTML = KEY_ICON
+    acctBtn.title = 'Switch Claude account'
+    acctBtn.addEventListener('click', (e) => {
+      e.stopPropagation()
+      void this.toggleQuickMenu('accounts', acctBtn)
+    })
+    this.acctBtn = acctBtn
+    const projBtn = document.createElement('button')
+    projBtn.className = 'pane-proj-btn'
+    projBtn.innerHTML = FOLDER_ICON
+    projBtn.title = 'Go to project'
+    projBtn.addEventListener('click', (e) => {
+      e.stopPropagation()
+      void this.toggleQuickMenu('projects', projBtn)
+    })
+    this.projBtn = projBtn
     const menuBtn = document.createElement('button')
     menuBtn.className = 'pane-menu-btn'
     menuBtn.textContent = '⋮'
@@ -89,7 +136,7 @@ export class TerminalPane {
       e.stopPropagation()
       this.callbacks.onCloseRequest(this.id)
     })
-    header.append(this.titleEl, this.statusEl, this.usageEl, menuBtn, killBtn)
+    header.append(this.titleEl, this.statusEl, this.usageEl, acctBtn, projBtn, menuBtn, killBtn)
 
     this.body = document.createElement('div')
     this.body.className = 'pane-body'
@@ -204,49 +251,93 @@ export class TerminalPane {
   }
 
   private menu: HTMLElement | null = null
+  private menuAnchor: HTMLElement | null = null
   private outsideClose: ((e: PointerEvent) => void) | null = null
 
   private toggleMenu(): void {
-    if (this.menu) {
+    if (this.menuAnchor === this.menuBtn && this.menu) {
       this.closeMenu()
       return
     }
+    this.openMenu(
+      [
+        { label: 'Rename', action: () => this.beginRename() },
+        { label: 'Add Right', action: () => this.callbacks.onSplit(this.id, 'row', false) },
+        { label: 'Add Left', action: () => this.callbacks.onSplit(this.id, 'row', true) },
+        { label: 'Add Above', action: () => this.callbacks.onSplit(this.id, 'column', true) },
+        { label: 'Add Below', action: () => this.callbacks.onSplit(this.id, 'column', false) },
+        {
+          label: this.callbacks.isMaximized(this.id) ? 'Restore Pane' : 'Maximize Pane',
+          action: () => this.callbacks.onToggleMaximize(this.id)
+        },
+        {
+          label: isBabysitterOn(this.id) ? 'Auto-continue: On' : 'Auto-continue: Off',
+          action: () => void toggleBabysitter(this.id)
+        }
+      ],
+      this.menuBtn
+    )
+  }
+
+  /** Account/project quick-picker, built from the saved shortcuts. */
+  private async toggleQuickMenu(kind: 'accounts' | 'projects', anchor: HTMLElement): Promise<void> {
+    if (this.menuAnchor === anchor && this.menu) {
+      this.closeMenu()
+      return
+    }
+    const cfg = await window.lightclaude.shortcuts.load()
+    // The click that opened this may have raced a close — bail if disposed.
+    if (this.exited) return
+    let items: MenuItem[]
+    if (kind === 'accounts') {
+      // The default `claude` command uses ~/.claude; extra accounts follow.
+      items = [
+        { label: 'claude', action: () => void this.switchAccount('claude') },
+        ...cfg.accounts.map((a) => ({
+          label: a.name,
+          action: () => void this.switchAccount(a.name)
+        }))
+      ]
+    } else if (cfg.paths.length === 0) {
+      items = [{ label: '— no projects saved —', disabled: true, action: () => {} }]
+    } else {
+      items = cfg.paths.map((p) => ({
+        label: p.name,
+        action: () => this.goToProject(p.path)
+      }))
+    }
+    this.openMenu(items, anchor)
+  }
+
+  /** Build a floating `.pane-menu` from items and wire outside-close. */
+  private openMenu(items: MenuItem[], anchor: HTMLElement): void {
+    this.closeMenu()
     const menu = document.createElement('div')
     menu.className = 'pane-menu'
-    const items: { label: string; action: () => void }[] = [
-      { label: 'Rename', action: () => this.beginRename() },
-      { label: 'Add Right', action: () => this.callbacks.onSplit(this.id, 'row', false) },
-      { label: 'Add Left', action: () => this.callbacks.onSplit(this.id, 'row', true) },
-      { label: 'Add Above', action: () => this.callbacks.onSplit(this.id, 'column', true) },
-      { label: 'Add Below', action: () => this.callbacks.onSplit(this.id, 'column', false) },
-      {
-        label: this.callbacks.isMaximized(this.id) ? 'Restore Pane' : 'Maximize Pane',
-        action: () => this.callbacks.onToggleMaximize(this.id)
-      },
-      {
-        label: isBabysitterOn(this.id) ? 'Auto-continue: On' : 'Auto-continue: Off',
-        action: () => void toggleBabysitter(this.id)
-      }
-    ]
-    for (const { label, action } of items) {
+    for (const { label, action, disabled } of items) {
       const item = document.createElement('button')
       item.className = 'pane-menu-item'
       item.textContent = label
-      item.addEventListener('click', (e) => {
-        e.stopPropagation()
-        this.closeMenu()
-        action()
-      })
+      if (disabled) {
+        item.disabled = true
+      } else {
+        item.addEventListener('click', (e) => {
+          e.stopPropagation()
+          this.closeMenu()
+          action()
+        })
+      }
       menu.appendChild(item)
     }
     this.el.appendChild(menu)
     this.menu = menu
-    // Close on any press outside the menu. Presses on the ⋮ button are left
-    // alone so its own click handler toggles the menu closed — closing here
-    // would let the follow-up click reopen it.
+    this.menuAnchor = anchor
+    // Close on any press outside the menu. Presses on the anchor button are
+    // left alone so its own click handler toggles the menu closed — closing
+    // here would let the follow-up click reopen it.
     const onOutside = (e: PointerEvent): void => {
       const t = e.target as Node
-      if (!this.menu?.contains(t) && !this.menuBtn.contains(t)) this.closeMenu()
+      if (!this.menu?.contains(t) && !anchor.contains(t)) this.closeMenu()
     }
     document.addEventListener('pointerdown', onOutside, { capture: true })
     this.outsideClose = onOutside
@@ -259,6 +350,36 @@ export class TerminalPane {
     }
     this.menu?.remove()
     this.menu = null
+    this.menuAnchor = null
+  }
+
+  /**
+   * Launch the chosen account. If Claude is currently running in this pane,
+   * `/exit` it first (then wait for the shell prompt before typing the
+   * command); if the pane is already at the shell, run the command straight.
+   */
+  private async switchAccount(command: string): Promise<void> {
+    if (this.exited) return
+    const running = await window.lightclaude.pty.claudeActive(this.id)
+    if (this.exited) return
+    if (!running) {
+      window.lightclaude.pty.write(this.id, command + '\r')
+      return
+    }
+    window.lightclaude.pty.write(this.id, '/exit\r')
+    // Give Claude a moment to tear down and return to the shell prompt before
+    // the account command is typed; back-to-back risks it being swallowed.
+    window.setTimeout(() => {
+      if (!this.exited) window.lightclaude.pty.write(this.id, command + '\r')
+    }, 700)
+  }
+
+  /** cd the pane into a saved project folder. */
+  private goToProject(path: string): void {
+    if (this.exited) return
+    // `cd "..."` works in both PowerShell and POSIX shells; shell integration
+    // (OSC cwd) then updates the pane's tracked cwd automatically.
+    window.lightclaude.pty.write(this.id, `cd "${path}"\r`)
   }
 
   /** Apply a persisted/user-set title; null resumes shell titles. */
@@ -333,8 +454,11 @@ export class TerminalPane {
   private async pasteClipboard(): Promise<void> {
     const item = await window.lightclaude.clipboard.paste()
     if (!item || this.exited) return
-    if (item.type === 'image') this.term.paste(`"${item.path}"`)
-    else if (item.text) this.term.paste(item.text)
+    if (item.type === 'file') {
+      const quoted = item.paths.map(quotePath).filter((p): p is string => p !== null)
+      if (quoted.length) this.term.paste(quoted.join(' '))
+    } else if (item.type === 'image') this.term.paste(`"${item.path}"`)
+    else if (item.type === 'text' && item.text) this.term.paste(item.text)
   }
 
   async spawn(): Promise<void> {

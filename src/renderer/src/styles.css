@@ -442,7 +442,9 @@ body.tab-dragging * {
 }
 
 .pane-kill,
-.pane-menu-btn {
+.pane-menu-btn,
+.pane-acct-btn,
+.pane-proj-btn {
   flex: 0 0 auto;
   border: none;
   background: transparent;
@@ -455,8 +457,26 @@ body.tab-dragging * {
   cursor: pointer;
 }
 
+/* Monochrome SVG icons, tinted a single muted gray via currentColor. */
+.pane-acct-btn,
+.pane-proj-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--fg-muted);
+}
+
+.pane-acct-btn svg,
+.pane-proj-btn svg {
+  width: 14px;
+  height: 14px;
+  display: block;
+}
+
 .pane-kill:hover,
-.pane-menu-btn:hover {
+.pane-menu-btn:hover,
+.pane-acct-btn:hover,
+.pane-proj-btn:hover {
   background: var(--border);
 }
 
@@ -468,6 +488,9 @@ body.tab-dragging * {
   display: flex;
   flex-direction: column;
   min-width: 150px;
+  /* Show ~10 entries, then scroll (account/project quick-pickers can be long). */
+  max-height: 300px;
+  overflow-y: auto;
   padding: 4px;
   background: var(--bg-panel);
   border: 1px solid var(--border);
@@ -476,6 +499,7 @@ body.tab-dragging * {
 }
 
 .pane-menu-item {
+  flex: 0 0 auto;
   border: none;
   background: transparent;
   color: var(--fg);
@@ -486,8 +510,13 @@ body.tab-dragging * {
   cursor: pointer;
 }
 
-.pane-menu-item:hover {
+.pane-menu-item:hover:not(:disabled) {
   background: var(--tab-hover);
+}
+
+.pane-menu-item:disabled {
+  color: var(--fg-muted);
+  cursor: default;
 }
 
 .pane-body {

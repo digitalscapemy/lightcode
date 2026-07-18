@@ -70,6 +70,11 @@ function registerIpc(): void {
   // Terminal paste: clipboard images (Snipping Tool / Win+Shift+S) have no
   // file path, so save them to a temp .png and let the renderer paste the path.
   ipcMain.handle(IPC.ClipboardPaste, async (): Promise<ClipboardPasteResult> => {
+    // Files copied in Explorer/Finder — paste their real paths. This runs
+    // BEFORE the image check on purpose: a copied file often also exposes a
+    // thumbnail bitmap, which would otherwise win and paste a temp .png.
+    const files = readClipboardFilePaths()
+    if (files.length > 0) return { type: 'file', paths: files }
     const img = clipboard.readImage()
     if (!img.isEmpty()) {
       const dir = pasteDir()
@@ -90,6 +95,58 @@ function registerIpc(): void {
     else mainWindow.maximize()
   })
   ipcMain.on(IPC.WinClose, () => mainWindow?.close())
+}
+
+/**
+ * A clipboard "file path" is only trusted if it carries no control characters.
+ * CR/LF would submit a command line when pasted into the terminal, and NUL is
+ * never valid in a filename — a hostile app could spoof the file clipboard
+ * format with such a string, so drop these before they cross to the renderer.
+ */
+function safeClipboardPath(p: string): boolean {
+  return !/[\r\n\0]/.test(p)
+}
+
+/**
+ * Paths of files copied to the OS clipboard (Explorer on Windows, Finder on
+ * macOS), or [] if the clipboard holds no files. Best-effort and platform-aware.
+ */
+function readClipboardFilePaths(): string[] {
+  try {
+    if (process.platform === 'win32') {
+      // CF_HDROP surfaces as the 'FileNameW' format: UTF-16LE, one path per
+      // file, NUL-separated (a single trailing NUL for one file).
+      if (!clipboard.has('FileNameW')) return []
+      const buf = clipboard.readBuffer('FileNameW')
+      return buf
+        .toString('ucs2')
+        .split('\0')
+        .map((p) => p.trim())
+        .filter(Boolean)
+        .filter(safeClipboardPath)
+    }
+    if (process.platform === 'darwin') {
+      // Finder exposes copied files as file:// URLs (one per line).
+      if (!clipboard.has('public.file-url')) return []
+      return clipboard
+        .read('public.file-url')
+        .split('\n')
+        .map((u) => u.trim())
+        .filter(Boolean)
+        .map((u) => {
+          try {
+            return decodeURIComponent(new URL(u).pathname)
+          } catch {
+            return u.replace(/^file:\/\//, '')
+          }
+        })
+        .filter(Boolean)
+        .filter(safeClipboardPath)
+    }
+  } catch {
+    // Unsupported format / read failure — fall through to image/text.
+  }
+  return []
 }
 
 function pasteDir(): string {

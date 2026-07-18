@@ -13,6 +13,7 @@ export const IPC = {
   PtyData: 'pty:data',
   PtyExit: 'pty:exit',
   PtyCwd: 'pty:cwd',
+  PtyClaudeActive: 'pty:claude-active',
   StateLoad: 'state:load',
   StateSave: 'state:save',
   ShortcutsLoad: 'shortcuts:load',
@@ -114,6 +115,8 @@ export type UpdateCheckStatus =
 
 /** Clipboard content resolved for a terminal paste. */
 export type ClipboardPasteResult =
+  /** One or more files were copied (Explorer / Finder) — paste their paths. */
+  | { type: 'file'; paths: string[] }
   /** An image was on the clipboard — saved to a temp .png. */
   | { type: 'image'; path: string }
   | { type: 'text'; text: string }
@@ -131,6 +134,8 @@ export interface LightClaudeApi {
     onExit(cb: (paneId: string, exitCode: number) => void): () => void
     /** Live cwd changes from shell integration (`cd` inside the pane). */
     onCwd(cb: (paneId: string, cwd: string) => void): () => void
+    /** True while a Claude CLI session is bound to this pane (not at the shell). */
+    claudeActive(paneId: string): Promise<boolean>
   }
   state: {
     load(): Promise<PersistedState | null>
