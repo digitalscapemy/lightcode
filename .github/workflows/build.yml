@@ -154,6 +154,11 @@ jobs:
       # macOS update by finding the arch in the file name -- renaming risks
       # breaking arch selection on update, which fails silently. Keep the naming
       # machine-readable and put the human guidance here.
+      #
+      # The names carry no version, which is what lets the README publish
+      # /releases/latest/download/LightCode-<arch>.dmg links that survive every
+      # release. Keep it that way: putting ${version} back breaks every download
+      # link already in the wild the moment the next version ships.
       - name: Compose release notes
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -165,9 +170,9 @@ jobs:
 
           | Your machine | File |
           | --- | --- |
-          | Windows 10/11 | `LightCode-Setup-__V__.exe` |
-          | Mac — Apple Silicon (M1 and newer) | `LightCode-__V__-arm64.dmg` |
-          | Mac — Intel | `LightCode-__V__-x64.dmg` |
+          | Windows 10/11 | [`LightCode-Setup.exe`](https://github.com/digitalscapemy/lightcode/releases/download/v__V__/LightCode-Setup.exe) |
+          | Mac — Apple Silicon (M1 and newer) | [`LightCode-arm64.dmg`](https://github.com/digitalscapemy/lightcode/releases/download/v__V__/LightCode-arm64.dmg) |
+          | Mac — Intel | [`LightCode-x64.dmg`](https://github.com/digitalscapemy/lightcode/releases/download/v__V__/LightCode-x64.dmg) |
 
           Not sure which Mac you have? **Apple menu → About This Mac** — "Chip: Apple M…"
           means **arm64**, "Processor: Intel…" means **x64**. On an Intel Mac this matters:

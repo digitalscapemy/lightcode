@@ -92,20 +92,20 @@ the tab bar) shows the full changelog.
 
 ## Installation
 
-Everything ships from **[Releases](https://github.com/digitalscapemy/lightcode/releases/latest)** —
-open that page, scroll down to **Assets**, and download the one file that matches your machine:
+Click the row that matches your machine — each link always serves the newest release:
 
-| Your machine | Download this file |
+| Your machine | Download |
 | --- | --- |
-| Windows 10 or 11 | `LightCode-Setup-x.y.z.exe` |
-| Mac — Apple Silicon (M1/M2/M3/M4, bought 2021 or later) | `LightCode-x.y.z-arm64.dmg` |
-| Mac — Intel (bought 2019 or earlier) | `LightCode-x.y.z-x64.dmg` |
+| Windows 10 or 11 | **[LightCode-Setup.exe](https://github.com/digitalscapemy/lightcode/releases/latest/download/LightCode-Setup.exe)** |
+| Mac — Apple Silicon (M1/M2/M3/M4, bought 2021 or later) | **[LightCode-arm64.dmg](https://github.com/digitalscapemy/lightcode/releases/latest/download/LightCode-arm64.dmg)** |
+| Mac — Intel (bought 2019 or earlier) | **[LightCode-x64.dmg](https://github.com/digitalscapemy/lightcode/releases/latest/download/LightCode-x64.dmg)** |
 
-Not sure which Mac you have? [That's the next section](#macos--first-which-dmg) — check before
-you download, because the wrong file won't run.
+Not sure which Mac you have? [Settle that first](#macos--first-which-dmg) — the wrong file won't
+run.
 
-Ignore the rest of the list — the `.zip`, `.blockmap` and `.yml` files are there for the
-auto-updater, not for you.
+Would rather browse? The [Releases page](https://github.com/digitalscapemy/lightcode/releases/latest)
+lists every version with its notes. The `.zip`, `.blockmap` and `.yml` assets you'll see there
+belong to the auto-updater, not to you.
 
 Light Code is not code-signed: there is no Apple Developer or Windows publisher certificate
 behind it. Both operating systems will therefore warn you the first time you open it. That is
@@ -118,7 +118,7 @@ the app may not start at all, so settle this before downloading anything.
 
 Open the Apple menu  → **About This Mac**. One line in that window answers it:
 
-#### Apple Silicon → download `LightCode-x.y.z-arm64.dmg`
+#### Apple Silicon → [`LightCode-arm64.dmg`](https://github.com/digitalscapemy/lightcode/releases/latest/download/LightCode-arm64.dmg)
 
 About This Mac shows **Chip: Apple M1**, or M2, M3, M4 — including the Pro, Max and Ultra
 versions of each.
@@ -127,7 +127,7 @@ versions of each.
 with the M1 and have been in every new Mac since. **A Mac bought new in 2021 or later is Apple
 Silicon** — no exceptions.
 
-#### Intel → download `LightCode-x.y.z-x64.dmg`
+#### Intel → [`LightCode-x64.dmg`](https://github.com/digitalscapemy/lightcode/releases/latest/download/LightCode-x64.dmg)
 
 About This Mac shows **Processor: Intel Core i5**, or i7, i9, or Xeon.
 
@@ -199,8 +199,9 @@ other app.
 ### Windows
 
 **Step 1 — Download the installer.**
-Grab `LightCode-Setup-x.y.z.exe`. Windows 10 and 11 are both supported, and there is only one
-file — no architecture to choose.
+Grab **[`LightCode-Setup.exe`](https://github.com/digitalscapemy/lightcode/releases/latest/download/LightCode-Setup.exe)**.
+Windows 10 and 11 are both supported, and there is only one file — unlike the Mac, there is no
+architecture to choose here.
 
 **Step 2 — Get past SmartScreen.**
 Double-click the installer. Because it is unsigned, Windows shows a blue *"Windows protected

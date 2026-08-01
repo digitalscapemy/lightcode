@@ -9,6 +9,14 @@ export const DEVELOPER = 'Digital Scape MY'
 /** Newest first. Add an entry on every release (see release procedure). */
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.3.1',
+    date: '2026-08-01',
+    notes: [
+      'Nothing has changed inside the app. This release exists to rename the installer files: the Mac downloads are now LightCode-arm64.dmg and LightCode-x64.dmg, and the Windows one is LightCode-Setup.exe, none of them carrying a version number any more. A download link can therefore keep pointing at the newest build instead of breaking every time a version ships. Updating is unaffected — the app still picks the right build for your Mac on its own.',
+      'The installation instructions were rewritten for people who do not write software: how to tell an Apple Silicon Mac from an Intel one and why picking wrong matters, and how to get past the macOS and Windows warnings that appear because these builds carry no developer signature.'
+    ]
+  },
+  {
     version: '0.3.0',
     date: '2026-08-01',
     notes: [

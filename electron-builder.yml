@@ -18,8 +18,9 @@ asarUnpack:
 win:
   icon: build/icon.png
   target: nsis
-  # no spaces: GitHub rewrites them in asset names, breaking latest.yml lookups
-  artifactName: LightCode-Setup-${version}.${ext}
+  # no spaces: GitHub rewrites them in asset names, breaking latest.yml lookups.
+  # No ${version} either -- see the note on the mac artifactName below.
+  artifactName: LightCode-Setup.${ext}
 nsis:
   oneClick: true
   shortcutName: Light Code
@@ -40,7 +41,15 @@ mac:
     # run, which is what build.yml does -- one runner per arch, see the matrix there.
     - dmg
     - zip
-  artifactName: LightCode-${version}-${arch}.${ext}
+  # ${arch} is required: electron-updater picks the right macOS update by finding
+  # the arch in the file name, and dropping it breaks arch selection silently.
+  #
+  # ${version} is deliberately absent, on the other hand, so that
+  # /releases/latest/download/LightCode-arm64.dmg keeps resolving after every
+  # release. With the version baked in, every published download link dies the
+  # moment the next version ships. The updater does not care either way -- it
+  # reads the file names out of latest-mac.yml rather than reconstructing them.
+  artifactName: LightCode-${arch}.${ext}
   # unsigned build (no Apple Developer account): users right-click > Open,
   # or run `xattr -cr "/Applications/Light Code.app"` once
   identity: null

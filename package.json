@@ -1,7 +1,7 @@
 {
   "name": "lightclaude",
   "productName": "Light Code",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Light Code — a lightweight multi-terminal manager built for Claude Code power users",
   "main": "./out/main/index.js",
   "author": "Mikhail Aiman",
