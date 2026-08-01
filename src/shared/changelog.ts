@@ -9,6 +9,14 @@ export const DEVELOPER = 'Digital Scape MY'
 /** Newest first. Add an entry on every release (see release procedure). */
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.4.0',
+    date: '2026-08-01',
+    notes: [
+      'Drag a file or folder out of Finder or Explorer and drop it on a pane — its full path is typed at the prompt, the way every native terminal has always worked. Type `cd `, drop the folder, press Enter; or drop a file into a Claude Code prompt and Claude can read it straight away. Drop several at once and they arrive as separate arguments, the pane under the pointer lights up so there is never any doubt about where the path is going, and a path is only quoted when the shell actually needs it — a plain path stays plain, exactly as you would have typed it. Dropping a file anywhere else in the window now does nothing at all, instead of the browser default of navigating the app away and taking every running session with it.',
+      'Updating on macOS goes straight to the installer your Mac can actually run, instead of a release page listing two near-identical downloads to choose between. Apple Silicon and Intel are told apart automatically, and a Mac running the Intel build under Rosetta is offered the native Apple Silicon one.'
+    ]
+  },
+  {
     version: '0.3.1',
     date: '2026-08-01',
     notes: [

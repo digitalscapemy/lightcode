@@ -5,6 +5,7 @@ import { initAboutUi } from './about'
 import { MOD_LABEL, initShortcuts } from './keys'
 import { initLayoutPicker } from './layoutPicker'
 import { openMission, toggleMissionControl } from './missionControl'
+import { clearDropTarget, hasDropTarget } from './pane'
 import { initShortcutsUi } from './shortcuts'
 import { initUpdateToast } from './toast'
 import { flushPersist, persist, state } from './store'
@@ -50,6 +51,27 @@ async function boot(): Promise<void> {
   document
     .getElementById('win-close')!
     .addEventListener('click', () => window.lightclaude.window.close())
+
+  // A file dropped anywhere that isn't a terminal pane must do nothing at all.
+  // Chromium's default is to navigate the window to the dropped file, which
+  // would replace the running app — and every pty with it. The panes handle
+  // (and preventDefault) their own drops; this covers every miss.
+  window.addEventListener('dragover', (e) => {
+    e.preventDefault()
+    // The pane taking the drop has already marked itself by the time this
+    // bubbles up. Anywhere else, say "no" with the cursor rather than promising
+    // a drop that silently goes nowhere.
+    if (e.dataTransfer && !hasDropTarget()) e.dataTransfer.dropEffect = 'none'
+  })
+  window.addEventListener('drop', (e) => {
+    e.preventDefault()
+    clearDropTarget()
+  })
+  // A drag can also end without ever reaching a drop: Esc mid-drag, or a
+  // release over another app. Neither fires dragleave on the pane it was over,
+  // so the outline would otherwise stay lit until the next drag.
+  window.addEventListener('dragend', () => clearDropTarget())
+  window.addEventListener('blur', () => clearDropTarget())
 
   window.lightclaude.pty.onData((paneId, data) => app.panes.get(paneId)?.write(data))
   window.lightclaude.pty.onExit((paneId, code) => {

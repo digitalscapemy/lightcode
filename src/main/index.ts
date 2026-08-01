@@ -210,6 +210,16 @@ function createWindow(): void {
     usageWatcher.unwatchAll()
   })
 
+  // Last line of defence for dropped files: navigating away tears down every
+  // terminal in the window, and Chromium's default for a dropped file is to do
+  // exactly that. The renderer preventDefaults every drop, so this should never
+  // fire — but the cost of it firing is every running Claude session. Reloads
+  // navigate to the URL already loaded and stay allowed.
+  const wc = mainWindow.webContents
+  wc.on('will-navigate', (e, url) => {
+    if (url !== wc.getURL()) e.preventDefault()
+  })
+
   if (win?.maximized) mainWindow.maximize()
   mainWindow.on('ready-to-show', () => {
     mainWindow?.show()

@@ -619,6 +619,22 @@ body.tab-dragging * {
   z-index: 3;
 }
 
+/*
+ * Pane a dragged file will drop into. ::before, because .pane.focused already
+ * owns ::after and the focused pane can also be the one under the pointer.
+ * pointer-events: none is load-bearing — an overlay that takes the pointer
+ * takes the drop with it.
+ */
+.pane.drag-over::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border: 1px dashed var(--accent);
+  background: rgba(76, 154, 255, 0.08);
+  pointer-events: none;
+  z-index: 4;
+}
+
 .pane .xterm {
   height: 100%;
 }

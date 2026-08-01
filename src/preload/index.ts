@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron'
+import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import type { IpcRendererEvent } from 'electron'
 import { IPC } from '../shared/ipc'
 import type {
@@ -62,6 +62,16 @@ const api: LightClaudeApi = {
     load: () => ipcRenderer.invoke(IPC.ShortcutsLoad),
     save: (cfg: ShortcutsConfig) => ipcRenderer.invoke(IPC.ShortcutsSave, cfg),
     importFromProfile: () => ipcRenderer.invoke(IPC.ShortcutsImport)
+  },
+  // Electron 32 removed File.path, so webUtils is the only route from a dropped
+  // File to its real path. Returns '' for a File the OS gave no path (dragged
+  // out of a web page) and for anything that isn't a File at all.
+  filePath: (file: File) => {
+    try {
+      return webUtils.getPathForFile(file)
+    } catch {
+      return ''
+    }
   },
   pickFolder: () => ipcRenderer.invoke(IPC.PickFolder),
   homedir: () => ipcRenderer.invoke(IPC.Homedir),

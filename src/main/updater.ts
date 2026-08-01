@@ -6,6 +6,18 @@ import type { UpdateCheckStatus } from '../shared/ipc'
 
 const RELEASES_URL = 'https://github.com/digitalscapemy/lightcode/releases/latest'
 
+/**
+ * The macOS installer this machine should run. Getting it wrong is not
+ * symmetric — an Intel Mac handed the arm64 build gets an app that will not
+ * launch at all — so the choice is made here rather than left to the user.
+ * A Rosetta-translated x64 app reports process.arch as x64 but deserves the
+ * native build, which is what runningUnderARM64Translation is for.
+ */
+function macDmgUrl(): string {
+  const arm = process.arch === 'arm64' || app.runningUnderARM64Translation === true
+  return `${RELEASES_URL}/download/LightCode-${arm ? 'arm64' : 'x64'}.dmg`
+}
+
 let getWindow: (() => BrowserWindow | null) | null = null
 let checking = false
 let downloading = false
@@ -68,8 +80,10 @@ export function initUpdater(windowGetter: () => BrowserWindow | null): void {
 
   ipcMain.on(IPC.UpdateDownload, () => {
     if (process.platform === 'darwin') {
-      // Squirrel.Mac refuses unsigned updates — hand off to the browser.
-      void shell.openExternal(RELEASES_URL)
+      // Squirrel.Mac refuses unsigned updates — hand off to the browser. Straight
+      // to the .dmg this Mac can run, not the releases page: that page asks the
+      // user to pick between arm64 and x64, and the app already knows the answer.
+      void shell.openExternal(macDmgUrl())
       return
     }
     if (downloading) return

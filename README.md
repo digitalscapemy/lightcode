@@ -79,6 +79,21 @@ Snip something (`Win+Shift+S` / `Cmd+Shift+4`), press `Ctrl/Cmd+V` in the termin
 is saved to a temp file and its path is pasted, ready for Claude Code to read. Plain text pastes
 normally.
 
+### 🖱 Drag files in from Finder / Explorer
+Drop a file or folder on a pane and its full path is typed at the prompt, exactly as a native
+terminal does it — type `cd `, drop the folder, press Enter. Drop a file into a Claude Code
+prompt and Claude can read it right away.
+
+- **Several at once** — a multi-file drop lands as separate arguments
+- **Quoted only when it has to be** — a plain path is typed plain; spaces and shell
+  metacharacters get quoted (`'…'` on macOS, `"…"` on Windows) so nothing is ever executed
+- The pane under the pointer lights up, so in a 4×4 grid you always know where the path is going
+- Text and links dragged in from other apps are typed as text
+
+> On Windows, drag-and-drop into an app **running as Administrator** is blocked by Windows
+> itself (UIPI), not by Light Code — Explorer runs unelevated and Windows refuses to hand data
+> across. Run Light Code normally and it works; paste (`Ctrl+V`) is the way in when it can't.
+
 ### 🚀 Fast and light
 - Vanilla TypeScript renderer — no framework, instant tab switching
 - GPU-accelerated terminal rendering (WebGL), scoped to the visible tab only
@@ -294,6 +309,7 @@ tick several and send one command to all of them.
 | `Ctrl+Shift+W` | `⌘+Shift+W` | Close focused pane |
 | `Ctrl+Shift+M` | `⌘+Shift+M` | Mission Control |
 | `Ctrl+V` | `⌘+V` | Paste text — or clipboard image as a file path |
+| *(drag & drop)* | *(drag & drop)* | Drop a file or folder on a pane to type its path |
 | `Ctrl+=` / `Ctrl+-` | `⌘+=` / `⌘+-` | Terminal text bigger / smaller (8–32px) |
 | `Ctrl+0` | `⌘+0` | Reset text size to 14px |
 | `Ctrl+Tab` | `Ctrl+Tab` | Focus next pane (wraps) |
@@ -388,6 +404,30 @@ src/renderer  UI: tab bar, split tree, terminal panes, modals, toast
 Releases are built and published automatically by GitHub Actions: pushing a `vX.Y.Z` tag builds
 Windows + macOS installers and publishes them (with `latest.yml` update feeds) to GitHub
 Releases, which installed apps pick up automatically.
+
+To cut one:
+
+```sh
+# 1. Describe the release to users first — src/shared/changelog.ts, newest entry
+#    at the top, naming the version you are about to cut. It feeds both the
+#    in-app About dialog and the GitHub release notes.
+# 2. Bump + tag in one step, so the two can never disagree:
+npm version minor -m "release v%s: what changed"   # patch | minor | major
+git push && git push --tags
+```
+
+Use `npm version` rather than editing `package.json` by hand. A tag that disagrees with
+`package.json` is the one release mistake nothing surfaces: electron-builder stamps the update
+feed from `package.json`, so the feed advertises the *old* version, every installed app decides
+it is already up to date, and the release is silently never delivered. CI now refuses to build
+such a tag, and warns when the changelog has no entry for the version.
+
+**What "auto-update" means per platform** — Windows downloads and installs the update in place,
+with a progress bar and an automatic restart. macOS cannot: Squirrel.Mac refuses to install an
+update that is not signed with the same Apple Developer ID as the app, and these builds are
+unsigned. So macOS notifies, then opens the correct `.dmg` for that machine (Apple Silicon vs
+Intel, Rosetta included) and the user drags it over. Paying for a Developer ID certificate and
+notarising the build is the only thing that changes this.
 
 ## License
 

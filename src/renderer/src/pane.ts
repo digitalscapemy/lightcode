@@ -3,6 +3,7 @@ import { FitAddon } from '@xterm/addon-fit'
 import { WebglAddon } from '@xterm/addon-webgl'
 import { isBabysitterOn, toggleBabysitter } from './babysitter'
 import { MOD_LABEL, isAppShortcut } from './keys'
+import { shellArgs } from './paths'
 import { state } from './store'
 import { xtermTheme } from './theme'
 
@@ -41,18 +42,29 @@ export interface PaneCallbacks {
 }
 
 /**
- * Shell-quote a clipboard file path for pasting into the terminal, returning
- * null if it can't be safely quoted. Control chars are dropped as defence in
- * depth (already filtered in main) since a pasted CR/LF would run a command.
- * Windows: `"` is illegal in paths, so double-quoting is safe and a stray `"`
- * means a spoofed entry → reject. POSIX: single-quote and escape embedded `'`.
+ * The one pane currently outlined as a file-drop target, app-wide. Kept as a
+ * single module-level element rather than read back out of the DOM because
+ * `dragover` fires continuously while the pointer moves — this is the hot path
+ * for both the outline and main.ts's cursor, and it has to stay O(1) with zero
+ * DOM work on the (overwhelmingly common) unchanged frame.
  */
-function quotePath(p: string): string | null {
-  if (/[\r\n\0]/.test(p)) return null
-  if (window.lightclaude.platform === 'win32') {
-    return p.includes('"') ? null : `"${p}"`
-  }
-  return `'${p.replace(/'/g, "'\\''")}'`
+let dropTargetEl: HTMLElement | null = null
+
+function markDropTarget(el: HTMLElement | null): void {
+  if (dropTargetEl === el) return
+  dropTargetEl?.classList.remove('drag-over')
+  el?.classList.add('drag-over')
+  dropTargetEl = el
+}
+
+/** True while some pane is ready to take the drag (see main.ts's cursor). */
+export function hasDropTarget(): boolean {
+  return dropTargetEl !== null
+}
+
+/** Drop the outline wherever it is — for drags that end outside any pane. */
+export function clearDropTarget(): void {
+  markDropTarget(null)
 }
 
 /** PowerShell's default window titles are long paths — shorten the noise. */
@@ -222,6 +234,23 @@ export class TerminalPane {
       if ((e.target as HTMLElement).closest('input, .pane-menu')) return
       if (!this.exited) this.term.focus()
     })
+
+    // Drag a file or folder in from Finder/Explorer and its path is typed at
+    // the prompt, exactly as a native terminal does it: type `cd `, drop the
+    // folder, press Enter. Chromium's default for a dropped file is to NAVIGATE
+    // the window to it — which here would replace the whole app and take every
+    // pty with it — so both handlers must preventDefault. main.ts blocks the
+    // same default window-wide for drops that miss a pane.
+    this.el.addEventListener('dragenter', (e) => this.onDragOver(e))
+    this.el.addEventListener('dragover', (e) => this.onDragOver(e))
+    this.el.addEventListener('dragleave', (e) => {
+      // Crossing between children fires dragleave on the one being left, so the
+      // highlight may only clear once the pointer has left the pane itself
+      // (relatedTarget is null when it leaves the window entirely).
+      const to = e.relatedTarget as Node | null
+      if (!to || !this.el.contains(to)) this.setDropTarget(false)
+    })
+    this.el.addEventListener('drop', (e) => this.onDrop(e))
 
     // "Starting up" indicator, cleared by the first byte of pty output.
     const loading = document.createElement('div')
@@ -458,10 +487,74 @@ export class TerminalPane {
     const item = await window.lightclaude.clipboard.paste()
     if (!item || this.exited) return
     if (item.type === 'file') {
-      const quoted = item.paths.map(quotePath).filter((p): p is string => p !== null)
-      if (quoted.length) this.term.paste(quoted.join(' '))
+      const args = shellArgs(item.paths)
+      if (args) this.term.paste(args)
     } else if (item.type === 'image') this.term.paste(`"${item.path}"`)
     else if (item.type === 'text' && item.text) this.term.paste(item.text)
+  }
+
+  /**
+   * Whether a drag carries something typeable. `types` is all that is readable
+   * mid-drag — the files themselves stay sealed until the drop — so this is a
+   * best guess by design, and dropText() decides what actually gets typed.
+   */
+  private static droppable(dt: DataTransfer | null): boolean {
+    // dt.types is a live frozen array on both platforms — read it in place
+    // rather than copying it, since this runs on every dragover frame.
+    return !!dt && (dt.types.includes('Files') || dt.types.includes('text/plain'))
+  }
+
+  private onDragOver(e: DragEvent): void {
+    if (this.exited || !TerminalPane.droppable(e.dataTransfer)) return
+    e.preventDefault() // without this the drop event never fires at all
+    // Windows shows "+ Copy" and macOS a green plus for this — both read as
+    // "you'll get a copy of the path", which is exactly what happens.
+    if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy'
+    this.setDropTarget(true)
+  }
+
+  /** Accent outline saying which pane the path will land in (see .drag-over). */
+  private setDropTarget(on: boolean): void {
+    if (on) markDropTarget(this.el)
+    // Only ever clear our OWN outline: crossing straight from one pane into
+    // another fires the new pane's dragenter BEFORE the old one's dragleave,
+    // so an unguarded clear here would wipe the outline just set next door.
+    else if (dropTargetEl === this.el) markDropTarget(null)
+  }
+
+  private onDrop(e: DragEvent): void {
+    this.setDropTarget(false)
+    if (this.exited || !TerminalPane.droppable(e.dataTransfer)) return
+    e.preventDefault()
+    const text = this.dropText(e.dataTransfer)
+    if (!text) return
+    // Focus follows the drop, so whatever is typed next continues here.
+    this.term.focus()
+    this.term.paste(text)
+  }
+
+  /**
+   * What a drop should type. Reads the DataTransfer synchronously: it is
+   * emptied the moment the drop handler returns, so nothing here may await.
+   */
+  private dropText(dt: DataTransfer | null): string {
+    if (!dt) return ''
+    // Files first: a Finder/Explorer drag also carries a text/plain of the bare
+    // file NAME, which would otherwise win and type a name with no directory.
+    // Electron 32 removed File.path, so the real path comes from the preload's
+    // webUtils bridge; '' means the File has none (dragged out of a web page).
+    const paths = Array.from(dt.files)
+      .map((f) => window.lightclaude.filePath(f))
+      .filter((p) => p !== '')
+    if (paths.length > 0) {
+      const args = shellArgs(paths)
+      // Trailing space: the dropped path is a finished argument, so `cd ` +
+      // drop + Enter works and a second drop lands as its own argument.
+      return args ? args + ' ' : ''
+    }
+    // Not files — a URL or a text selection dragged in from another app. Typed
+    // as-is, same as a clipboard paste of the same text would be.
+    return dt.getData('text/plain')
   }
 
   async spawn(): Promise<void> {
@@ -566,6 +659,7 @@ export class TerminalPane {
   }
 
   dispose(): void {
+    this.setDropTarget(false) // a pane closed mid-drag must not stay "the" target
     this.closeMenu()
     this.ro.disconnect()
     this.detachWebgl()

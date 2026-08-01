@@ -158,6 +158,11 @@ export interface LightClaudeApi {
     /** Parse-only: reads existing profile functions; no side effects. */
     importFromProfile(): Promise<ShortcutsImportResult>
   }
+  /**
+   * Absolute path of a File from a drag-and-drop, or '' when it has none.
+   * Electron 32 removed File.path; this is the sanctioned replacement.
+   */
+  filePath(file: File): string
   pickFolder(): Promise<string | null>
   homedir(): Promise<string>
   appVersion(): Promise<string>
