@@ -216,18 +216,10 @@ jobs:
           # Reuse them here so the release page and the app never disagree, rather
           # than leaving GitHub with nothing but a list of PR titles.
           cat > extract.cjs <<'EOF'
-          const fs = require('fs')
-          // Strip the TypeScript so the data can simply be evaluated. The file is
-          // otherwise plain JS, which makes this far more robust than trying to
-          // pattern-match the note strings out of it.
-          const js = fs
-            .readFileSync('src/shared/changelog.ts', 'utf8')
-            .replace(/export interface[\s\S]*?\n}\n/, '')
-            .replace(/:\s*ChangelogEntry\[\]/, '')
-            .replace(/export const/g, 'const')
-          const entry = new Function(`${js}; return CHANGELOG`)().find(
-            (e) => e.version === process.argv[2]
-          )
+          // Same reader the app's own update notification is built from, so the
+          // release page and the notification can never quote different notes.
+          const { entryFor } = require('./scripts/changelog.cjs')
+          const entry = entryFor(process.argv[2])
           // No entry is not an error: the section is simply left out.
           if (!entry) process.exit(0)
           console.log(`### What's new in ${entry.version}\n`)
