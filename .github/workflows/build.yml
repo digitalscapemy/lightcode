@@ -74,6 +74,11 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     steps:
+      # Only for src/shared/changelog.ts, which the release notes are built from.
+      # gh still needs -R below: a checkout gives a git repo, but the release
+      # steps should not depend on that to resolve which repo they are targeting.
+      - uses: actions/checkout@v4
+
       - uses: actions/download-artifact@v4
         with:
           path: artifacts
@@ -176,6 +181,30 @@ jobs:
           ```
           EOF
           sed "s/__V__/${VERSION}/g" notes.tpl > notes.md
+
+          # The app already ships hand-written, user-facing notes in
+          # src/shared/changelog.ts -- that is what the in-app About dialog shows.
+          # Reuse them here so the release page and the app never disagree, rather
+          # than leaving GitHub with nothing but a list of PR titles.
+          cat > extract.cjs <<'EOF'
+          const fs = require('fs')
+          // Strip the TypeScript so the data can simply be evaluated. The file is
+          // otherwise plain JS, which makes this far more robust than trying to
+          // pattern-match the note strings out of it.
+          const js = fs
+            .readFileSync('src/shared/changelog.ts', 'utf8')
+            .replace(/export interface[\s\S]*?\n}\n/, '')
+            .replace(/:\s*ChangelogEntry\[\]/, '')
+            .replace(/export const/g, 'const')
+          const entry = new Function(`${js}; return CHANGELOG`)().find(
+            (e) => e.version === process.argv[2]
+          )
+          // No entry is not an error: the section is simply left out.
+          if (!entry) process.exit(0)
+          console.log(`### What's new in ${entry.version}\n`)
+          for (const note of entry.notes) console.log(`- ${note}\n`)
+          EOF
+          { echo; node extract.cjs "$VERSION"; } >> notes.md
 
           # Append GitHub's generated changelog. Fetched from the API rather than
           # passing --generate-notes alongside --notes-file, because how gh combines
