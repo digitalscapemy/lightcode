@@ -221,22 +221,23 @@ Identical on both platforms:
 git clone https://github.com/digitalscapemy/lightcode.git
 cd lightcode
 npm install
-npx install-electron   # REQUIRED — see below
 ```
 
-> **Why the extra step.** Electron 43 dropped the `postinstall` hook that used to
-> fetch its binary — 30, 35 and 40 all still had it — and now downloads lazily, the
-> first time something calls `require('electron')`.
+That is all — but if you are wondering why `package.json` carries a `postinstall`
+that just runs `install-electron`, it is load-bearing:
+
+> Electron 43 dropped the `postinstall` hook that used to fetch its binary — 30, 35
+> and 40 all still had it — and now downloads lazily, on the first
+> `require('electron')`.
 >
 > That is enough for `npm run dist`: its bytecode step requires Electron and triggers
-> the download, which is why CI is green on a bare `npm ci`. But `electron-vite`
+> the download, which is why CI stayed green on a bare `npm ci`. But `electron-vite`
 > resolves the binary path *itself* rather than going through `require`, and throws
-> `Error: Electron uninstall` when it is missing — so **`npm run dev` fails on a fresh
-> clone** while `npm run dist` succeeds.
+> `Error: Electron uninstall` when it is missing — so `npm run dev` used to fail on a
+> fresh clone while `npm run dist` succeeded, with `npm install` exiting **0** and
+> nothing looking wrong.
 >
-> `npm install` exits **0** either way and nothing looks wrong. Running
-> `npx install-electron` once up front removes the difference. Run it again after any
-> `npm ci` or Electron version bump.
+> Our own `postinstall` restores what Electron removed. Do not delete it.
 
 ### Everyday commands
 
