@@ -92,24 +92,133 @@ the tab bar) shows the full changelog.
 
 ## Installation
 
-Grab the latest installer from **[Releases](https://github.com/digitalscapemy/lightcode/releases/latest)**:
+Everything ships from **[Releases](https://github.com/digitalscapemy/lightcode/releases/latest)** —
+open that page, scroll down to **Assets**, and download the one file that matches your machine:
 
-| Platform | File | Notes |
-| --- | --- | --- |
-| Windows 10/11 | `LightCode-Setup-x.y.z.exe` | One-click install; auto-updates itself |
-| macOS — Apple Silicon (M1 and newer) | `LightCode-x.y.z-arm64.dmg` | Unsigned build — see note below |
-| macOS — Intel | `LightCode-x.y.z-x64.dmg` | Unsigned build — see note below |
+| Your machine | Download this file |
+| --- | --- |
+| Windows 10 or 11 | `LightCode-Setup-x.y.z.exe` |
+| Mac — Apple Silicon (M1/M2/M3/M4, bought 2021 or later) | `LightCode-x.y.z-arm64.dmg` |
+| Mac — Intel (bought 2019 or earlier) | `LightCode-x.y.z-x64.dmg` |
 
-**macOS 12 Monterey or newer is required** on both architectures — that's the floor
-Electron itself imposes, and it covers every Mac from roughly 2015 onward. Pick the DMG
-matching your Mac: `arm64` for Apple Silicon, `x64` for Intel (About This Mac → Chip).
-Installing the wrong one gives you an app that won't launch.
+Not sure which Mac you have? [That's the next section](#macos--first-which-dmg) — check before
+you download, because the wrong file won't run.
 
-Both builds are unsigned (no Apple Developer account), so the first launch needs
-right-click → **Open**, or run `xattr -cr "/Applications/Light Code.app"` once.
+Ignore the rest of the list — the `.zip`, `.blockmap` and `.yml` files are there for the
+auto-updater, not for you.
 
-Requires [Claude Code](https://claude.com/claude-code) for the token-usage features
-(the terminal works with any CLI).
+Light Code is not code-signed: there is no Apple Developer or Windows publisher certificate
+behind it. Both operating systems will therefore warn you the first time you open it. That is
+expected, and the steps below walk you past it. You only ever do it once.
+
+### macOS — first, which DMG?
+
+There are two Mac builds because there are two kinds of Mac processor. Pick the wrong one and
+the app may not start at all, so settle this before downloading anything.
+
+Open the Apple menu  → **About This Mac**. One line in that window answers it:
+
+#### Apple Silicon → download `LightCode-x.y.z-arm64.dmg`
+
+About This Mac shows **Chip: Apple M1**, or M2, M3, M4 — including the Pro, Max and Ultra
+versions of each.
+
+"Apple Silicon" means the processors Apple designs itself. They arrived in **November 2020**
+with the M1 and have been in every new Mac since. **A Mac bought new in 2021 or later is Apple
+Silicon** — no exceptions.
+
+#### Intel → download `LightCode-x.y.z-x64.dmg`
+
+About This Mac shows **Processor: Intel Core i5**, or i7, i9, or Xeon.
+
+Apple used Intel processors from 2006 until the M1 replaced them. **A Mac bought new in 2019 or
+earlier is Intel.** For this app the range that matters is roughly 2015–2020, since older Macs
+can't run the required macOS version anyway (see below).
+
+#### Bought your Mac in 2020?
+
+That single year is the overlap — Apple sold Intel and M1 models side by side, sometimes the
+same model name in both. Don't go by the year; open About This Mac and read the chip line. Same
+advice for any second-hand Mac whose age you're unsure of.
+
+#### Why it matters
+
+The two mistakes are not equally bad:
+
+| Mistake | What happens |
+| --- | --- |
+| arm64 build on an **Intel** Mac | **Won't launch at all.** Nothing you can do but download the other file. |
+| x64 build on an **Apple Silicon** Mac | Runs, just slower — macOS translates it through Rosetta, and may ask to install Rosetta first. |
+
+**One more thing to check in that same window: macOS 12 Monterey or newer is required.** That
+means MacBook Air and MacBook Pro from Early 2015, iMac from Late 2015, Mac mini from Late 2014,
+Mac Pro from Late 2013 — and anything newer. An older Mac can't run Light Code regardless of
+which file you pick.
+
+### macOS — installing
+
+From here on the steps are identical on both Apple Silicon and Intel.
+
+**Step 1 — Open the DMG.**
+Double-click the file you downloaded. A window opens showing the Light Code icon next to a
+shortcut to your Applications folder.
+
+**Step 2 — Install it.**
+Drag the **Light Code** icon onto the **Applications** folder. Then close that window and eject
+the disk image — click ⏏ next to its name in the Finder sidebar.
+
+**Step 3 — First launch.**
+Do **not** double-click the app. Doing so gives you a dead-end dialog — *"Light Code cannot be
+opened because the developer cannot be verified"* — whose only buttons are **Move to Bin** and
+**Cancel**. If you're looking at it right now, press **Cancel**. Never press Move to Bin; that
+deletes the app you just installed.
+
+The way in is the right-click menu, which offers an **Open** button the double-click dialog
+doesn't:
+
+1. Open your **Applications** folder
+2. **Right-click** (or Control-click) Light Code → **Open**
+3. Confirm with **Open** in the dialog that appears
+
+**If that still doesn't work**, recent macOS versions hide the override in Settings instead.
+Right after being blocked, go to **System Settings → Privacy & Security**, scroll down to the
+Security section, and click **Open Anyway** next to the message about Light Code. On macOS 12
+and 13 the same button lives in **System Preferences → Security & Privacy → General**.
+
+**Last resort**, and the one that always works — open **Terminal**, run this once, then launch
+the app normally:
+
+```sh
+xattr -cr "/Applications/Light Code.app"
+```
+
+That command strips the "downloaded from the internet" quarantine flag macOS attached to the
+file. Whichever route you take, it's a one-time thing: from then on Light Code opens like any
+other app.
+
+### Windows
+
+**Step 1 — Download the installer.**
+Grab `LightCode-Setup-x.y.z.exe`. Windows 10 and 11 are both supported, and there is only one
+file — no architecture to choose.
+
+**Step 2 — Get past SmartScreen.**
+Double-click the installer. Because it is unsigned, Windows shows a blue *"Windows protected
+your PC"* screen. Click **More info**, then **Run anyway**. Your browser may flag the download
+itself as well — choose **Keep** if it does.
+
+**Step 3 — Let it run.**
+There is nothing to configure: the installer completes on its own and opens Light Code when it
+finishes, leaving a Start-menu entry and a desktop shortcut behind.
+
+### After installing
+
+Light Code works as a plain terminal with any CLI. The token-usage, session and account
+features need [Claude Code](https://claude.com/claude-code) installed — set that up first if you
+want them.
+
+You won't have to repeat any of this for future versions: Light Code checks GitHub Releases
+shortly after each launch and updates itself in place.
 
 ## Using it
 
