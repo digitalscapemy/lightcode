@@ -139,9 +139,62 @@ jobs:
             -exec cp -n {} upload/ \;
           ls -la upload
 
+      # Which asset to take is not obvious from `arm64` / `x64`, and guessing wrong
+      # is not symmetric: an Intel Mac handed the arm64 build gets an app that
+      # cannot launch at all, while Apple Silicon handed x64 still runs under
+      # Rosetta. So the table leads the release body, and Intel is called out.
+      #
+      # Note this does NOT rename the assets to something friendlier. The mac
+      # artifactName carries ${arch} because electron-updater locates the right
+      # macOS update by finding the arch in the file name -- renaming risks
+      # breaking arch selection on update, which fails silently. Keep the naming
+      # machine-readable and put the human guidance here.
+      - name: Compose release notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          # Quoted heredoc so backticks stay literal; the version is substituted after.
+          cat > notes.tpl <<'EOF'
+          ### Download
+
+          | Your machine | File |
+          | --- | --- |
+          | Windows 10/11 | `LightCode-Setup-__V__.exe` |
+          | Mac — Apple Silicon (M1 and newer) | `LightCode-__V__-arm64.dmg` |
+          | Mac — Intel | `LightCode-__V__-x64.dmg` |
+
+          Not sure which Mac you have? **Apple menu → About This Mac** — "Chip: Apple M…"
+          means **arm64**, "Processor: Intel…" means **x64**. On an Intel Mac this matters:
+          the arm64 build will not launch there at all.
+
+          **macOS 12 Monterey or newer is required.** The macOS builds are unsigned, so the
+          first launch needs right-click → **Open**, or run this once:
+
+          ```sh
+          xattr -cr "/Applications/Light Code.app"
+          ```
+          EOF
+          sed "s/__V__/${VERSION}/g" notes.tpl > notes.md
+
+          # Append GitHub's generated changelog. Fetched from the API rather than
+          # passing --generate-notes alongside --notes-file, because how gh combines
+          # those two flags is not guaranteed; this way the result is deterministic.
+          {
+            echo
+            echo "---"
+            echo
+            gh api "repos/${GITHUB_REPOSITORY}/releases/generate-notes" \
+              -f tag_name="$GITHUB_REF_NAME" --jq .body 2>/dev/null || true
+          } >> notes.md
+          cat notes.md
+
       - name: Publish release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --generate-notes || true
+          # create fails when the release already exists (a re-run); edit then
+          # brings its body up to date instead of leaving the first one stale.
+          gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --notes-file notes.md \
+            || gh release edit "$GITHUB_REF_NAME" --notes-file notes.md
           gh release upload "$GITHUB_REF_NAME" upload/* --clobber
