@@ -26,7 +26,18 @@ nsis:
 mac:
   icon: build/icon.png
   category: public.app-category.developer-tools
+  # Electron 43 already refuses to boot below macOS 12 (its own Info.plist sets
+  # LSMinimumSystemVersion 12.0). Declaring it here too makes the installer say
+  # so up front instead of letting an old Mac install an app that never opens.
+  minimumSystemVersion: '12.0'
   target:
+    # Do NOT pin `arch:` here. Listing both arches makes electron-builder package
+    # both on every run, ignoring the --x64/--arm64 CLI flag -- but `npm run dist`
+    # compiles bytecode only ONCE, on the host arch, so the second package ships
+    # the wrong .jsc and dies at launch with "Invalid or incompatible cached data".
+    # (Verified: an --x64 run emitted an arm64 app whose index.jsc was byte-identical
+    # to the x64 one.) Leaving arch unset lets the flag pick exactly one arch per
+    # run, which is what build.yml does -- one runner per arch, see the matrix there.
     - dmg
     - zip
   artifactName: LightCode-${version}-${arch}.${ext}

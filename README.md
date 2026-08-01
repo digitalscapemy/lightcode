@@ -63,6 +63,11 @@ Manage project and account shortcuts from the UI instead of hand-editing your sh
 ### 🗂 Tabs & split panes
 - Each tab is a project; split panes right/down (`Ctrl/Cmd+Shift+E` / `D`), drag dividers,
   maximize a pane, drag-reorder tabs
+- **Layout picker** (grid button in the tab bar) — pick a pane arrangement from a visual
+  grid instead of splitting one pane at a time: 2 columns, 2×2, 3×2, 4×4 and more, up to 16
+  panes. Switching layouts **keeps every running session alive** — panes are rearranged, not
+  restarted. Shrinking to a smaller layout closes the extra panes, so it asks first.
+- **Open several tabs at once** — right-click the `+` button to add 3, 8 or 16 tabs in one go
 - Rename tabs (double-click) and panes (⋮ menu) — names survive restarts
 - **Working-directory memory**: shell integration tracks every `cd` live, and each pane reopens
   in its last folder after a restart. New splits open in the source pane's current folder.
@@ -90,7 +95,16 @@ Grab the latest installer from **[Releases](https://github.com/digitalscapemy/li
 | Platform | File | Notes |
 | --- | --- | --- |
 | Windows 10/11 | `LightCode-Setup-x.y.z.exe` | One-click install; auto-updates itself |
-| macOS | `LightCode-x.y.z-arm64.dmg` | Unsigned build — right-click → Open the first time, or run `xattr -cr "/Applications/Light Code.app"` |
+| macOS — Apple Silicon (M1 and newer) | `LightCode-x.y.z-arm64.dmg` | Unsigned build — see note below |
+| macOS — Intel | `LightCode-x.y.z-x64.dmg` | Unsigned build — see note below |
+
+**macOS 12 Monterey or newer is required** on both architectures — that's the floor
+Electron itself imposes, and it covers every Mac from roughly 2015 onward. Pick the DMG
+matching your Mac: `arm64` for Apple Silicon, `x64` for Intel (About This Mac → Chip).
+Installing the wrong one gives you an app that won't launch.
+
+Both builds are unsigned (no Apple Developer account), so the first launch needs
+right-click → **Open**, or run `xattr -cr "/Applications/Light Code.app"` once.
 
 Requires [Claude Code](https://claude.com/claude-code) for the token-usage features
 (the terminal works with any CLI).

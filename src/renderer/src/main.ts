@@ -3,6 +3,7 @@ import './styles.css'
 import * as app from './app'
 import { initAboutUi } from './about'
 import { initShortcuts } from './keys'
+import { initLayoutPicker } from './layoutPicker'
 import { openMission, toggleMissionControl } from './missionControl'
 import { initShortcutsUi } from './shortcuts'
 import { initUpdateToast } from './toast'
@@ -24,7 +25,8 @@ async function boot(): Promise<void> {
     // DOM order is already live-synced during the drag; re-rendering here
     // would cut the snap animation short.
     onReorderCommit: () => persist(),
-    onAdd: () => void app.addTab()
+    onAdd: () => void app.addTab(),
+    onAddMany: (count) => void app.addTabs(count)
   })
 
   document
@@ -33,6 +35,7 @@ async function boot(): Promise<void> {
 
   initShortcutsUi()
   initAboutUi()
+  initLayoutPicker()
   initUpdateToast()
 
   document

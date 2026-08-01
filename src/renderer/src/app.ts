@@ -2,6 +2,8 @@ import type { PaneStatus, StatusUpdate, UsageUpdate } from '../../shared/ipc'
 import type { LayoutNode, Orientation, PersistedState, TabState } from '../../shared/types'
 import { forgetPane as forgetBabysitter, handleStatusChange, noteManualInput } from './babysitter'
 import { renderLayout } from './layout'
+import { buildLayout } from './layouts'
+import type { LayoutPreset } from './layouts'
 import { TerminalPane } from './pane'
 import type { PaneCallbacks } from './pane'
 import { activeTab, newId, paneStatus, paneUsage, persist, state, tabOfPane } from './store'
@@ -91,6 +93,24 @@ export function setDefaultCwd(cwd: string): void {
 /** "+" button / Ctrl+Shift+T: open a new terminal tab immediately. */
 export async function addTab(): Promise<void> {
   await createTab({ projectPath: defaultCwd, name: 'Terminal' })
+}
+
+/**
+ * "+" right-click: open several tabs at once instead of clicking N times.
+ *
+ * Only the last tab activates. activateTab() re-fits every pane in the tab it
+ * switches to and re-runs syncWebgl() across all tabs, so activating each one in
+ * turn would pay that cost N times for N-1 layouts nobody ever sees — and the
+ * final syncWebgl() settles the WebGL contexts for every tab anyway.
+ */
+export async function addTabs(count: number): Promise<void> {
+  for (let i = 0; i < count; i++) {
+    await createTab({
+      projectPath: defaultCwd,
+      name: 'Terminal',
+      activate: i === count - 1
+    })
+  }
 }
 
 /** Explicit "open project" flow (empty state): pick a folder first. */
@@ -229,6 +249,85 @@ export async function splitAt(
   await pane.spawn()
   if (tab.id === state.activeTabId) pane.attachWebgl()
   pane.focus()
+  persist()
+}
+
+/** The preset whose shape the active tab currently has, if any. */
+export function activeLayoutId(presets: LayoutPreset[]): string | null {
+  const tab = activeTab()
+  if (!tab) return null
+  const shape = (node: LayoutNode): string =>
+    node.type === 'pane'
+      ? 'p'
+      : `${node.orientation[0]}(${node.children.map(shape).join(',')})`
+  const current = shape(tab.layout)
+  let dummy = 0
+  return (
+    presets.find((p) => shape(buildLayout(p.spec, () => `d${dummy++}`)) === current)?.id ?? null
+  )
+}
+
+/**
+ * Reshape the active tab to a preset layout.
+ *
+ * Existing panes keep their slot in reading order, and renderLayout reparents
+ * pane elements rather than rebuilding them, so a reshape never restarts a
+ * running shell. Slots beyond the preset's count are closed — that kills those
+ * shells, so it asks first.
+ */
+export async function applyLayout(preset: LayoutPreset): Promise<void> {
+  const tab = activeTab()
+  if (!tab) return
+  const existing = paneIds(tab.layout)
+  const dropped = existing.slice(preset.count)
+  if (dropped.length > 0) {
+    const n = dropped.length
+    const ok = window.confirm(
+      `This layout has ${preset.count} panes, so ${n} open ${n === 1 ? 'pane' : 'panes'} ` +
+        `will be closed and ${n === 1 ? 'its' : 'their'} shell${n === 1 ? '' : 's'} ended.\n\nContinue?`
+    )
+    if (!ok) return
+  }
+  maximizedPane.delete(tab.id) // a reshape always restores the grid
+
+  // Ids in reading order: reuse the panes we are keeping, mint ids for the rest.
+  const queue = existing.slice(0, preset.count)
+  const reused = queue.length
+  while (queue.length < preset.count) queue.push(newId('p'))
+  const fresh = queue.slice(reused)
+
+  // buildLayout only knows ids, so carry each kept pane's cwd/name across.
+  const prev = new Map(paneNodes(tab.layout).map((n) => [n.id, n]))
+  let i = 0
+  const layout = buildLayout(preset.spec, () => queue[i++]!)
+  for (const node of paneNodes(layout)) {
+    const before = prev.get(node.id)
+    if (before?.cwd) node.cwd = before.cwd
+    if (before?.name) node.name = before.name
+  }
+
+  for (const pid of dropped) {
+    panes.get(pid)?.dispose()
+    panes.delete(pid)
+    paneStatus.delete(pid)
+    paneUsage.delete(pid)
+    lastNotified.delete(pid)
+    forgetBabysitter(pid)
+  }
+  // New panes open where the first surviving pane is, matching splitAt().
+  const srcCwd = (queue[0] ? prev.get(queue[0])?.cwd : undefined) ?? tab.projectPath
+  for (const pid of fresh) createPane(pid, srcCwd)
+
+  tab.layout = layout
+  const view = tabViews.get(tab.id)!
+  renderLayout(view, tab.layout, (id) => panes.get(id)!.el)
+  for (const pid of paneIds(tab.layout)) panes.get(pid)?.scheduleFit()
+
+  await Promise.all(fresh.map((pid) => panes.get(pid)!.spawn()))
+  if (tab.id === state.activeTabId) {
+    for (const pid of fresh) panes.get(pid)?.attachWebgl()
+  }
+  panes.get(firstPaneId(tab.layout))?.focus()
   persist()
 }
 

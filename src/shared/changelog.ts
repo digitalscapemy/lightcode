@@ -9,6 +9,15 @@ export const DEVELOPER = 'Digital Scape MY'
 /** Newest first. Add an entry on every release (see release procedure). */
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.3.0',
+    date: '2026-08-01',
+    notes: [
+      'Layout picker: a new grid button in the tab bar opens a visual menu of pane arrangements — 2 columns, 2×2, 3×2, 4×4 and more, up to 16 panes. Pick a shape instead of splitting one pane at a time. Switching layouts rearranges the panes you already have rather than restarting them, so every running Claude session survives the change; picking a smaller layout closes the extra panes and asks first.',
+      'Open several tabs at once: right-click the "+" button to add 3, 8 or 16 tabs in one go instead of clicking it repeatedly.',
+      'macOS installers are back, for both Apple Silicon and Intel Macs. Releases had been Windows-only since 0.1.2, and the last macOS build before that was Apple Silicon only. macOS 12 Monterey or newer is required.'
+    ]
+  },
+  {
     version: '0.2.1',
     date: '2026-07-17',
     notes: [
