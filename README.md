@@ -196,14 +196,65 @@ deliberately left alone so shell completion and history keep working.
 
 ## Build from source
 
+### Prerequisites
+
+| | Windows | macOS |
+| --- | --- | --- |
+| Node.js | **22.12 or newer** | **22.12 or newer** |
+| Git | [git-scm.com](https://git-scm.com/download/win) | `xcode-select --install` (ships with it) |
+| OS | Windows 10/11 | macOS 12 Monterey or newer |
+
+Node 22.12 is a hard floor — `electron` and `electron-vite` both declare it. On Node 20
+`npm install` still appears to succeed, but prints `EBADENGINE` warnings and the build
+tooling can fail later in ways that do not point back here. Check with `node -v`.
+
+`node-pty` ships prebuilt binaries for `win32-x64`, `win32-arm64`, `darwin-x64` and
+`darwin-arm64`, so a compiler is normally **not** needed. If npm falls back to building
+it from source you will also need Visual Studio Build Tools with the *Desktop
+development with C++* workload on Windows, or Xcode Command Line Tools on macOS.
+
+### Setup
+
+Identical on both platforms:
+
 ```sh
 git clone https://github.com/digitalscapemy/lightcode.git
 cd lightcode
-npm install        # node-pty ships prebuilds — usually no compiler needed
+npm install
+npx install-electron   # REQUIRED — see below
+```
+
+> **Why the extra step.** Electron 43 dropped the `postinstall` hook that used to
+> fetch its binary — 30, 35 and 40 all still had it — and now downloads lazily, the
+> first time something calls `require('electron')`.
+>
+> That is enough for `npm run dist`: its bytecode step requires Electron and triggers
+> the download, which is why CI is green on a bare `npm ci`. But `electron-vite`
+> resolves the binary path *itself* rather than going through `require`, and throws
+> `Error: Electron uninstall` when it is missing — so **`npm run dev` fails on a fresh
+> clone** while `npm run dist` succeeds.
+>
+> `npm install` exits **0** either way and nothing looks wrong. Running
+> `npx install-electron` once up front removes the difference. Run it again after any
+> `npm ci` or Electron version bump.
+
+### Everyday commands
+
+```sh
 npm run dev        # dev mode with HMR
 npm run typecheck  # TypeScript check
-npm run dist       # build a platform installer with electron-builder
+npm test           # unit tests (vitest)
+npm run dist       # build an installer for the platform you are on
 ```
+
+`npm run dist` builds only for the machine it runs on, and that is deliberate:
+`npm run dist` compiles the main process to V8 bytecode, which is architecture-specific,
+so a Mac cannot produce a working Windows or Intel build and vice versa. Cross-platform
+installers come from CI, which runs one job per target — see
+[`.github/workflows/build.yml`](.github/workflows/build.yml).
+
+To build a specific macOS architecture on a Mac: `npm run dist -- --mac --arm64`
+(or `--x64`). Do not pin both at once.
 
 **Tech stack:** [Electron](https://electronjs.org) · [electron-vite](https://electron-vite.org) ·
 [xterm.js](https://xtermjs.org) · [node-pty](https://github.com/microsoft/node-pty) ·
