@@ -1,4 +1,5 @@
 import type { TabState } from '../../shared/types'
+import { MOD_LABEL } from './keys'
 import { state, tabStatus } from './store'
 
 export interface TabBarCallbacks {
@@ -7,13 +8,89 @@ export interface TabBarCallbacks {
   onRename(tabId: string, name: string): void
   onReorderCommit(): void
   onAdd(): void
+  onAddMany(count: number): void
 }
 
 let cb: TabBarCallbacks
 
 export function initTabBar(callbacks: TabBarCallbacks): void {
   cb = callbacks
-  document.getElementById('add-tab')!.addEventListener('click', () => cb.onAdd())
+  const add = document.getElementById('add-tab')!
+  // The HTML ships the Windows label; macOS gets the glyph it actually uses.
+  add.title = `New terminal tab (${MOD_LABEL}+Shift+T) — right-click to open several`
+  add.addEventListener('click', () => cb.onAdd())
+  // Right-click opens the bulk picker; plain left-click still opens exactly one
+  // tab, so the button and the keyboard shortcut stay interchangeable.
+  // (On macOS Ctrl+click raises the same event, which is the native gesture.)
+  add.addEventListener('contextmenu', (e) => {
+    e.preventDefault()
+    toggleAddMenu(add)
+  })
+}
+
+/** Tab counts offered by the "+" right-click menu. */
+const BULK_COUNTS = [1, 3, 5, 8, 10, 16]
+
+let addMenu: HTMLElement | null = null
+let addMenuDismiss: (() => void) | null = null
+
+function closeAddMenu(): void {
+  addMenuDismiss?.()
+  addMenuDismiss = null
+  addMenu?.remove()
+  addMenu = null
+}
+
+/** Bulk-tab picker anchored under the "+" button. */
+function toggleAddMenu(anchor: HTMLElement): void {
+  if (addMenu) {
+    closeAddMenu()
+    return
+  }
+  const menu = document.createElement('div')
+  menu.className = 'pane-menu tab-add-menu'
+  for (const n of BULK_COUNTS) {
+    const item = document.createElement('button')
+    item.className = 'pane-menu-item'
+    // "+N", not "N": the picker adds tabs to whatever is already open, it does
+    // not resize the strip to N. Closing is left to the tab's own × button.
+    item.textContent = n === 1 ? '+1 tab' : `+${n} tabs`
+    item.addEventListener('click', (e) => {
+      e.stopPropagation()
+      closeAddMenu()
+      cb.onAddMany(n)
+    })
+    menu.appendChild(item)
+  }
+  document.body.appendChild(menu)
+  addMenu = menu
+
+  // Anchor under the "+", then pull back inside the viewport if it would
+  // overhang. Windows parks its caption buttons at the right edge and macOS
+  // does not, so clamping covers both without branching on platform.
+  const a = anchor.getBoundingClientRect()
+  menu.style.left = `${a.left}px`
+  menu.style.top = `${a.bottom + 4}px`
+  const m = menu.getBoundingClientRect()
+  if (m.right > window.innerWidth - 8) {
+    menu.style.left = `${Math.max(8, window.innerWidth - 8 - m.width)}px`
+  }
+
+  const onPointerDown = (e: PointerEvent): void => {
+    if (!menu.contains(e.target as Node)) closeAddMenu()
+  }
+  const onKey = (e: KeyboardEvent): void => {
+    if (e.key === 'Escape') closeAddMenu()
+  }
+  // blur: clicking another window (or the OS taskbar/Dock) should dismiss too.
+  window.addEventListener('pointerdown', onPointerDown, true)
+  window.addEventListener('keydown', onKey, true)
+  window.addEventListener('blur', closeAddMenu)
+  addMenuDismiss = (): void => {
+    window.removeEventListener('pointerdown', onPointerDown, true)
+    window.removeEventListener('keydown', onKey, true)
+    window.removeEventListener('blur', closeAddMenu)
+  }
 }
 
 const tabEls = new Map<string, HTMLElement>()

@@ -1,10 +1,16 @@
-# Builds the Windows installer.
+# Builds the Windows installer and both macOS installers (Apple Silicon + Intel).
 # - Push a v* tag  -> builds AND publishes/updates the GitHub Release (auto-update feed).
 # - Manual run     -> builds artifacts only (no release).
 #
 # Publishing uses `gh release` instead of electron-builder's publisher:
 # electron-builder can't append to an already-published release (it silently
 # creates an orphaned draft), while `gh release upload --clobber` is idempotent.
+#
+# Why three separate build jobs instead of one cross-compiling job: `npm run dist`
+# runs scripts/build-bytecode.cjs, which compiles the main process to V8 bytecode.
+# That bytecode is architecture-specific, so an arm64 machine cannot produce a
+# working x64 .jsc (or vice versa) -- the wrong arch fails at load with
+# "Invalid or incompatible cached data". Each arch must build on its own runner.
 name: Build
 
 on:
@@ -17,26 +23,125 @@ permissions:
   contents: write
 
 jobs:
-  windows:
-    runs-on: windows-latest
+  build:
+    name: Build (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      # One arch failing shouldn't throw away the others' artifacts.
+      fail-fast: false
+      matrix:
+        include:
+          - name: windows
+            os: windows-latest
+            args: --win
+          # Apple Silicon (M1 and newer). macos-latest is arm64.
+          - name: mac-arm64
+            os: macos-latest
+            args: --mac --arm64
+          # Intel Macs. Note: macos-13 was retired in Dec 2025. The Intel labels
+          # now are macos-15-intel and macos-26-intel; GitHub is dropping x86_64
+          # hosting entirely around Aug 2027, after which Intel DMGs need another
+          # builder (self-hosted, or drop Intel support).
+          - name: mac-x64
+            os: macos-15-intel
+            args: --mac --x64
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
       - run: npm ci
-      - run: npm run dist -- --publish never
-      - name: Publish release (create + upload Windows assets)
-        if: startsWith(github.ref, 'refs/tags/')
-        shell: bash
+      - run: npm run dist -- ${{ matrix.args }} --publish never
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.name }}
+          # Globs cover all three platforms; each job only matches its own.
+          # .blockmap files are listed explicitly -- `*.zip` does not match
+          # `*.zip.blockmap`, and electron-updater needs them for delta updates.
+          path: |
+            dist/*.exe
+            dist/*.exe.blockmap
+            dist/*.dmg
+            dist/*.dmg.blockmap
+            dist/*.zip
+            dist/*.zip.blockmap
+            dist/latest*.yml
+          if-no-files-found: ignore
+
+  release:
+    name: Publish release
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      # Each mac job emits its own latest-mac.yml listing only the arch it built.
+      # Uploading both would leave whichever finished last as the live feed, so
+      # half of installed Macs would stop seeing updates. Merge the two `files`
+      # lists into a single feed that offers both arches; electron-updater then
+      # picks the entry matching the machine it's running on.
+      - name: Merge macOS update feeds
+        run: |
+          python3 -m pip install --quiet pyyaml
+          python3 - <<'PY'
+          import glob, pathlib, yaml
+
+          feeds = []
+          for name in ('mac-x64', 'mac-arm64'):
+              for p in glob.glob(f'artifacts/{name}/latest-mac.yml'):
+                  feeds.append(yaml.safe_load(pathlib.Path(p).read_text()))
+
+          if not feeds:
+              print('no macOS feeds found; nothing to merge')
+              raise SystemExit(0)
+
+          merged, seen = dict(feeds[0]), set()
+          files = []
+          for feed in feeds:
+              for f in feed.get('files', []):
+                  if f['url'] not in seen:
+                      seen.add(f['url'])
+                      files.append(f)
+          merged['files'] = files
+
+          # Top-level path/sha512 is the legacy single-file fallback for older
+          # electron-updater clients. Point it at the x64 zip: Rosetta lets an
+          # Apple Silicon Mac run it, whereas an arm64 zip is unusable on Intel.
+          fallback = next(
+              (f for f in files if f['url'].endswith('.zip') and 'x64' in f['url']),
+              next((f for f in files if f['url'].endswith('.zip')), None),
+          )
+          if fallback:
+              merged['path'] = fallback['url']
+              merged['sha512'] = fallback['sha512']
+
+          out = pathlib.Path('upload')
+          out.mkdir(exist_ok=True)
+          (out / 'latest-mac.yml').write_text(yaml.safe_dump(merged, sort_keys=False))
+          print((out / 'latest-mac.yml').read_text())
+          PY
+
+      - name: Stage installers
+        run: |
+          mkdir -p upload
+          # latest-mac.yml is deliberately NOT matched here -- the merged copy is
+          # already staged above and the per-arch originals must not overwrite it.
+          # `latest.yml` (the Windows feed) is matched by exact name, and cp -n is
+          # a second guard against any same-named file landing twice.
+          find artifacts -type f \
+            \( -name '*.exe' -o -name '*.exe.blockmap' \
+               -o -name '*.dmg' -o -name '*.dmg.blockmap' \
+               -o -name '*.zip' -o -name '*.zip.blockmap' \
+               -o -name 'latest.yml' \) \
+            -exec cp -n {} upload/ \;
+          ls -la upload
+
+      - name: Publish release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --generate-notes || true
-          gh release upload "$GITHUB_REF_NAME" dist/*.exe dist/*.exe.blockmap dist/latest.yml --clobber
-      - uses: actions/upload-artifact@v4
-        with:
-          name: windows-installer
-          path: |
-            dist/*.exe
-            dist/latest.yml
+          gh release upload "$GITHUB_REF_NAME" upload/* --clobber

@@ -9,6 +9,19 @@ export const DEVELOPER = 'Digital Scape MY'
 /** Newest first. Add an entry on every release (see release procedure). */
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.3.0',
+    date: '2026-08-01',
+    notes: [
+      'Layout picker: a new grid button in the tab bar opens a visual menu of pane arrangements — 2 columns, 2×2, 3×2, 4×4 and more, up to 16 panes. Pick a shape instead of splitting one pane at a time. Switching layouts rearranges the panes you already have rather than restarting them, so every running Claude session survives the change; picking a smaller layout closes the extra panes and asks first.',
+      'Open several tabs at once: right-click the "+" button to add 3, 8 or 16 tabs in one go instead of clicking it repeatedly.',
+      'Adjustable terminal text size with Ctrl/Cmd +, - and 0 — useful once a layout gets dense enough that the default 14px stops fitting. It applies to every pane, new panes open at the size you picked, and the choice survives a restart.',
+      'Keyboard navigation between panes, so a dense layout no longer needs the mouse. Ctrl+Tab and Ctrl+Shift+Tab cycle through the panes in the current tab, and Ctrl/Cmd+Alt with the arrow keys jumps to the pane lying that way on screen — in a 4×4 grid that is two keystrokes instead of ten. Ctrl+Tab is Ctrl on both Windows and macOS. Plain Tab and plain arrows are untouched, so shell completion and command history keep working exactly as before.',
+      'App shortcuts no longer fire while you are typing in a tab or pane rename box, which used to trigger the shortcut and then silently commit the half-typed name.',
+      'Fixed on macOS: several tooltips named Ctrl when the actual shortcut is Cmd. Fixed on Windows: Ctrl+Shift+minus is Ctrl+underscore, which is undo in zsh and bash — the font-size shortcut was swallowing it, and now leaves it to the shell.',
+      'macOS installers are back, for both Apple Silicon and Intel Macs. Releases had been Windows-only since 0.1.2, and the last macOS build before that was Apple Silicon only. macOS 12 Monterey or newer is required.'
+    ]
+  },
+  {
     version: '0.2.1',
     date: '2026-07-17',
     notes: [

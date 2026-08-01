@@ -2,7 +2,8 @@ import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { WebglAddon } from '@xterm/addon-webgl'
 import { isBabysitterOn, toggleBabysitter } from './babysitter'
-import { isAppShortcut } from './keys'
+import { MOD_LABEL, isAppShortcut } from './keys'
+import { state } from './store'
 import { xtermTheme } from './theme'
 
 import type { PaneStatus } from '../../shared/ipc'
@@ -131,7 +132,7 @@ export class TerminalPane {
     const killBtn = document.createElement('button')
     killBtn.className = 'pane-kill'
     killBtn.textContent = '×'
-    killBtn.title = 'Close pane (Ctrl+Shift+W)'
+    killBtn.title = `Close pane (${MOD_LABEL}+Shift+W)`
     killBtn.addEventListener('click', (e) => {
       e.stopPropagation()
       this.callbacks.onCloseRequest(this.id)
@@ -148,7 +149,9 @@ export class TerminalPane {
       cursorStyle: 'bar',
       cursorInactiveStyle: 'none',
       cursorWidth: 2,
-      fontSize: 14,
+      // Panes created after a zoom must open at the current size, not the
+      // default — otherwise a new split in a zoomed-out grid comes back large.
+      fontSize: state.fontSize,
       fontFamily: '"Cascadia Mono", Consolas, monospace',
       scrollback: 5000,
       theme: xtermTheme
@@ -483,6 +486,17 @@ export class TerminalPane {
   write(data: string): void {
     if (this.loading) this.clearLoading()
     this.term.write(data)
+  }
+
+  /**
+   * Resize this terminal's text. Refitting is required, not cosmetic: the pane
+   * keeps its pixel size, so a new font size means a different cols/rows count,
+   * and the PTY has to be told or the shell keeps wrapping to the old width.
+   */
+  setFontSize(px: number): void {
+    if (this.term.options.fontSize === px) return
+    this.term.options.fontSize = px
+    this.scheduleFit()
   }
 
   scheduleFit(): void {

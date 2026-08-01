@@ -2,9 +2,23 @@ import type { PaneStatus, StatusUpdate, UsageUpdate } from '../../shared/ipc'
 import type { LayoutNode, Orientation, PersistedState, TabState } from '../../shared/types'
 import { forgetPane as forgetBabysitter, handleStatusChange, noteManualInput } from './babysitter'
 import { renderLayout } from './layout'
+import { buildLayout } from './layouts'
+import type { LayoutPreset } from './layouts'
 import { TerminalPane } from './pane'
 import type { PaneCallbacks } from './pane'
-import { activeTab, newId, paneStatus, paneUsage, persist, state, tabOfPane } from './store'
+import { neighbour, paneRects, step } from './paneNav'
+import type { Direction } from './paneNav'
+import {
+  FONT_SIZE_DEFAULT,
+  activeTab,
+  clampFontSize,
+  newId,
+  paneStatus,
+  paneUsage,
+  persist,
+  state,
+  tabOfPane
+} from './store'
 import { firstPaneId, paneIds, paneNodes, removePane, splitPane } from './splitTree'
 import { refreshTabStatuses, renderTabs } from './tabbar'
 
@@ -91,6 +105,24 @@ export function setDefaultCwd(cwd: string): void {
 /** "+" button / Ctrl+Shift+T: open a new terminal tab immediately. */
 export async function addTab(): Promise<void> {
   await createTab({ projectPath: defaultCwd, name: 'Terminal' })
+}
+
+/**
+ * "+" right-click: open several tabs at once instead of clicking N times.
+ *
+ * Only the last tab activates. activateTab() re-fits every pane in the tab it
+ * switches to and re-runs syncWebgl() across all tabs, so activating each one in
+ * turn would pay that cost N times for N-1 layouts nobody ever sees — and the
+ * final syncWebgl() settles the WebGL contexts for every tab anyway.
+ */
+export async function addTabs(count: number): Promise<void> {
+  for (let i = 0; i < count; i++) {
+    await createTab({
+      projectPath: defaultCwd,
+      name: 'Terminal',
+      activate: i === count - 1
+    })
+  }
 }
 
 /** Explicit "open project" flow (empty state): pick a folder first. */
@@ -232,6 +264,85 @@ export async function splitAt(
   persist()
 }
 
+/** The preset whose shape the active tab currently has, if any. */
+export function activeLayoutId(presets: LayoutPreset[]): string | null {
+  const tab = activeTab()
+  if (!tab) return null
+  const shape = (node: LayoutNode): string =>
+    node.type === 'pane'
+      ? 'p'
+      : `${node.orientation[0]}(${node.children.map(shape).join(',')})`
+  const current = shape(tab.layout)
+  let dummy = 0
+  return (
+    presets.find((p) => shape(buildLayout(p.spec, () => `d${dummy++}`)) === current)?.id ?? null
+  )
+}
+
+/**
+ * Reshape the active tab to a preset layout.
+ *
+ * Existing panes keep their slot in reading order, and renderLayout reparents
+ * pane elements rather than rebuilding them, so a reshape never restarts a
+ * running shell. Slots beyond the preset's count are closed — that kills those
+ * shells, so it asks first.
+ */
+export async function applyLayout(preset: LayoutPreset): Promise<void> {
+  const tab = activeTab()
+  if (!tab) return
+  const existing = paneIds(tab.layout)
+  const dropped = existing.slice(preset.count)
+  if (dropped.length > 0) {
+    const n = dropped.length
+    const ok = window.confirm(
+      `This layout has ${preset.count} panes, so ${n} open ${n === 1 ? 'pane' : 'panes'} ` +
+        `will be closed and ${n === 1 ? 'its' : 'their'} shell${n === 1 ? '' : 's'} ended.\n\nContinue?`
+    )
+    if (!ok) return
+  }
+  maximizedPane.delete(tab.id) // a reshape always restores the grid
+
+  // Ids in reading order: reuse the panes we are keeping, mint ids for the rest.
+  const queue = existing.slice(0, preset.count)
+  const reused = queue.length
+  while (queue.length < preset.count) queue.push(newId('p'))
+  const fresh = queue.slice(reused)
+
+  // buildLayout only knows ids, so carry each kept pane's cwd/name across.
+  const prev = new Map(paneNodes(tab.layout).map((n) => [n.id, n]))
+  let i = 0
+  const layout = buildLayout(preset.spec, () => queue[i++]!)
+  for (const node of paneNodes(layout)) {
+    const before = prev.get(node.id)
+    if (before?.cwd) node.cwd = before.cwd
+    if (before?.name) node.name = before.name
+  }
+
+  for (const pid of dropped) {
+    panes.get(pid)?.dispose()
+    panes.delete(pid)
+    paneStatus.delete(pid)
+    paneUsage.delete(pid)
+    lastNotified.delete(pid)
+    forgetBabysitter(pid)
+  }
+  // New panes open where the first surviving pane is, matching splitAt().
+  const srcCwd = (queue[0] ? prev.get(queue[0])?.cwd : undefined) ?? tab.projectPath
+  for (const pid of fresh) createPane(pid, srcCwd)
+
+  tab.layout = layout
+  const view = tabViews.get(tab.id)!
+  renderLayout(view, tab.layout, (id) => panes.get(id)!.el)
+  for (const pid of paneIds(tab.layout)) panes.get(pid)?.scheduleFit()
+
+  await Promise.all(fresh.map((pid) => panes.get(pid)!.spawn()))
+  if (tab.id === state.activeTabId) {
+    for (const pid of fresh) panes.get(pid)?.attachWebgl()
+  }
+  panes.get(firstPaneId(tab.layout))?.focus()
+  persist()
+}
+
 /** Temporarily expand one pane to fill the whole tab; toggle to restore. */
 export function toggleMaximizePane(paneId: string): void {
   const tab = tabOfPane(paneId)
@@ -340,6 +451,52 @@ export function focusPane(paneId: string): void {
   else panes.get(paneId)?.focus()
 }
 
+/** Where keyboard navigation starts from, falling back to the first pane. */
+function navOrigin(tab: TabState): { ids: string[]; from: string } | null {
+  const ids = paneIds(tab.layout)
+  const focused = state.focusedPaneId
+  const from = focused && ids.includes(focused) ? focused : ids[0]
+  return from ? { ids, from } : null
+}
+
+/**
+ * Focus a pane, carrying a maximized view along with it.
+ *
+ * If the tab is zoomed into one pane, focusing another without moving the zoom
+ * would put the cursor in something that is not on screen. The user zoomed
+ * deliberately, so move the zoom rather than drop it.
+ */
+function goToPane(tab: TabState, paneId: string): void {
+  if (maximizedPane.get(tab.id)) {
+    maximizedPane.set(tab.id, paneId)
+    const view = tabViews.get(tab.id)!
+    view.textContent = ''
+    view.appendChild(panes.get(paneId)!.el)
+    panes.get(paneId)?.scheduleFit()
+  }
+  panes.get(paneId)?.focus()
+}
+
+/** Ctrl+Tab / Ctrl+Shift+Tab: cycle through the active tab's panes. */
+export function focusPaneStep(delta: 1 | -1): void {
+  const tab = activeTab()
+  if (!tab) return
+  const origin = navOrigin(tab)
+  if (!origin) return
+  const target = step(origin.ids, origin.from, delta)
+  if (target) goToPane(tab, target)
+}
+
+/** Mod+Alt+Arrow: move focus to the pane lying that way on screen. */
+export function focusPaneDirection(dir: Direction): void {
+  const tab = activeTab()
+  if (!tab) return
+  const origin = navOrigin(tab)
+  if (!origin) return
+  const target = neighbour(paneRects(tab.layout), origin.from, dir)
+  if (target) goToPane(tab, target)
+}
+
 /** Human label for a pane in notifications — its tab name. */
 function paneLabel(paneId: string): string {
   return tabOfPane(paneId)?.name ?? 'Claude'
@@ -413,7 +570,24 @@ export function contextWindowFor(model: string | null): number {
 }
 
 /** Rebuild tabs/layout from disk, spawning fresh shell sessions. */
+/**
+ * Resize the terminal text in every pane. `delta` of 0 resets to the default.
+ *
+ * Applies to all panes, including ones in background tabs: a hidden pane's
+ * fit() is a no-op while it has no size, and activateTab() refits it on the way
+ * back in, so it picks the new size up without a special case here.
+ */
+export function adjustFontSize(delta: number): void {
+  const next = delta === 0 ? FONT_SIZE_DEFAULT : clampFontSize(state.fontSize + delta)
+  if (next === state.fontSize) return
+  state.fontSize = next
+  for (const pane of panes.values()) pane.setFontSize(next)
+  persist()
+}
+
 export async function restore(persisted: PersistedState): Promise<void> {
+  // Before any pane is built — TerminalPane reads state.fontSize at construction.
+  if (persisted.fontSize) state.fontSize = clampFontSize(persisted.fontSize)
   for (const tab of persisted.tabs) {
     await createTab({
       id: tab.id,
