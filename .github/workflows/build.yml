@@ -193,8 +193,14 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # create fails when the release already exists (a re-run); edit then
-          # brings its body up to date instead of leaving the first one stale.
-          gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --notes-file notes.md \
-            || gh release edit "$GITHUB_REF_NAME" --notes-file notes.md
-          gh release upload "$GITHUB_REF_NAME" upload/* --clobber
+          # -R is required, not decoration: this job only downloads artifacts, it
+          # never checks the repo out, so there is no git remote for gh to infer
+          # from and every gh release call fails with "not a git repository".
+          #
+          # create fails when the release already exists -- a re-run, or a release
+          # pre-created to carry the prerelease flag. edit then brings its body up
+          # to date, and leaves prerelease/draft flags exactly as they were.
+          gh release create "$GITHUB_REF_NAME" -R "$GITHUB_REPOSITORY" \
+            --title "$GITHUB_REF_NAME" --notes-file notes.md \
+            || gh release edit "$GITHUB_REF_NAME" -R "$GITHUB_REPOSITORY" --notes-file notes.md
+          gh release upload "$GITHUB_REF_NAME" -R "$GITHUB_REPOSITORY" upload/* --clobber
