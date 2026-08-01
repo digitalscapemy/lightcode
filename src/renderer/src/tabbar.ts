@@ -1,4 +1,5 @@
 import type { TabState } from '../../shared/types'
+import { MOD_LABEL } from './keys'
 import { state, tabStatus } from './store'
 
 export interface TabBarCallbacks {
@@ -16,8 +17,7 @@ export function initTabBar(callbacks: TabBarCallbacks): void {
   cb = callbacks
   const add = document.getElementById('add-tab')!
   // The HTML ships the Windows label; macOS gets the glyph it actually uses.
-  const mod = window.lightclaude.platform === 'darwin' ? '⌘' : 'Ctrl'
-  add.title = `New terminal tab (${mod}+Shift+T) — right-click to open several`
+  add.title = `New terminal tab (${MOD_LABEL}+Shift+T) — right-click to open several`
   add.addEventListener('click', () => cb.onAdd())
   // Right-click opens the bulk picker; plain left-click still opens exactly one
   // tab, so the button and the keyboard shortcut stay interchangeable.

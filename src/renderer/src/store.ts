@@ -1,16 +1,33 @@
 import type { PaneStatus, StatusUpdate, UsageUpdate } from '../../shared/ipc'
 import type { PersistedState, TabState } from '../../shared/types'
 
+/**
+ * Terminal font size, in px, shared by every pane.
+ *
+ * One size for all panes rather than per-pane: the reason to change it is
+ * almost always "this layout got dense, fit more in", which applies to the
+ * whole grid at once.
+ */
+export const FONT_SIZE_DEFAULT = 14
+export const FONT_SIZE_MIN = 8
+export const FONT_SIZE_MAX = 32
+
+export function clampFontSize(px: number): number {
+  return Math.min(FONT_SIZE_MAX, Math.max(FONT_SIZE_MIN, Math.round(px)))
+}
+
 export interface AppState {
   tabs: TabState[]
   activeTabId: string | null
   focusedPaneId: string | null
+  fontSize: number
 }
 
 export const state: AppState = {
   tabs: [],
   activeTabId: null,
-  focusedPaneId: null
+  focusedPaneId: null,
+  fontSize: FONT_SIZE_DEFAULT
 }
 
 /** Latest Claude activity state per pane (ephemeral — never persisted). */
@@ -66,7 +83,8 @@ function serialize(): PersistedState {
   return {
     version: 1,
     activeTabId: state.activeTabId,
-    tabs: state.tabs
+    tabs: state.tabs,
+    fontSize: state.fontSize
   }
 }
 

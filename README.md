@@ -68,6 +68,8 @@ Manage project and account shortcuts from the UI instead of hand-editing your sh
   panes. Switching layouts **keeps every running session alive** — panes are rearranged, not
   restarted. Shrinking to a smaller layout closes the extra panes, so it asks first.
 - **Open several tabs at once** — right-click the `+` button to add 3, 8 or 16 tabs in one go
+- **Adjustable text size** (`Ctrl/Cmd` `+` / `-` / `0`) — shrink the terminal font to fit a dense
+  layout on screen, or grow it back. Applies to every pane and survives restarts.
 - Rename tabs (double-click) and panes (⋮ menu) — names survive restarts
 - **Working-directory memory**: shell integration tracks every `cd` live, and each pane reopens
   in its last folder after a restart. New splits open in the source pane's current folder.
@@ -109,6 +111,69 @@ right-click → **Open**, or run `xattr -cr "/Applications/Light Code.app"` once
 Requires [Claude Code](https://claude.com/claude-code) for the token-usage features
 (the terminal works with any CLI).
 
+## Using it
+
+Below, `Mod` means `⌘` on macOS and `Ctrl` on Windows — the same rule every shortcut
+in the app follows, with one deliberate exception noted under *Moving between panes*.
+
+### Tabs and panes are different things
+
+A **tab** is a project: one folder, its own name, its own slot in the tab bar.
+A **pane** is a terminal *inside* a tab. One tab holds up to 16 panes — that is what
+"many Claude sessions side by side" means in practice.
+
+### Pick a layout
+
+Click the grid button (**⊞**) in the tab bar and choose an arrangement: 2 columns,
+2×2, 3×2, 4×4, and more. Each thumbnail is drawn from the same description that builds
+the real layout, so what you see is exactly what you get.
+
+Switching layouts **keeps every running session alive** — panes are rearranged, never
+restarted, so a Claude session mid-task survives the change. Choosing a *smaller*
+layout closes the extra panes, which ends their shells, so it asks first.
+
+To build a layout by hand instead: `Mod+Shift+E` splits the focused pane to the right,
+`Mod+Shift+D` splits it downward, and the dividers drag.
+
+### Moving between panes without the mouse
+
+| | |
+| --- | --- |
+| `Ctrl+Tab` | next pane, wrapping at the end |
+| `Ctrl+Shift+Tab` | previous pane |
+| `Mod+Alt+←→↑↓` | the pane lying that way on screen |
+
+`Ctrl+Tab` is the exception to the `Mod` rule: it is `Ctrl` on macOS too, because
+`⌘+Tab` belongs to the operating system. Browsers and editors do the same.
+
+Cycling follows reading order. The arrows follow the screen — in a 4×4 grid, reaching
+the far corner takes two keystrokes instead of ten.
+
+**Plain `Tab` and plain arrows are deliberately untouched**, so shell completion and
+command history keep working. The same goes for `Alt+B` / `Alt+F` word motions and, on
+Windows, `Ctrl+_` (undo in zsh and bash).
+
+### Fitting more on screen
+
+`Mod+=` and `Mod+-` resize the terminal text between 8 and 32px; `Mod+0` returns it to
+14. It applies to every pane at once, new panes open at the size you chose, and the
+setting survives a restart. This is what makes a 16-pane grid readable on a laptop.
+
+### Opening several tabs at once
+
+Right-click the **+** button to add 3, 8 or 16 tabs in one go rather than clicking it
+repeatedly. Closing is unchanged — a tab's `×`, or `Mod+Shift+W` for the focused pane.
+
+### Watching your sessions
+
+Run `claude` in any pane and its header badge starts showing live token usage, read
+from Claude Code's own session transcript rather than estimated. Hover for the full
+breakdown; the headline number is context fill, because that is the one that runs out.
+
+`Mod+Shift+M` opens **Mission Control** — every running Claude session in one list with
+its status, model, context fill and idle time. Click a row to jump to that pane, or
+tick several and send one command to all of them.
+
 ## Keyboard shortcuts
 
 | Windows / Linux | macOS | Action |
@@ -117,7 +182,17 @@ Requires [Claude Code](https://claude.com/claude-code) for the token-usage featu
 | `Ctrl+Shift+D` (or `S`) | `⌘+Shift+D` | Split pane down |
 | `Ctrl+Shift+T` | `⌘+Shift+T` | New terminal tab |
 | `Ctrl+Shift+W` | `⌘+Shift+W` | Close focused pane |
+| `Ctrl+Shift+M` | `⌘+Shift+M` | Mission Control |
 | `Ctrl+V` | `⌘+V` | Paste text — or clipboard image as a file path |
+| `Ctrl+=` / `Ctrl+-` | `⌘+=` / `⌘+-` | Terminal text bigger / smaller (8–32px) |
+| `Ctrl+0` | `⌘+0` | Reset text size to 14px |
+| `Ctrl+Tab` | `Ctrl+Tab` | Focus next pane (wraps) |
+| `Ctrl+Shift+Tab` | `Ctrl+Shift+Tab` | Focus previous pane |
+| `Ctrl+Alt+←→↑↓` | `⌘+⌥+←→↑↓` | Focus the pane in that direction |
+
+`Ctrl+Tab` is `Ctrl` on **both** platforms — `⌘+Tab` belongs to macOS itself, which is
+why browsers and editors use `Ctrl+Tab` there too. Plain `Tab` and plain arrows are
+deliberately left alone so shell completion and history keep working.
 
 ## Build from source
 

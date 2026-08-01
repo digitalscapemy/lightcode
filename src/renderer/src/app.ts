@@ -6,7 +6,19 @@ import { buildLayout } from './layouts'
 import type { LayoutPreset } from './layouts'
 import { TerminalPane } from './pane'
 import type { PaneCallbacks } from './pane'
-import { activeTab, newId, paneStatus, paneUsage, persist, state, tabOfPane } from './store'
+import { neighbour, paneRects, step } from './paneNav'
+import type { Direction } from './paneNav'
+import {
+  FONT_SIZE_DEFAULT,
+  activeTab,
+  clampFontSize,
+  newId,
+  paneStatus,
+  paneUsage,
+  persist,
+  state,
+  tabOfPane
+} from './store'
 import { firstPaneId, paneIds, paneNodes, removePane, splitPane } from './splitTree'
 import { refreshTabStatuses, renderTabs } from './tabbar'
 
@@ -439,6 +451,52 @@ export function focusPane(paneId: string): void {
   else panes.get(paneId)?.focus()
 }
 
+/** Where keyboard navigation starts from, falling back to the first pane. */
+function navOrigin(tab: TabState): { ids: string[]; from: string } | null {
+  const ids = paneIds(tab.layout)
+  const focused = state.focusedPaneId
+  const from = focused && ids.includes(focused) ? focused : ids[0]
+  return from ? { ids, from } : null
+}
+
+/**
+ * Focus a pane, carrying a maximized view along with it.
+ *
+ * If the tab is zoomed into one pane, focusing another without moving the zoom
+ * would put the cursor in something that is not on screen. The user zoomed
+ * deliberately, so move the zoom rather than drop it.
+ */
+function goToPane(tab: TabState, paneId: string): void {
+  if (maximizedPane.get(tab.id)) {
+    maximizedPane.set(tab.id, paneId)
+    const view = tabViews.get(tab.id)!
+    view.textContent = ''
+    view.appendChild(panes.get(paneId)!.el)
+    panes.get(paneId)?.scheduleFit()
+  }
+  panes.get(paneId)?.focus()
+}
+
+/** Ctrl+Tab / Ctrl+Shift+Tab: cycle through the active tab's panes. */
+export function focusPaneStep(delta: 1 | -1): void {
+  const tab = activeTab()
+  if (!tab) return
+  const origin = navOrigin(tab)
+  if (!origin) return
+  const target = step(origin.ids, origin.from, delta)
+  if (target) goToPane(tab, target)
+}
+
+/** Mod+Alt+Arrow: move focus to the pane lying that way on screen. */
+export function focusPaneDirection(dir: Direction): void {
+  const tab = activeTab()
+  if (!tab) return
+  const origin = navOrigin(tab)
+  if (!origin) return
+  const target = neighbour(paneRects(tab.layout), origin.from, dir)
+  if (target) goToPane(tab, target)
+}
+
 /** Human label for a pane in notifications — its tab name. */
 function paneLabel(paneId: string): string {
   return tabOfPane(paneId)?.name ?? 'Claude'
@@ -512,7 +570,24 @@ export function contextWindowFor(model: string | null): number {
 }
 
 /** Rebuild tabs/layout from disk, spawning fresh shell sessions. */
+/**
+ * Resize the terminal text in every pane. `delta` of 0 resets to the default.
+ *
+ * Applies to all panes, including ones in background tabs: a hidden pane's
+ * fit() is a no-op while it has no size, and activateTab() refits it on the way
+ * back in, so it picks the new size up without a special case here.
+ */
+export function adjustFontSize(delta: number): void {
+  const next = delta === 0 ? FONT_SIZE_DEFAULT : clampFontSize(state.fontSize + delta)
+  if (next === state.fontSize) return
+  state.fontSize = next
+  for (const pane of panes.values()) pane.setFontSize(next)
+  persist()
+}
+
 export async function restore(persisted: PersistedState): Promise<void> {
+  // Before any pane is built — TerminalPane reads state.fontSize at construction.
+  if (persisted.fontSize) state.fontSize = clampFontSize(persisted.fontSize)
   for (const tab of persisted.tabs) {
     await createTab({
       id: tab.id,

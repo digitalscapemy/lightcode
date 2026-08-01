@@ -39,6 +39,8 @@ export interface PersistedState {
   window?: WindowState
   activeTabId: string | null
   tabs: TabState[]
+  /** Terminal font size in px, shared by every pane. Absent on pre-0.3 state. */
+  fontSize?: number
 }
 
 /** `function <name> { Set-Location -LiteralPath '<path>' }` */

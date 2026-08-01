@@ -2,7 +2,7 @@ import '@xterm/xterm/css/xterm.css'
 import './styles.css'
 import * as app from './app'
 import { initAboutUi } from './about'
-import { initShortcuts } from './keys'
+import { MOD_LABEL, initShortcuts } from './keys'
 import { initLayoutPicker } from './layoutPicker'
 import { openMission, toggleMissionControl } from './missionControl'
 import { initShortcutsUi } from './shortcuts'
@@ -12,11 +12,14 @@ import { initTabBar } from './tabbar'
 
 async function boot(): Promise<void> {
   document.body.classList.add(`platform-${window.lightclaude.platform}`)
+  // The HTML spells shortcuts the Windows way; rewrite them for macOS. Anything
+  // built in JS should use MOD_LABEL directly instead of relying on this.
   if (window.lightclaude.platform === 'darwin') {
     for (const key of document.querySelectorAll('.empty-card .hint .key')) {
       key.textContent = (key.textContent ?? '').replace('Ctrl', '⌘')
     }
   }
+  document.getElementById('mission-btn')!.title = `Mission Control (${MOD_LABEL}+Shift+M)`
 
   initTabBar({
     onActivate: (id) => app.activateTab(id),
@@ -68,7 +71,16 @@ async function boot(): Promise<void> {
     'close-pane': () => {
       if (state.focusedPaneId) app.closePane(state.focusedPaneId)
     },
-    'mission-control': () => toggleMissionControl()
+    'mission-control': () => toggleMissionControl(),
+    'font-larger': () => app.adjustFontSize(1),
+    'font-smaller': () => app.adjustFontSize(-1),
+    'font-reset': () => app.adjustFontSize(0),
+    'pane-next': () => app.focusPaneStep(1),
+    'pane-prev': () => app.focusPaneStep(-1),
+    'pane-left': () => app.focusPaneDirection('left'),
+    'pane-right': () => app.focusPaneDirection('right'),
+    'pane-up': () => app.focusPaneDirection('up'),
+    'pane-down': () => app.focusPaneDirection('down')
   })
 
   document
