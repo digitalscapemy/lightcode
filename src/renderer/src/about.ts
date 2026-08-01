@@ -102,7 +102,9 @@ function openModal(): void {
           status.textContent = "You're on the latest version."
           break
         case 'available':
-          status.textContent = `Update v${r.version} available — see the notification.`
+          // The check re-emits update-available, so the toast is back on screen
+          // by now even if it had been snoozed — this points at something real.
+          status.textContent = `Update v${r.version} available — see the notification, bottom right.`
           break
         case 'error':
           status.textContent = `Check failed: ${r.message}`

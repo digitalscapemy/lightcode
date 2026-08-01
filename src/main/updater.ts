@@ -3,6 +3,7 @@ import type { BrowserWindow } from 'electron'
 import { autoUpdater } from 'electron-updater'
 import { IPC } from '../shared/ipc'
 import type { UpdateCheckStatus } from '../shared/ipc'
+import { parseNotes } from './releaseNotes'
 
 const RELEASES_URL = 'https://github.com/digitalscapemy/lightcode/releases/latest'
 
@@ -37,7 +38,7 @@ export function initUpdater(windowGetter: () => BrowserWindow | null): void {
   autoUpdater.disableDifferentialDownload = true
 
   autoUpdater.on('update-available', (info) => {
-    send(IPC.UpdateAvailable, { version: info.version })
+    send(IPC.UpdateAvailable, { version: info.version, notes: parseNotes(info.releaseNotes) })
   })
   autoUpdater.on('download-progress', (p) => {
     send(IPC.UpdateProgress, {

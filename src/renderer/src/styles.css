@@ -1024,6 +1024,53 @@ body.tab-dragging * {
   justify-content: flex-end;
 }
 
+/* What the offered version changes, straight from its release notes. */
+.toast-notes {
+  margin: 0;
+  padding-left: 15px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--fg-muted);
+  max-height: 168px;
+  overflow-y: auto;
+}
+
+/*
+ * Collapsed, each note is clipped to two lines rather than the list being cut
+ * off partway: notes are written for the About dialog and run to a paragraph
+ * each, and a toast that covers a third of the terminal to say so is worse than
+ * one that says less.
+ */
+.toast-notes.collapsed {
+  max-height: none;
+  overflow: hidden;
+}
+
+.toast-notes.collapsed li {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.toast-more {
+  align-self: flex-start;
+  border: none;
+  background: transparent;
+  padding: 0;
+  font: inherit;
+  font-size: 11.5px;
+  color: var(--accent);
+  cursor: pointer;
+}
+
+.toast-more:hover {
+  text-decoration: underline;
+}
+
 .toast-progress {
   height: 4px;
   border-radius: 2px;

@@ -1,6 +1,8 @@
 node_modules/
 out/
 dist/
+# generated at dist time from src/shared/changelog.ts (scripts/release-notes.cjs)
+build/release-notes.md
 *.log
 .DS_Store
 .remember/

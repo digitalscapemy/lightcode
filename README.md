@@ -100,6 +100,12 @@ prompt and Claude can read it right away.
 - Near-black frameless dark UI
 
 ### 🔄 Auto-update
+The notification says what the update *contains* — the release notes travel with the update, so
+you can see what changes before agreeing to it. "Later" defers for 30 minutes rather than
+hiding it until the next launch, and if Claude is mid-turn in any pane, updating asks first and
+says how many sessions it is about to end (on Windows the installer closes the app as soon as
+the download lands).
+
 The app quietly checks GitHub Releases shortly after each launch (never blocking startup).
 When an update exists you get a small toast — update now with live download progress and an
 automatic restart, or dismiss and be reminded next launch. The About dialog (version button in
@@ -409,10 +415,13 @@ To cut one:
 
 ```sh
 # 1. Describe the release to users first — src/shared/changelog.ts, newest entry
-#    at the top, naming the version you are about to cut. It feeds both the
-#    in-app About dialog and the GitHub release notes.
+#    at the top, naming the version you are about to cut. One source, three
+#    readers: the in-app About dialog, the GitHub release body, and the update
+#    notification other people see (scripts/release-notes.cjs writes them into
+#    build/release-notes.md at dist time, which electron-builder embeds in
+#    latest.yml). No entry means no notes anywhere — CI warns, but still builds.
 # 2. Bump + tag in one step, so the two can never disagree:
-npm version minor -m "release v%s: what changed"   # patch | minor | major
+npm version patch -m "release v%s: what changed"   # patch | minor | major
 git push && git push --tags
 ```
 

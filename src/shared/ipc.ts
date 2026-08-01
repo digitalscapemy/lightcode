@@ -98,6 +98,14 @@ export interface StatusUpdate {
 
 export interface UpdateAvailableInfo {
   version: string
+  /**
+   * What changed in the version being OFFERED, one entry per note, already
+   * reduced to plain text. It has to travel with the update: an app's own
+   * CHANGELOG was compiled in before the newer version existed, so the running
+   * build cannot know what it is being asked to update to. Empty when the
+   * release shipped without notes.
+   */
+  notes: string[]
 }
 
 export interface UpdateProgressInfo {

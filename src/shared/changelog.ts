@@ -9,6 +9,15 @@ export const DEVELOPER = 'Digital Scape MY'
 /** Newest first. Add an entry on every release (see release procedure). */
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.4.1',
+    date: '2026-08-01',
+    notes: [
+      'The update notification now tells you what the update actually contains, instead of a version number and nothing else. Until now it could not: an app only carries the release notes of its own version, written before the newer one existed, so the notes travel with the update itself from here on.',
+      'It also stops being so easy to ignore. "Later" now means half an hour rather than forever — the old button hid the notification until the next launch, which on a window left open for days meant never. The app itself is untouched while it waits; nothing is blocked and nothing installs behind your back.',
+      'Updating while Claude is mid-turn now asks first, and says how many panes it is about to end. On Windows the installer closes the app the moment the download finishes, so a click meant to be harmless could take a long autonomous run down with it.'
+    ]
+  },
+  {
     version: '0.4.0',
     date: '2026-08-01',
     notes: [
