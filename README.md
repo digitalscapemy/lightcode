@@ -106,10 +106,13 @@ hiding it until the next launch, and if Claude is mid-turn in any pane, updating
 says how many sessions it is about to end (on Windows the installer closes the app as soon as
 the download lands).
 
-The app quietly checks GitHub Releases shortly after each launch (never blocking startup).
-When an update exists you get a small toast — update now with live download progress and an
-automatic restart, or dismiss and be reminded next launch. The About dialog (version button in
-the tab bar) shows the full changelog.
+The app quietly checks GitHub Releases shortly after each launch (never blocking startup) and
+every four hours it keeps running, so a window left open for days still finds releases
+published while it was open. When an update exists you get a small toast — update now with
+live download progress and an automatic restart, or defer it. If you are working in some other
+window at the time, a desktop notification says so as well, once per version rather than at
+every check; clicking it brings Light Code forward. The About dialog (version button in the tab
+bar) shows the full changelog.
 
 ## Installation
 
@@ -240,7 +243,8 @@ features need [Claude Code](https://claude.com/claude-code) installed — set th
 want them.
 
 You won't have to repeat any of this for future versions: Light Code checks GitHub Releases
-shortly after each launch and updates itself in place.
+shortly after each launch — and every few hours while it stays open — then updates itself in
+place.
 
 ## Using it
 

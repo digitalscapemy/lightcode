@@ -261,6 +261,13 @@ function createWindow(): void {
 }
 
 app.whenReady().then(() => {
+  // Windows shows a notification only when its AppUserModelID matches a Start
+  // Menu shortcut, and the NSIS installer writes ours with the appId below —
+  // kept in step with electron-builder.yml by hand. Electron sets this itself
+  // for Squirrel installs but not for NSIS ones, so without this line every
+  // notification the app raises is accepted and then silently dropped.
+  if (process.platform === 'win32') app.setAppUserModelId('com.mikhail.lightclaude')
+
   // Seed usage roots before any pane spawns so restored panes bind everywhere.
   usageWatcher.setConfigRoots(loadShortcuts().accounts.map((a) => a.configDir))
   registerIpc()
