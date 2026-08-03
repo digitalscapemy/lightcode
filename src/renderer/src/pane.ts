@@ -172,15 +172,33 @@ export class TerminalPane {
     // Let Ctrl+Shift+S/E/T/W bubble past xterm to the app dispatcher.
     this.term.attachCustomKeyEventHandler((e) => {
       if (isAppShortcut(e)) return false
+      // Cmd on macOS, Ctrl elsewhere — the modifier for both clipboard keys.
+      const clipMod =
+        window.lightclaude.platform === 'darwin'
+          ? e.metaKey && !e.ctrlKey
+          : e.ctrlKey && !e.metaKey
+      // Copy. Nothing else in the stack can do it: xterm's selection is drawn
+      // into a canvas rather than the DOM, so the platform's own copy command
+      // sees an empty hidden textarea and copies nothing — and on Windows
+      // xterm preventDefaults Ctrl+C to send ^C, so no copy event even fires.
+      // Only intercept when there IS a selection: with none, Ctrl+C has to
+      // stay SIGINT, which on Windows is the only way to interrupt Claude.
+      // Clearing the selection afterwards means the very next Ctrl+C
+      // interrupts again, the same bargain Windows Terminal strikes.
+      if (e.type === 'keydown' && clipMod && !e.altKey && e.key.toLowerCase() === 'c') {
+        const selection = this.term.hasSelection() ? this.term.getSelection() : ''
+        if (selection.trim()) {
+          window.lightclaude.clipboard.copy(selection)
+          this.term.clearSelection()
+          e.preventDefault()
+          return false
+        }
+      }
       // Paste (Ctrl+V / Cmd+V) goes through the main process so clipboard
       // IMAGES (Snipping Tool / screenshots) work: the image is saved to a
       // temp file and its quoted path is pasted — Claude Code attaches image
       // paths typed into the prompt. Plain text still pastes as text.
-      const pasteMod =
-        window.lightclaude.platform === 'darwin'
-          ? e.metaKey && !e.ctrlKey
-          : e.ctrlKey && !e.metaKey
-      if (e.type === 'keydown' && pasteMod && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'v') {
+      if (e.type === 'keydown' && clipMod && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'v') {
         e.preventDefault()
         void this.pasteClipboard()
         return false

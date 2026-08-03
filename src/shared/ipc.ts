@@ -32,6 +32,7 @@ export const IPC = {
   UpdateError: 'update:error',
   UsageUpdate: 'usage:update',
   UsageStatus: 'usage:status',
+  ClipboardCopy: 'clipboard:copy',
   ClipboardPaste: 'clipboard:paste',
   WinMinimize: 'win:minimize',
   WinMaximize: 'win:maximize',
@@ -157,6 +158,8 @@ export interface LightClaudeApi {
     onStatus(cb: (update: StatusUpdate) => void): () => void
   }
   clipboard: {
+    /** Terminal selection to the OS clipboard. */
+    copy(text: string): void
     paste(): Promise<ClipboardPasteResult>
   }
   shortcuts: {

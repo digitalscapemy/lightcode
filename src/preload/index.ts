@@ -56,6 +56,7 @@ const api: LightClaudeApi = {
     }
   },
   clipboard: {
+    copy: (text: string) => ipcRenderer.send(IPC.ClipboardCopy, text),
     paste: () => ipcRenderer.invoke(IPC.ClipboardPaste)
   },
   shortcuts: {

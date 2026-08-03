@@ -314,6 +314,7 @@ tick several and send one command to all of them.
 | `Ctrl+Shift+T` | `⌘+Shift+T` | New terminal tab |
 | `Ctrl+Shift+W` | `⌘+Shift+W` | Close focused pane |
 | `Ctrl+Shift+M` | `⌘+Shift+M` | Mission Control |
+| `Ctrl+C` (or `Ctrl+Shift+C`) | `⌘+C` | Copy the selection — sends `^C` when nothing is selected |
 | `Ctrl+V` | `⌘+V` | Paste text — or clipboard image as a file path |
 | *(drag & drop)* | *(drag & drop)* | Drop a file or folder on a pane to type its path |
 | `Ctrl+=` / `Ctrl+-` | `⌘+=` / `⌘+-` | Terminal text bigger / smaller (8–32px) |
@@ -325,6 +326,11 @@ tick several and send one command to all of them.
 `Ctrl+Tab` is `Ctrl` on **both** platforms — `⌘+Tab` belongs to macOS itself, which is
 why browsers and editors use `Ctrl+Tab` there too. Plain `Tab` and plain arrows are
 deliberately left alone so shell completion and history keep working.
+
+Copy only takes `Ctrl+C` when text is actually selected, and the selection is dropped
+once copied — so the next `Ctrl+C` interrupts Claude as usual. Nothing selected, nothing
+taken: the key goes straight through as `^C`. Use `Ctrl+Shift+C` if you would rather
+never think about which one you are about to get.
 
 ## Build from source
 

@@ -67,6 +67,13 @@ function registerIpc(): void {
   })
   ipcMain.handle(IPC.ShortcutsImport, () => parseProfiles(importCandidates()))
 
+  // Terminal copy. xterm's selection lives in a canvas rather than the DOM, so
+  // the platform's own copy command finds nothing to put on the clipboard and
+  // the renderer has to hand the text over itself.
+  ipcMain.on(IPC.ClipboardCopy, (_e, text: string) => {
+    if (typeof text === 'string' && text) clipboard.writeText(text)
+  })
+
   // Terminal paste: clipboard images (Snipping Tool / Win+Shift+S) have no
   // file path, so save them to a temp .png and let the renderer paste the path.
   ipcMain.handle(IPC.ClipboardPaste, async (): Promise<ClipboardPasteResult> => {
