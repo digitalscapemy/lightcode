@@ -9,6 +9,15 @@ export const DEVELOPER = 'Digital Scape MY'
 /** Newest first. Add an entry on every release (see release procedure). */
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.4.2',
+    date: '2026-08-03',
+    notes: [
+      'Copying out of a terminal works. Select some text, press Ctrl+C, paste it anywhere else and nothing arrived — what came back was whatever had been on the clipboard beforehand. A terminal draws its own selection rather than handing it to the system, so the copy had nowhere to go, and neither platform said a word about it. On Windows it was worse than useless: the same key still interrupted whatever Claude was doing. Ctrl+C now copies when text is selected and interrupts when none is, and the selection clears the moment it is copied, so the next press interrupts exactly as it always did. Ctrl+Shift+C copies either way, for anyone who would rather not think about which one they are about to get.',
+      'Light Code keeps looking for updates while it runs — every few hours, rather than once at startup and never again. A window left open for days would otherwise never hear about a release published after it opened, and the only way to find out was to quit the app, which nobody does in the hope of being told there is an update.',
+      'And when one arrives while you are working somewhere else, your desktop now says so, once per version rather than at every check. Clicking the notification brings Light Code forward with the details already waiting; if the window is in front of you the notification stays quiet, because the message is already on screen. Windows gets more than that back: notifications from this app were being dropped by Windows without a word, so the alert for Claude finishing a turn or waiting on a permission has been going nowhere either. Both arrive now.'
+    ]
+  },
+  {
     version: '0.4.1',
     date: '2026-08-01',
     notes: [
