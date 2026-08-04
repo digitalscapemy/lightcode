@@ -896,6 +896,23 @@ body.tab-dragging * {
   color: var(--fg);
 }
 
+/* ---------- Confirm dialog ---------- */
+
+.confirm-modal {
+  width: 400px;
+}
+
+.confirm-text {
+  padding: 18px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--fg);
+}
+
+.confirm-actions {
+  justify-content: flex-end;
+}
+
 /* ---------- About modal ---------- */
 
 .about-modal {

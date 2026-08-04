@@ -1,6 +1,7 @@
 import type { PaneStatus, StatusUpdate, UsageUpdate } from '../../shared/ipc'
 import type { LayoutNode, Orientation, PersistedState, TabState } from '../../shared/types'
 import { forgetPane as forgetBabysitter, handleStatusChange, noteManualInput } from './babysitter'
+import { confirmDialog } from './confirmDialog'
 import { renderLayout } from './layout'
 import { buildLayout } from './layouts'
 import type { LayoutPreset } from './layouts'
@@ -290,16 +291,25 @@ export function activeLayoutId(presets: LayoutPreset[]): string | null {
 export async function applyLayout(preset: LayoutPreset): Promise<void> {
   const tab = activeTab()
   if (!tab) return
+  // Ask first, and ask before anything is measured: confirmDialog awaits, and
+  // a pty can exit under it, so no count read beforehand still holds after.
+  const overflow = paneIds(tab.layout).length - preset.count
+  if (overflow > 0) {
+    const ok = await confirmDialog(
+      `This layout has ${preset.count} panes, so ${overflow} open ` +
+        `${overflow === 1 ? 'pane' : 'panes'} will be closed and ` +
+        `${overflow === 1 ? 'its' : 'their'} shell${overflow === 1 ? '' : 's'} ended.`,
+      overflow === 1 ? 'Close pane' : 'Close panes'
+    )
+    if (!ok) {
+      restoreFocus(tab) // the dialog took focus off the terminal to open
+      return
+    }
+    if (activeTab()?.id !== tab.id) return
+  }
+
   const existing = paneIds(tab.layout)
   const dropped = existing.slice(preset.count)
-  if (dropped.length > 0) {
-    const n = dropped.length
-    const ok = window.confirm(
-      `This layout has ${preset.count} panes, so ${n} open ${n === 1 ? 'pane' : 'panes'} ` +
-        `will be closed and ${n === 1 ? 'its' : 'their'} shell${n === 1 ? '' : 's'} ended.\n\nContinue?`
-    )
-    if (!ok) return
-  }
   maximizedPane.delete(tab.id) // a reshape always restores the grid
 
   // Ids in reading order: reuse the panes we are keeping, mint ids for the rest.
@@ -339,8 +349,38 @@ export async function applyLayout(preset: LayoutPreset): Promise<void> {
   if (tab.id === state.activeTabId) {
     for (const pid of fresh) panes.get(pid)?.attachWebgl()
   }
-  panes.get(firstPaneId(tab.layout))?.focus()
+  restoreFocus(tab)
   persist()
+}
+
+/**
+ * Hand the cursor back after a reshape.
+ *
+ * renderLayout() detaches every pane element, which blurs whatever had focus,
+ * so a reshape always has to give it back. Two things to get right.
+ *
+ * It goes to the pane the user was already in, not whichever one happens to
+ * land first — a reshape they asked for shouldn't also move them somewhere.
+ *
+ * And it waits for the window itself to be focused. focus() called while it
+ * is not sets activeElement without firing a focus event, and xterm only flips
+ * its own focus flag on that event: the pane would go on taking keystrokes
+ * while drawing no cursor at all, since cursorInactiveStyle is 'none', and
+ * nothing afterwards fires the event that would undo it. That is not
+ * hypothetical on the shrink path — dropping panes is the one route that shows
+ * a dialog, and a dialog is what leaves the window inactive at this point.
+ */
+function restoreFocus(tab: TabState): void {
+  const ids = paneIds(tab.layout)
+  const target =
+    state.focusedPaneId && ids.includes(state.focusedPaneId)
+      ? state.focusedPaneId
+      : firstPaneId(tab.layout)
+  const apply = (): void => {
+    if (activeTab()?.id === tab.id) panes.get(target)?.focus()
+  }
+  if (document.hasFocus()) apply()
+  else window.addEventListener('focus', apply, { once: true })
 }
 
 /** Temporarily expand one pane to fill the whole tab; toggle to restore. */
