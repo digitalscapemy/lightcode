@@ -9,6 +9,14 @@ export const DEVELOPER = 'Digital Scape MY'
 /** Newest first. Add an entry on every release (see release procedure). */
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.4.3',
+    date: '2026-08-04',
+    notes: [
+      'Switching to a layout with fewer panes no longer takes the cursor with it. The app would stall for a moment and then leave the terminal with no cursor at all — you could still type and the characters still arrived, but the blinking bar showing where you were had gone, and it stayed gone until you clicked into a pane. The culprit was the question asking whether to close the extra panes. It was a window belonging to the operating system rather than to Light Code, and one of those stops the whole app dead for as long as it is on screen: nothing draws, no cursor blinks, and every pane sits there looking hung. Handing the window back afterwards then left the terminal convinced it was still in the background, which is precisely what hides a cursor. That question is now asked inside the app, so nothing stops and nothing has to be handed back.',
+      'And after any layout change the cursor returns to the pane you were working in, instead of jumping to whichever one happens to be first. Rearranging your panes should not also move you somewhere else.'
+    ]
+  },
+  {
     version: '0.4.2',
     date: '2026-08-03',
     notes: [
