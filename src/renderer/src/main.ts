@@ -99,6 +99,7 @@ async function boot(): Promise<void> {
     'font-reset': () => app.adjustFontSize(0),
     'pane-next': () => app.focusPaneStep(1),
     'pane-prev': () => app.focusPaneStep(-1),
+    'pane-attention': () => app.focusAttentionPane(),
     'pane-left': () => app.focusPaneDirection('left'),
     'pane-right': () => app.focusPaneDirection('right'),
     'pane-up': () => app.focusPaneDirection('up'),

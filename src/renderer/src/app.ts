@@ -7,7 +7,7 @@ import { buildLayout } from './layouts'
 import type { LayoutPreset } from './layouts'
 import { TerminalPane } from './pane'
 import type { PaneCallbacks } from './pane'
-import { neighbour, paneRects, step } from './paneNav'
+import { neighbour, nextAttentionPane, paneRects, step } from './paneNav'
 import type { Direction } from './paneNav'
 import {
   FONT_SIZE_DEFAULT,
@@ -525,6 +525,34 @@ export function focusPaneStep(delta: 1 | -1): void {
   if (!origin) return
   const target = step(origin.ids, origin.from, delta)
   if (target) goToPane(tab, target)
+}
+
+/**
+ * Mod+Shift+J: go to the pane that needs you.
+ *
+ * The tab dot already says *which tab* wants attention; nothing took you to the
+ * pane. In a 4×4 grid across several tabs that meant opening Mission Control
+ * and clicking, which is a lot of hunting for something the app already knows.
+ *
+ * Panes blocked on a permission prompt come first: nothing happens in them at
+ * all until a human answers, where a pane that merely finished its turn is only
+ * waiting for the next instruction. Within each group the order is reading
+ * order, tab by tab, and each press moves on, so a whole grid can be cleared
+ * with one key held down.
+ */
+export function focusAttentionPane(): void {
+  const all = state.tabs.flatMap((tab) =>
+    paneIds(tab.layout).map((id) => ({ id, status: paneStatus.get(id)?.status }))
+  )
+  const target = nextAttentionPane(all, state.focusedPaneId)
+  if (target === null) return // nothing is waiting: do nothing, quietly
+
+  const tab = tabOfPane(target)
+  if (!tab) return
+  // Same tab goes through goToPane, which carries a maximized view along with
+  // the focus; focusPane handles the tab switch when it is somewhere else.
+  if (tab.id === state.activeTabId) goToPane(tab, target)
+  else focusPane(target)
 }
 
 /** Mod+Alt+Arrow: move focus to the pane lying that way on screen. */

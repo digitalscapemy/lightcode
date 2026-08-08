@@ -42,12 +42,19 @@ describe('matchShortcut — existing shortcuts still require Shift', () => {
     ['KeyS', 'split-down'],
     ['KeyT', 'new-tab'],
     ['KeyW', 'close-pane'],
-    ['KeyM', 'mission-control']
+    ['KeyM', 'mission-control'],
+    ['KeyJ', 'pane-attention']
   ])('Ctrl+Shift+%s -> %s', (code, action) => {
     expect(matchShortcut(key(code, ctrlShift))).toBe(action)
   })
 
-  it.each(['KeyE', 'KeyD', 'KeyT', 'KeyW', 'KeyM'])('Ctrl+%s (no Shift) is not a shortcut', (code) => {
+  // Ctrl+J is a literal newline in a terminal, so the Shift is what keeps this
+  // clear of the shell rather than a stylistic choice.
+  it('leaves bare Ctrl+J to the terminal', () => {
+    expect(matchShortcut(key('KeyJ', ctrl))).toBeNull()
+  })
+
+  it.each(['KeyE', 'KeyD', 'KeyT', 'KeyW', 'KeyM', 'KeyJ'])('Ctrl+%s (no Shift) is not a shortcut', (code) => {
     expect(matchShortcut(key(code, ctrl))).toBeNull()
   })
 })

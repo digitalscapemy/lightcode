@@ -9,6 +9,7 @@ export type ShortcutAction =
   | 'font-reset'
   | 'pane-next'
   | 'pane-prev'
+  | 'pane-attention'
   | 'pane-left'
   | 'pane-right'
   | 'pane-up'
@@ -91,6 +92,10 @@ export function matchShortcut(e: KeyboardEvent): ShortcutAction | null {
       return 'close-pane'
     case 'KeyM':
       return 'mission-control'
+    // J for "jump". Deliberately not a letter the shell wants: Ctrl+J is a
+    // newline in a terminal, but the Shift here keeps it clear of that.
+    case 'KeyJ':
+      return 'pane-attention'
     default:
       return null
   }

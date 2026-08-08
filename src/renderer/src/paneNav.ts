@@ -1,6 +1,35 @@
+import type { PaneStatus } from '../../shared/ipc'
 import type { LayoutNode } from '../../shared/types'
 
 export type Direction = 'left' | 'right' | 'up' | 'down'
+
+/** One pane as attention-jumping sees it: an id and what Claude is doing in it. */
+export interface PaneAttention {
+  id: string
+  status: PaneStatus | undefined
+}
+
+/**
+ * The next pane worth going to, or null when nothing is waiting.
+ *
+ * A permission prompt outranks a finished turn, because nothing happens in that
+ * pane at all until a human answers, where a finished turn is merely awaiting
+ * the next instruction. Order within a group is the caller's — reading order,
+ * tab by tab — and the search starts *after* the pane in hand so that repeated
+ * presses advance instead of standing still.
+ *
+ * Panes given in `panes` may span several tabs; this function neither knows nor
+ * cares, which is what keeps it testable without a DOM.
+ */
+export function nextAttentionPane(panes: PaneAttention[], focused: string | null): string | null {
+  const queue = [
+    ...panes.filter((p) => p.status === 'waiting-approval'),
+    ...panes.filter((p) => p.status === 'waiting-input')
+  ].map((p) => p.id)
+  if (queue.length === 0) return null
+  const at = focused === null ? -1 : queue.indexOf(focused)
+  return queue[(at + 1) % queue.length] ?? null
+}
 
 export interface PaneRect {
   id: string

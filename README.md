@@ -329,6 +329,11 @@ Next to it sits a coloured dot for what the session is doing — the tool it is 
 permission question. The tab shows the same dot, so a pane that needs you is visible
 without opening it.
 
+`Mod+Shift+J` takes you straight to the pane that needs you — the ones blocked on a
+permission prompt first, then the ones that finished a turn, switching tabs on the way
+if it has to. Press it again for the next one. In a 4×4 grid that is the difference
+between working through a queue and hunting for a dot.
+
 `Mod+Shift+M` opens **Mission Control** — every running Claude session in one list with
 its status, model, context fill and idle time. Click a row to jump to that pane, or
 tick several and send one command to all of them.
@@ -348,6 +353,7 @@ those are yours.
 | `Ctrl+Shift+T` | `⌘+Shift+T` | New terminal tab |
 | `Ctrl+Shift+W` | `⌘+Shift+W` | Close focused pane |
 | `Ctrl+Shift+M` | `⌘+Shift+M` | Mission Control |
+| `Ctrl+Shift+J` | `⌘+Shift+J` | Jump to the pane that needs you |
 | `Ctrl+C` (or `Ctrl+Shift+C`) | `⌘+C` | Copy the selection — sends `^C` when nothing is selected |
 | `Ctrl+V` | `⌘+V` | Paste text — or clipboard image as a file path |
 | *(drag & drop)* | *(drag & drop)* | Drop a file or folder on a pane to type its path |

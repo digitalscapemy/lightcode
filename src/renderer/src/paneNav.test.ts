@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { LAYOUT_PRESETS, buildLayout } from './layouts'
-import { neighbour, paneRects, step } from './paneNav'
+import { neighbour, nextAttentionPane, paneRects, step } from './paneNav'
+import type { PaneAttention } from './paneNav'
+import type { PaneStatus } from '../../shared/ipc'
 import { paneIds } from './splitTree'
 import type { PaneRect } from './paneNav'
 
@@ -153,5 +155,48 @@ describe('step', () => {
 
   it('falls back to the first pane when the origin is unknown', () => {
     expect(step(ids, 'vanished', 1)).toBe('a')
+  })
+})
+
+describe('nextAttentionPane', () => {
+  const p = (id: string, status?: PaneStatus): PaneAttention => ({ id, status })
+
+  it('finds nothing when nothing is waiting', () => {
+    expect(nextAttentionPane([p('a', 'working'), p('b')], 'a')).toBeNull()
+    expect(nextAttentionPane([], null)).toBeNull()
+  })
+
+  // Nothing at all happens in a pane blocked on a permission prompt until a
+  // human answers; a finished turn is merely awaiting the next instruction.
+  it('puts a permission prompt ahead of a finished turn', () => {
+    const panes = [p('a', 'waiting-input'), p('b', 'working'), p('c', 'waiting-approval')]
+    expect(nextAttentionPane(panes, null)).toBe('c')
+  })
+
+  it('keeps the caller order within a group', () => {
+    const panes = [p('a', 'waiting-approval'), p('b', 'waiting-approval')]
+    expect(nextAttentionPane(panes, null)).toBe('a')
+    expect(nextAttentionPane(panes, 'a')).toBe('b')
+  })
+
+  // A second press has to move on, or holding the key does nothing at all.
+  it('advances past the pane in hand, and wraps', () => {
+    const panes = [p('a', 'waiting-input'), p('b', 'waiting-input'), p('c', 'waiting-input')]
+    expect(nextAttentionPane(panes, 'a')).toBe('b')
+    expect(nextAttentionPane(panes, 'c')).toBe('a')
+  })
+
+  it('starts at the front when the focused pane is not itself waiting', () => {
+    const panes = [p('busy', 'working'), p('a', 'waiting-input')]
+    expect(nextAttentionPane(panes, 'busy')).toBe('a')
+  })
+
+  it('stays put when the only waiting pane is the one in hand', () => {
+    expect(nextAttentionPane([p('a', 'waiting-input')], 'a')).toBe('a')
+  })
+
+  it('crosses tabs, since it is given every pane at once', () => {
+    const panes = [p('tab1pane', 'waiting-input'), p('tab2pane', 'waiting-approval')]
+    expect(nextAttentionPane(panes, 'tab1pane')).toBe('tab2pane')
   })
 })
