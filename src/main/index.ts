@@ -313,7 +313,9 @@ app.whenReady().then(() => {
   // The lc client is written out every launch, so the script and the socket it
   // points at can never disagree. The shell function is defined either way —
   // with the switch off the command explains that, which beats "not found".
-  setLcInstalled(installLcClient(socketPath()) !== null)
+  const lcInstalled = installLcClient(socketPath()) !== null
+  setLcInstalled(lcInstalled)
+  ptyManager.setLcSocket(lcInstalled ? socketPath() : null)
   lcServer.setEnabled(loadLcEnabled())
 
   // Seed usage roots before any pane spawns so restored panes bind everywhere.

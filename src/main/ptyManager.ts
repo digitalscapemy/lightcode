@@ -5,7 +5,7 @@ import { existsSync } from 'fs'
 import { homedir } from 'os'
 import { IPC } from '../shared/ipc'
 import type { SpawnOptions, SpawnResult } from '../shared/ipc'
-import { detectShell, hookEnv } from './shell'
+import { detectShell, hookEnv, lcEnv } from './shell'
 import type { UsageWatcher } from './usageWatcher'
 
 /** OSC 9;9;<cwd> BEL|ST — emitted by the prompt hook injected in shell.ts. */
@@ -16,7 +16,14 @@ export class PtyManager {
   private carries = new Map<string, string>() // partial OSC split across chunks
   private target: WebContents | null = null
 
+  /** Where the agent CLI listens, so the claude wrapper can check it is on. */
+  private lcSocket: string | null = null
+
   constructor(private usage: UsageWatcher) {}
+
+  setLcSocket(path: string | null): void {
+    this.lcSocket = path
+  }
 
   setTarget(wc: WebContents): void {
     this.target = wc
@@ -63,6 +70,7 @@ export class PtyManager {
         ...(process.env as Record<string, string>),
         ...shell.env,
         ...hookEnv(),
+        ...lcEnv(this.lcSocket),
         // Read by the agent-hook reporter, which stamps it onto every event it
         // forwards. This is what makes session→pane attribution a fact rather
         // than a guess from keystroke timing.

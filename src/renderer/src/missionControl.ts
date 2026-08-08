@@ -85,25 +85,6 @@ function build(): void {
   const toolbar = document.createElement('div')
   toolbar.className = 'mission-toolbar'
 
-  // The agent CLI switch. Here rather than in a settings screen because this is
-  // where you look at the fleet, and this decides whether the fleet can be
-  // driven by something other than your hands.
-  const lcBtn = document.createElement('button')
-  lcBtn.className = 'mission-secondary mission-lc'
-  const paintLc = (enabled: boolean): void => {
-    lcBtn.textContent = enabled ? 'Agent CLI: on' : 'Agent CLI: off'
-    lcBtn.classList.toggle('active', enabled)
-    lcBtn.title = enabled
-      ? 'Agents can drive panes with `lc`. Panes show a mark when they do.'
-      : 'Turn on to let an agent run `lc` and drive other panes. Off by default.'
-  }
-  paintLc(false)
-  void window.lightclaude.lc.state().then((s) => paintLc(s.enabled))
-  lcBtn.addEventListener('click', () => {
-    const next = !lcBtn.classList.contains('active')
-    void window.lightclaude.lc.setEnabled(next).then((s) => paintLc(s.enabled))
-  })
-  toolbar.appendChild(lcBtn)
   const mkSel = (label: string, fn: () => void): HTMLButtonElement => {
     const b = document.createElement('button')
     b.className = 'mission-secondary'
@@ -114,6 +95,37 @@ function build(): void {
     })
     return b
   }
+  /**
+   * The agent CLI switch, deliberately at the other end of the toolbar.
+   *
+   * It sat next to Select all / Waiting / None and read as a fourth way of
+   * filtering rows, which it is nothing like: those change what is ticked, this
+   * decides whether a program is allowed to drive your panes at all. A spacer
+   * and a status dot say "different kind of thing" faster than any wording.
+   */
+  const lcBtn = document.createElement('button')
+  lcBtn.className = 'mission-secondary mission-lc'
+  const lcDot = document.createElement('span')
+  lcDot.className = 'mission-lc-dot'
+  const lcText = document.createElement('span')
+  lcBtn.append(lcDot, lcText)
+  const paintLc = (enabled: boolean): void => {
+    lcText.textContent = 'Agent CLI'
+    lcBtn.classList.toggle('active', enabled)
+    lcBtn.title = enabled
+      ? 'On — an agent can run `lc` and drive other panes. Panes it drives are marked.'
+      : 'Off — `lc` is not listening at all. Click to let agents drive panes.'
+  }
+  paintLc(false)
+  void window.lightclaude.lc.state().then((s) => paintLc(s.enabled))
+  lcBtn.addEventListener('click', () => {
+    const next = !lcBtn.classList.contains('active')
+    void window.lightclaude.lc.setEnabled(next).then((s) => paintLc(s.enabled))
+  })
+
+  const spacer = document.createElement('div')
+  spacer.className = 'mission-toolbar-gap'
+
   toolbar.append(
     mkSel('Select all', () => forEachRow((id) => selected.add(id))),
     mkSel('Waiting', () => {
@@ -125,6 +137,7 @@ function build(): void {
     }),
     mkSel('None', () => selected.clear())
   )
+  toolbar.append(spacer, lcBtn)
   modal.appendChild(toolbar)
 
   listEl = document.createElement('div')

@@ -361,9 +361,32 @@ body.tab-dragging * {
   white-space: nowrap;
 }
 
+/* Pushes the agent CLI switch to the far end, away from the row selectors. */
+.mission-toolbar-gap {
+  flex: 1 1 auto;
+}
+
+.mission-lc {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* On/off read at a glance, before the words are read at all. */
+.mission-lc-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--border);
+}
+
 .mission-lc.active {
   color: var(--accent);
   border-color: var(--accent);
+}
+
+.mission-lc.active .mission-lc-dot {
+  background: var(--accent);
 }
 
 .pane-git {

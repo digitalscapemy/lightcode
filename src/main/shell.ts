@@ -5,6 +5,7 @@ import { homedir } from 'os'
 import { basename, join } from 'path'
 import { hookPaths } from './agentHooks'
 import { lcPowerShellFunction, lcScriptPath, lcShellFunction } from './lcClient'
+import { LC_SYSTEM_HINT } from '../shared/lc'
 
 export interface ShellInfo {
   file: string
@@ -58,6 +59,19 @@ export function hookEnv(): Record<string, string> {
 }
 
 /**
+ * What the claude wrapper needs to mention `lc` to an agent.
+ *
+ * The socket path is passed so the wrapper can check whether the switch is on
+ * at the moment claude launches, rather than when the shell started — the
+ * switch can be flipped while a pane sits at its prompt, and an rc file read
+ * minutes ago cannot know that.
+ */
+export function lcEnv(socket: string | null): Record<string, string> {
+  if (!lcInstalled || socket === null) return {}
+  return { LIGHTCODE_LC_SOCKET: socket, LIGHTCODE_LC_HINT: LC_SYSTEM_HINT }
+}
+
+/**
  * A `claude` that carries the app's hook settings.
  *
  * Deliberately skipped when the user already defines their own `claude`
@@ -75,11 +89,16 @@ function posixClaudeWrapper(): string {
     '# function, if they have one, is left alone.',
     'if ! typeset -f claude >/dev/null 2>&1; then',
     '  claude() {',
-    '    if [ -n "$LIGHTCODE_HOOK_SETTINGS" ]; then',
-    '      command claude --settings "$LIGHTCODE_HOOK_SETTINGS" "$@"',
-    '    else',
-    '      command claude "$@"',
+    '    # Checked here, not when this file was read: the agent CLI switch can be',
+    '    # flipped while a pane sits at its prompt, and the socket only exists',
+    '    # while it is on — so its presence IS the switch, read at launch time.',
+    '    if [ -S "$LIGHTCODE_LC_SOCKET" ] && [ -n "$LIGHTCODE_LC_HINT" ]; then',
+    '      set -- --append-system-prompt "$LIGHTCODE_LC_HINT" "$@"',
     '    fi',
+    '    if [ -n "$LIGHTCODE_HOOK_SETTINGS" ]; then',
+    '      set -- --settings "$LIGHTCODE_HOOK_SETTINGS" "$@"',
+    '    fi',
+    '    command claude "$@"',
     '  }',
     'fi'
   ].join('\n')
@@ -93,10 +112,13 @@ function psClaudeWrapper(): string {
     '-ErrorAction SilentlyContinue | Select-Object -First 1).Source; ' +
     'if ($global:__lcClaudeExe -and -not (Get-Command claude -CommandType Function ' +
     '-ErrorAction SilentlyContinue)) { ' +
-    'function global:claude { ' +
-    'if ($env:LIGHTCODE_HOOK_SETTINGS) { ' +
-    '& $global:__lcClaudeExe --settings $env:LIGHTCODE_HOOK_SETTINGS @args } ' +
-    'else { & $global:__lcClaudeExe @args } } }'
+    'function global:claude { $a = @(); ' +
+    'if ($env:LIGHTCODE_HOOK_SETTINGS) { $a += \'--settings\'; $a += $env:LIGHTCODE_HOOK_SETTINGS }; ' +
+    // No socket test here: a named pipe is not a file Test-Path can see the way
+    // a unix socket is, so Windows mentions lc whenever it is installed. The
+    // worst case is an agent running `lc --help` and being told it is off.
+    'if ($env:LIGHTCODE_LC_HINT) { $a += \'--append-system-prompt\'; $a += $env:LIGHTCODE_LC_HINT }; ' +
+    '& $global:__lcClaudeExe @a @args } }'
   )
 }
 

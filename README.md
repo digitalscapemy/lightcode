@@ -117,9 +117,11 @@ lc fan <task> <n> "<prompt>" [--plan]
 lc close <pane>
 ```
 
-Ask Claude to *"use `lc` to fan this out three ways, wait for all of them, and
-tell me when they're done"* and it will. Every command takes `--json`, because
-its main reader is an agent parsing output rather than a person.
+Ask Claude to *"fan this out three ways, wait for all of them, and tell me when
+they're done"* and it will — it is told the command exists, in one sentence
+pointing at `lc --help`, so you never have to explain it. Every command takes
+`--json`, because its main reader is an agent parsing output rather than a
+person.
 
 **It is off until you switch it on**, in Mission Control. While it is off the
 socket does not exist at all — there is nothing listening to refuse. And a pane
