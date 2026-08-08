@@ -15,6 +15,65 @@
  * stops a second layout being picked while this one is still asking.
  */
 /**
+ * The same overlay with several answers, returning which was chosen or null when
+ * dismissed. Two buttons cannot express "yes, but not that part" — closing a tab
+ * of worktrees is a real three-way question, and folding it into yes/no would
+ * make one of the answers unreachable.
+ *
+ * The last button is the primary one; dismissing is never destructive.
+ */
+export function choiceDialog(message: string, labels: string[]): Promise<number | null> {
+  return new Promise((resolve) => {
+    const overlay = document.createElement('div')
+    overlay.id = 'shortcuts-overlay'
+    const modal = document.createElement('div')
+    modal.className = 'shortcuts-modal confirm-modal'
+    const body = document.createElement('div')
+    body.className = 'shortcuts-body confirm-text'
+    body.textContent = message
+    const footer = document.createElement('div')
+    footer.className = 'shortcuts-footer confirm-actions'
+
+    let settled = false
+    const finish = (answer: number | null): void => {
+      if (settled) return
+      settled = true
+      document.removeEventListener('keydown', onKeydown, { capture: true })
+      overlay.remove()
+      resolve(answer)
+    }
+    const onKeydown = (e: KeyboardEvent): void => {
+      if (e.key !== 'Escape') return
+      e.stopPropagation()
+      finish(null)
+    }
+
+    const cancel = document.createElement('button')
+    cancel.className = 'shortcuts-secondary'
+    cancel.textContent = 'Cancel'
+    cancel.addEventListener('click', () => finish(null))
+    footer.appendChild(cancel)
+
+    labels.forEach((label, i) => {
+      const btn = document.createElement('button')
+      btn.className = i === labels.length - 1 ? 'shortcuts-primary' : 'shortcuts-secondary'
+      btn.textContent = label
+      btn.addEventListener('click', () => finish(i))
+      footer.appendChild(btn)
+    })
+
+    modal.append(body, footer)
+    overlay.appendChild(modal)
+    overlay.addEventListener('pointerdown', (e) => {
+      if (e.target === overlay) finish(null)
+    })
+    document.addEventListener('keydown', onKeydown, { capture: true })
+    document.body.appendChild(overlay)
+    ;(footer.lastElementChild as HTMLElement | null)?.focus()
+  })
+}
+
+/**
  * The same overlay, saying one thing with one button.
  *
  * For messages that have to be read rather than glanced at — a `fatal:` from git

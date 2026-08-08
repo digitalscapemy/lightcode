@@ -404,6 +404,21 @@ body.tab-dragging * {
   border-color: var(--accent);
 }
 
+/* Two choices rather than a count, so they get room to say what they are. */
+.fanout-mode {
+  min-width: 78px;
+  padding-left: 10px;
+  padding-right: 10px;
+}
+
+/* Says what the button is about to do to the filesystem. Muted, because it is a
+   consequence to notice rather than a warning to argue with. */
+.fanout-cost {
+  margin-top: 12px;
+  font-size: 11px;
+  color: var(--fg-muted);
+}
+
 .fanout-prompt {
   resize: vertical;
   min-height: 58px;

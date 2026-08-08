@@ -1,10 +1,18 @@
 import { execFileSync } from 'child_process'
-import { existsSync, mkdtempSync, realpathSync, writeFileSync } from 'fs'
+import { existsSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { basename, dirname, join } from 'path'
 import { beforeAll, describe, expect, it } from 'vitest'
 import { branchNameError } from '../shared/git'
-import { addWorktree, gitErrorMessage, gitInfo, removeWorktree, worktreeDirFor } from './git'
+import {
+  addWorktree,
+  deleteBranch,
+  gitErrorMessage,
+  gitInfo,
+  pruneWorktrees,
+  removeWorktree,
+  worktreeDirFor
+} from './git'
 
 describe('branchNameError', () => {
   it.each(['auth-fix', 'feat/auth', 'v2.1', 'a_b-c', 'WIP123'])('accepts %s', (name) => {
@@ -81,16 +89,32 @@ describe('gitErrorMessage', () => {
 })
 
 describe('worktreeDirFor', () => {
-  it('puts the worktree beside the repository, never inside it', () => {
+  // Never inside: with no vitest config, a nested checkout's tests are found by
+  // the root's own **/*.test.ts and run alongside them, and an agent searching
+  // the repo finds every file twice.
+  it('keeps the worktree outside the repository', () => {
     const dir = worktreeDirFor('/work/lightcode', 'auth-fix')
-    expect(dir).toBe(join('/work', 'lightcode-auth-fix'))
-    expect(dirname(dir)).toBe(dirname('/work/lightcode'))
+    expect(dir.startsWith('/work/lightcode/')).toBe(false)
+  })
+
+  // One folder, not loose siblings: a fan-out of sixteen would otherwise put
+  // sixteen directories next to the repository.
+  it('gathers them under one folder beside the repository', () => {
+    expect(worktreeDirFor('/work/lightcode', 'auth-fix')).toBe(
+      join('/work', 'lightcode-worktrees', 'auth-fix')
+    )
+    expect(worktreeDirFor('/work/lightcode', 'other')).toBe(
+      join('/work', 'lightcode-worktrees', 'other')
+    )
+    expect(dirname(worktreeDirFor('/work/lightcode', 'a'))).toBe(
+      dirname(worktreeDirFor('/work/lightcode', 'b'))
+    )
   })
 
   // A slash is legal in a branch name but cannot go into a folder name; only the
   // folder flattens, so the branch keeps what was typed.
   it('flattens a slash in the folder name only', () => {
-    expect(basename(worktreeDirFor('/work/repo', 'feat/auth'))).toBe('repo-feat-auth')
+    expect(basename(worktreeDirFor('/work/repo', 'feat/auth'))).toBe('feat-auth')
   })
 })
 
@@ -131,7 +155,14 @@ describe('worktrees, against real git', () => {
 
   it.skipIf(!gitPresent)('says nothing at all outside a repository', async () => {
     const info = await gitInfo(realpathSync(mkdtempSync(join(tmpdir(), 'lc-bare-'))))
-    expect(info).toEqual({ repo: false, root: null, branch: null, dirty: false, worktree: false })
+    expect(info).toEqual({
+      repo: false,
+      root: null,
+      mainRoot: null,
+      branch: null,
+      dirty: false,
+      worktree: false
+    })
   })
 
   it.skipIf(!gitPresent)('notices a tracked file changing', async () => {
@@ -167,6 +198,14 @@ describe('worktrees, against real git', () => {
     expect((await gitInfo(repo)).worktree).toBe(false)
   })
 
+  // Branch work has to run in the repository: a worktree's own directory stops
+  // existing the moment it is removed.
+  it.skipIf(!gitPresent)('points at the repository from inside a worktree', async () => {
+    const path = worktreeDirFor(repo, 'auth-fix')
+    expect((await gitInfo(path)).mainRoot).toBe(repo)
+    expect((await gitInfo(repo)).mainRoot).toBe(repo)
+  })
+
   it.skipIf(!gitPresent)('will not reuse a branch name', async () => {
     const again = await addWorktree(repo, 'auth-fix')
     expect(again.ok).toBe(false)
@@ -193,5 +232,92 @@ describe('worktrees, against real git', () => {
       encoding: 'utf8'
     })
     expect(branches.trim()).not.toBe('')
+  })
+})
+
+/**
+ * Branch cleanup. A fan-out leaves one branch per agent, and in plan mode not
+ * one of them has a commit — keeping twenty of those is not safety, it is litter
+ * that also makes the task name unusable for ever. The safety is git's: -d
+ * refuses a branch whose commits live nowhere else.
+ */
+describe.skipIf(process.platform === 'win32')('deleteBranch, against real git', () => {
+  function repoWith(branches: { name: string; commit?: boolean }[]): string {
+    const dir = join(realpathSync(mkdtempSync(join(tmpdir(), 'lc-branch-'))), 'repo')
+    execFileSync('git', ['init', '-q', '-b', 'main', dir], { stdio: 'ignore' })
+    const run = (args: string[]): void => {
+      execFileSync('git', ['-c', 'user.email=t@e.com', '-c', 'user.name=t', ...args], {
+        cwd: dir,
+        stdio: 'ignore'
+      })
+    }
+    writeFileSync(join(dir, 'a.txt'), 'hi\n')
+    run(['add', '.'])
+    run(['commit', '-qm', 'init'])
+    for (const b of branches) {
+      run(['branch', b.name])
+      if (!b.commit) continue
+      run(['checkout', '-q', b.name])
+      writeFileSync(join(dir, `${b.name}.txt`), 'work\n')
+      run(['add', '.'])
+      run(['commit', '-qm', `work on ${b.name}`])
+      run(['checkout', '-q', 'main'])
+    }
+    return dir
+  }
+
+  it('deletes a branch that never diverged', async () => {
+    const repo = repoWith([{ name: 'empty-1' }])
+    expect(await deleteBranch(repo, 'empty-1')).toEqual({ ok: true })
+    const left = execFileSync('git', ['branch', '--list', 'empty-1'], { cwd: repo, encoding: 'utf8' })
+    expect(left.trim()).toBe('')
+  })
+
+  // The whole reason -d is used rather than -D. An agent that actually committed
+  // something must not lose it to a tidy-up.
+  it('refuses one holding commits, and says why', async () => {
+    const repo = repoWith([{ name: 'real-work', commit: true }])
+    const result = await deleteBranch(repo, 'real-work')
+    expect(result.ok).toBe(false)
+    expect(result.hasWork).toBe(true)
+    const left = execFileSync('git', ['branch', '--list', 'real-work'], {
+      cwd: repo,
+      encoding: 'utf8'
+    })
+    expect(left.trim()).not.toBe('')
+  })
+
+  it('reports a branch that was never there rather than throwing', async () => {
+    const repo = repoWith([])
+    const result = await deleteBranch(repo, 'never-existed')
+    expect(result.ok).toBe(false)
+    expect(result.hasWork).toBe(false)
+  })
+})
+
+describe.skipIf(process.platform === 'win32')('pruneWorktrees', () => {
+  // Deleting the folder in Finder leaves git's record behind, and the stale
+  // record keeps the branch looking checked out — so the name cannot be reused.
+  it('forgets a worktree whose folder was deleted outside git', async () => {
+    const repo = join(realpathSync(mkdtempSync(join(tmpdir(), 'lc-prune-'))), 'repo')
+    execFileSync('git', ['init', '-q', '-b', 'main', repo], { stdio: 'ignore' })
+    writeFileSync(join(repo, 'a.txt'), 'hi\n')
+    execFileSync('git', ['add', '.'], { cwd: repo, stdio: 'ignore' })
+    execFileSync(
+      'git',
+      ['-c', 'user.email=t@e.com', '-c', 'user.name=t', 'commit', '-qm', 'init'],
+      { cwd: repo, stdio: 'ignore' }
+    )
+    const added = await addWorktree(repo, 'gone')
+    expect(added.ok).toBe(true)
+    if (!added.ok) return
+
+    rmSync(added.path, { recursive: true, force: true })
+    const before = execFileSync('git', ['worktree', 'list'], { cwd: repo, encoding: 'utf8' })
+    expect(before).toContain('gone')
+
+    await pruneWorktrees(repo)
+    const after = execFileSync('git', ['worktree', 'list'], { cwd: repo, encoding: 'utf8' })
+    expect(after).not.toContain('worktrees')
   })
 })

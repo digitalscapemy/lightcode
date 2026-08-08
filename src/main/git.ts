@@ -2,7 +2,12 @@ import { execFile } from 'child_process'
 import { basename, dirname, join } from 'path'
 import { promisify } from 'util'
 import { branchNameError } from '../shared/git'
-import type { GitInfo, WorktreeAddResult, WorktreeRemoveResult } from '../shared/ipc'
+import type {
+  BranchDeleteResult,
+  GitInfo,
+  WorktreeAddResult,
+  WorktreeRemoveResult
+} from '../shared/ipc'
 
 /**
  * Just enough git for a terminal to say where it is.
@@ -55,12 +60,21 @@ async function git(cwd: string, args: string[]): Promise<{ out: string; error: s
 }
 
 /**
- * Where a worktree for `name` goes: beside the repository, not inside it.
+ * Where a worktree for `name` goes: `<repo>-worktrees/<name>`, next to the
+ * repository rather than inside it.
  *
- * Inside would be tidier to look at and worse in every other way — git would
- * report it as untracked, and an agent told to work on the repo would wander
- * into a copy of it. Beside means `git worktree list` finds it, the path is
- * something you can read and cd to, and nothing is hidden from you.
+ * Outside, because inside is quietly destructive. This repository has no vitest
+ * config, so `**' + '/*.test.ts` from the root would find a nested checkout's tests
+ * as well and run all nine of them twice — sixteen fan-out copies would mean
+ * running the suite seventeen times over, and .gitignore does not stop a test
+ * runner. Worse for this app in particular: an agent told to work on the repo
+ * would find every file sixteen times over and could edit the wrong copy, which
+ * is the exact problem worktrees exist to prevent.
+ *
+ * One folder rather than loose siblings, because a fan-out of sixteen otherwise
+ * puts sixteen folders next to the repository — an evening of testing left
+ * twenty-two of them scattered across a Desktop. They are still outside, still
+ * in `git worktree list`, and still somewhere you can read and cd to.
  *
  * A slash in a branch name is legal (`feat/auth`) but cannot go into a folder
  * name, so only the folder flattens it — the branch keeps the name you typed.
@@ -69,7 +83,7 @@ async function git(cwd: string, args: string[]): Promise<{ out: string; error: s
  * renderer that shares the name rules has no node integration.
  */
 export function worktreeDirFor(root: string, name: string): string {
-  return join(dirname(root), `${basename(root)}-${name.replace(/\//g, '-')}`)
+  return join(dirname(root), `${basename(root)}-worktrees`, name.replace(/\//g, '-'))
 }
 
 /**
@@ -81,13 +95,23 @@ export function worktreeDirFor(root: string, name: string): string {
  * A clock would ask constantly and still be late.
  */
 export async function gitInfo(cwd: string): Promise<GitInfo> {
-  const absent: GitInfo = { repo: false, root: null, branch: null, dirty: false, worktree: false }
+  const absent: GitInfo = {
+    repo: false,
+    root: null,
+    mainRoot: null,
+    branch: null,
+    dirty: false,
+    worktree: false
+  }
 
   // One process for all four. rev-parse prints results in argument order, and
   // --abbrev-ref stays in effect for everything after it, which is why no sha is
   // asked for here: it would come back as the branch name again.
   const { out, error } = await git(cwd, [
     'rev-parse',
+    // Absolute, so the common dir can be turned into a path rather than the
+    // bare ".git" git prints for the repository it is standing in.
+    '--path-format=absolute',
     '--show-toplevel',
     '--git-dir',
     '--git-common-dir',
@@ -104,6 +128,9 @@ export async function gitInfo(cwd: string): Promise<GitInfo> {
   return {
     repo: true,
     root,
+    // <main>/.git for a worktree and for the repository alike, so its parent is
+    // the repository either way.
+    mainRoot: dirname(commonDir),
     // A detached HEAD reports the literal string "HEAD"; there is no branch to name.
     branch: head && head !== 'HEAD' ? head : null,
     // Untracked files are excluded on purpose: a build directory or a stray note
@@ -158,3 +185,30 @@ export async function removeWorktree(
   return { ok: true }
 }
 
+
+/**
+ * Forget worktrees whose folders have already gone.
+ *
+ * Deleting a worktree folder in Finder leaves git's bookkeeping behind, and the
+ * stale record keeps the branch checked out as far as git is concerned. Pruning
+ * touches no files at all — it only drops records for directories that are not
+ * there.
+ */
+export async function pruneWorktrees(cwd: string): Promise<void> {
+  await git(cwd, ['worktree', 'prune'])
+}
+
+/**
+ * Delete a branch, with git deciding whether that is allowed.
+ *
+ * Lowercase -d, never -D: git refuses a branch holding commits that exist
+ * nowhere else, which is the same bargain the worktree removal makes. A
+ * fan-out's branches are usually empty — nothing was committed to them — and
+ * keeping twenty of those is not safety, it is litter that also makes the task
+ * name unusable for ever.
+ */
+export async function deleteBranch(cwd: string, branch: string): Promise<BranchDeleteResult> {
+  const { error } = await git(cwd, ['branch', '-d', branch])
+  if (error === null) return { ok: true }
+  return { ok: false, error, hasWork: /not fully merged/i.test(error) }
+}

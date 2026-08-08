@@ -7,7 +7,7 @@ import { IPC } from '../shared/ipc'
 import type { ClipboardPasteResult } from '../shared/ipc'
 import type { PersistedState, ShortcutsConfig } from '../shared/types'
 import { HookWatcher, installHookAssets } from './agentHooks'
-import { addWorktree, gitInfo, removeWorktree } from './git'
+import { addWorktree, deleteBranch, gitInfo, pruneWorktrees, removeWorktree } from './git'
 import { PtyManager } from './ptyManager'
 import { setHookSettings } from './shell'
 import {
@@ -78,6 +78,10 @@ function registerIpc(): void {
   ipcMain.handle(
     IPC.GitWorktreeRemove,
     (_e, cwd: string, path: string, force: boolean) => removeWorktree(cwd, path, force)
+  )
+  ipcMain.handle(IPC.GitWorktreePrune, (_e, cwd: string) => pruneWorktrees(cwd))
+  ipcMain.handle(IPC.GitBranchDelete, (_e, cwd: string, branch: string) =>
+    deleteBranch(cwd, branch)
   )
 
   // Terminal copy. xterm's selection lives in a canvas rather than the DOM, so

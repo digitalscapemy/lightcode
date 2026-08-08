@@ -1,7 +1,7 @@
 import type { PaneStatus, StatusUpdate, UsageUpdate } from '../../shared/ipc'
 import type { LayoutNode, Orientation, PersistedState, TabState } from '../../shared/types'
 import { forgetPane as forgetBabysitter, handleStatusChange, noteManualInput } from './babysitter'
-import { confirmDialog } from './confirmDialog'
+import { alertDialog, confirmDialog } from './confirmDialog'
 import { renderLayout } from './layout'
 import { buildLayout } from './layouts'
 import type { LayoutPreset } from './layouts'
@@ -23,6 +23,7 @@ import {
 } from './store'
 import { firstPaneId, paneIds, paneNodes, removePane, splitPane } from './splitTree'
 import { refreshTabStatuses, renderTabs } from './tabbar'
+import { askRemove, removeAll, worktreeOfPane } from './worktrees'
 
 export const panes = new Map<string, TerminalPane>()
 const tabViews = new Map<string, HTMLElement>()
@@ -34,7 +35,7 @@ function contentEl(): HTMLElement {
 }
 
 const paneCallbacks: PaneCallbacks = {
-  onCloseRequest: (paneId) => closePane(paneId),
+  onCloseRequest: (paneId) => void closePaneRequest(paneId),
   onFocus: (paneId) => {
     state.focusedPaneId = paneId
     const tab = tabOfPane(paneId)
@@ -426,6 +427,29 @@ export function toggleMaximizePane(paneId: string): void {
     panes.get(paneId)?.scheduleFit()
   }
   panes.get(paneId)?.focus()
+}
+
+/**
+ * The × on a pane, and Mod+Shift+W.
+ *
+ * A pane sitting in a worktree is the only window onto that checkout; closing it
+ * and saying nothing leaves the folder and the branch behind for ever, which is
+ * how an evening of fan-outs ends with twenty-two directories nobody meant to
+ * keep. A pane that is not in one closes silently, exactly as it always has —
+ * there is nothing to decide, so nothing is asked.
+ */
+export async function closePaneRequest(paneId: string): Promise<void> {
+  const worktree = await worktreeOfPane(paneId)
+  if (!worktree) {
+    closePane(paneId)
+    return
+  }
+  const answer = await askRemove([worktree])
+  if (answer === 'cancel') return
+  closePane(paneId)
+  if (answer === 'keep') return
+  const notes = await removeAll([worktree])
+  if (notes.length > 0) await alertDialog(notes.join('\n\n'))
 }
 
 export function closePane(paneId: string): void {

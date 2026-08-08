@@ -1,4 +1,4 @@
-import { createTab } from './app'
+import { closeTab, createTab } from './app'
 import { alertDialog } from './confirmDialog'
 import {
   AGENT_COUNTS,
@@ -10,6 +10,7 @@ import {
 import type { AgentCount, FanOutRequest } from './fanOut'
 import { LAYOUT_PRESETS, buildLayout } from './layouts'
 import { newId, pendingCommand, state } from './store'
+import { askRemove, removeAll, worktreesInTab } from './worktrees'
 import { paneNodes } from './splitTree'
 import type { LayoutNode } from '../../shared/types'
 
@@ -47,7 +48,7 @@ export async function runFanOut(cwd: string, req: FanOutRequest): Promise<void> 
   // paneNodes reads left to right, top to bottom, which is the order the
   // branches are numbered in — agent 3 is where you would point at agent 3.
   const nodes = paneNodes(layout)
-  const command = agentCommand(req.prompt, window.lightclaude.platform === 'win32')
+  const command = agentCommand(req.prompt, window.lightclaude.platform === 'win32', req.plan)
   nodes.forEach((node, i) => {
     node.cwd = created[i]
     // Runs when the pane's shell draws its first prompt. See store.pendingCommand.
@@ -115,9 +116,52 @@ function askFanOut(): Promise<FanOutRequest | null> {
     prompt.placeholder = 'Refactor the auth module to use the new token API'
     prompt.spellcheck = false
 
+    const modeLabel = document.createElement('div')
+    modeLabel.className = 'fanout-label'
+    modeLabel.textContent = 'Mode'
+    const modes = document.createElement('div')
+    modes.className = 'fanout-counts'
+    let plan = false
+    const buildBtn = document.createElement('button')
+    buildBtn.className = 'fanout-count fanout-mode active'
+    buildBtn.textContent = 'Build'
+    const planBtn = document.createElement('button')
+    planBtn.className = 'fanout-count fanout-mode'
+    planBtn.textContent = 'Plan first'
+    planBtn.title =
+      'Every agent proposes an approach instead of changing files. Cheaper, and far easier to compare.'
+    for (const [btn, value] of [
+      [buildBtn, false],
+      [planBtn, true]
+    ] as [HTMLButtonElement, boolean][]) {
+      btn.addEventListener('click', () => {
+        plan = value
+        buildBtn.classList.toggle('active', !plan)
+        planBtn.classList.toggle('active', plan)
+        revalidate()
+      })
+    }
+    modes.append(buildBtn, planBtn)
+
+    // Sixteen new folders next to the repository is not a thing to discover
+    // afterwards, so the dialog says it before the button is pressed.
+    const cost = document.createElement('div')
+    cost.className = 'fanout-cost'
+
     const hint = document.createElement('div')
     hint.className = 'prompt-hint'
-    body.append(taskLabel, task, countLabel, counts, promptLabel, prompt, hint)
+    body.append(
+      taskLabel,
+      task,
+      countLabel,
+      counts,
+      modeLabel,
+      modes,
+      promptLabel,
+      prompt,
+      cost,
+      hint
+    )
 
     const footer = document.createElement('div')
     footer.className = 'shortcuts-footer confirm-actions'
@@ -144,13 +188,18 @@ function askFanOut(): Promise<FanOutRequest | null> {
       hint.textContent = issue ?? ''
       // Naming what is about to happen: four branches is not a small side effect
       // to discover afterwards.
+      const stem = task.value.trim() || 'task'
+      const names = branchNamesFor(stem, count)
+      cost.textContent =
+        `${count} worktrees beside the repo — ${names[0]} … ${names[names.length - 1]}` +
+        (plan ? ' · planning only, no files changed' : '')
       accept.textContent = `Fan out to ${count}`
       accept.disabled = task.value.trim() === '' || prompt.value.trim() === '' || issue !== null
     }
 
     const submit = (): void => {
       if (accept.disabled) return
-      finish({ task: task.value.trim(), count, prompt: prompt.value.trim() })
+      finish({ task: task.value.trim(), count, prompt: prompt.value.trim(), plan })
     }
 
     const onKeydown = (e: KeyboardEvent): void => {
@@ -202,3 +251,37 @@ function currentRepoCwd(): string | null {
   return node?.cwd ?? tab.projectPath ?? null
 }
 
+
+/**
+ * Clean up after a fan-out: remove the worktrees this tab's panes are sitting in.
+ *
+ * Deliberately never forces. Bulk-deleting sixteen checkouts is exactly the
+ * shape of action that loses work, so a worktree holding uncommitted changes is
+ * kept and named, and its pane stays open. Forcing one is still possible — from
+ * that pane's own menu, one at a time, where the question is about a worktree
+ * you are looking at rather than a number in a list.
+ */
+/**
+ * Closing a tab, with an offer to take its worktrees with it.
+ *
+ * Wired to the tab's × rather than hidden behind a right-click, because × is
+ * what people reach for and a close that quietly leaves sixteen checkouts on
+ * disk is a trap. A tab with no worktrees closes exactly as it always did — no
+ * dialog appears where there is nothing to decide.
+ */
+export async function closeTabWithWorktrees(tabId: string): Promise<void> {
+  const found = await worktreesInTab(tabId)
+  if (found.length === 0) {
+    closeTab(tabId)
+    return
+  }
+  const answer = await askRemove(found)
+  if (answer === 'cancel') return
+  if (answer === 'keep') {
+    closeTab(tabId)
+    return
+  }
+  const notes = await removeAll(found)
+  closeTab(tabId)
+  if (notes.length > 0) await alertDialog(notes.join('\n\n'))
+}

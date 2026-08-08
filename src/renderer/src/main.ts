@@ -2,7 +2,7 @@ import '@xterm/xterm/css/xterm.css'
 import './styles.css'
 import * as app from './app'
 import { initAboutUi } from './about'
-import { openFanOut } from './fanOutUi'
+import { closeTabWithWorktrees, openFanOut } from './fanOutUi'
 import { MOD_LABEL, initShortcuts } from './keys'
 import { initLayoutPicker } from './layoutPicker'
 import { openMission, toggleMissionControl } from './missionControl'
@@ -25,7 +25,7 @@ async function boot(): Promise<void> {
 
   initTabBar({
     onActivate: (id) => app.activateTab(id),
-    onClose: (id) => app.closeTab(id),
+    onClose: (id) => void closeTabWithWorktrees(id),
     onRename: (id, name) => app.renameTab(id, name),
     // DOM order is already live-synced during the drag; re-rendering here
     // would cut the snap animation short.
@@ -92,7 +92,8 @@ async function boot(): Promise<void> {
     'split-down': () => void app.splitFocused('column'),
     'new-tab': () => void app.addTab(),
     'close-pane': () => {
-      if (state.focusedPaneId) app.closePane(state.focusedPaneId)
+      // Same question the × asks: one action, one behaviour.
+      if (state.focusedPaneId) void app.closePaneRequest(state.focusedPaneId)
     },
     'mission-control': () => toggleMissionControl(),
     'font-larger': () => app.adjustFontSize(1),

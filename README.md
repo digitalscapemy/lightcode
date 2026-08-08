@@ -75,10 +75,18 @@ Every pane's header shows the branch it is on, with a dot when there are
 uncommitted changes. It refreshes when your shell draws a prompt — the moment a
 command has just finished — so the dot clears the instant you commit.
 
-Worktrees are created **beside** the repository (`myproject-auth-fix`), never
-hidden inside it, so `git worktree list` finds them and you can `cd` there from any
-terminal. Removing one asks first if it still holds uncommitted work, and never
-deletes the branch: finishing with a copy is not abandoning the work.
+Worktrees are gathered in one folder **beside** the repository
+(`myproject-worktrees/auth-fix`), never inside it. Inside would be quietly
+destructive: a test runner scanning from the repository root finds the nested
+copy's tests and runs them too, and an agent searching the code finds every file
+twice and can edit the wrong one — the exact problem worktrees exist to prevent.
+
+Removing one asks first if it still holds uncommitted work. Branches that hold
+commits are always kept; empty ones are cleaned up, because a branch with nothing
+in it is not work being protected, it is a name you can never reuse.
+
+Right-clicking a tab offers **Close and Remove Worktrees**, which tidies a whole
+fan-out at once and leaves behind anything that still has work in it.
 
 There is no diff viewer, no merge button and no "pick the winner" screen. You have
 `git`, it is already better at all three, and it is already what you know.

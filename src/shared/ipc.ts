@@ -37,6 +37,8 @@ export const IPC = {
   GitInfo: 'git:info',
   GitWorktreeAdd: 'git:worktree-add',
   GitWorktreeRemove: 'git:worktree-remove',
+  GitWorktreePrune: 'git:worktree-prune',
+  GitBranchDelete: 'git:branch-delete',
   WinMinimize: 'win:minimize',
   WinMaximize: 'win:maximize',
   WinClose: 'win:close'
@@ -108,6 +110,12 @@ export interface GitInfo {
   /** False when the directory is not inside a repository at all. */
   repo: boolean
   root: string | null
+  /**
+   * The repository itself, even when `root` is a linked worktree. Branch work
+   * has to happen here: a worktree's own directory stops existing the moment it
+   * is removed.
+   */
+  mainRoot: string | null
   /** Branch name, or null on a detached HEAD, which has none to give. */
   branch: string | null
   /** Tracked files differ from HEAD. Untracked files deliberately don't count. */
@@ -119,6 +127,13 @@ export interface GitInfo {
 export type WorktreeAddResult =
   | { ok: true; path: string; branch: string }
   | { ok: false; error: string }
+
+export interface BranchDeleteResult {
+  ok: boolean
+  error?: string
+  /** git kept it because it holds commits that are nowhere else. */
+  hasWork?: boolean
+}
 
 export interface WorktreeRemoveResult {
   ok: boolean
@@ -200,6 +215,10 @@ export interface LightClaudeApi {
     addWorktree(cwd: string, name: string): Promise<WorktreeAddResult>
     /** Without force, git itself refuses to discard uncommitted work. */
     removeWorktree(cwd: string, path: string, force: boolean): Promise<WorktreeRemoveResult>
+    /** Forget worktrees whose folders are already gone. Touches no files. */
+    pruneWorktrees(cwd: string): Promise<void>
+    /** `git branch -d`: refuses anything holding commits of its own. */
+    deleteBranch(cwd: string, branch: string): Promise<BranchDeleteResult>
   }
   shortcuts: {
     load(): Promise<ShortcutsConfig>

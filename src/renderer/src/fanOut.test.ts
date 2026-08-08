@@ -56,6 +56,31 @@ describe('layoutIdFor', () => {
   it('puts four in a square rather than a row of four', () => {
     expect(layoutIdFor(4)).toBe('4-grid')
   })
+
+  // The counts climb steeply because the cost does; a missing rung would mean a
+  // count with no grid, which the loop above would catch as undefined.
+  it('offers a decision rather than every number', () => {
+    expect([...AGENT_COUNTS]).toEqual([2, 3, 4, 6, 8, 16])
+  })
+})
+
+describe('agentCommand — plan mode', () => {
+  // Three agents rewriting the code is expensive and awkward to compare; three
+  // proposing an approach is cheap, touches nothing, and reads side by side.
+  it('starts every agent in plan mode when asked', () => {
+    expect(agentCommand('do it', false, true)).toBe("claude --permission-mode plan 'do it'")
+  })
+
+  it('leaves the command alone otherwise', () => {
+    expect(agentCommand('do it', false, false)).toBe("claude 'do it'")
+    expect(agentCommand('do it', false)).toBe("claude 'do it'")
+  })
+
+  it('keeps the prompt one argument, whichever mode', () => {
+    expect(agentCommand("don't", false, true)).toBe(
+      "claude --permission-mode plan 'don'\\''t'"
+    )
+  })
 })
 
 describe('quotePrompt', () => {

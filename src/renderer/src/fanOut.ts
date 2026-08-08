@@ -12,8 +12,12 @@ import { branchNameError } from '../../shared/git'
  * anywhere else in this app.
  */
 
-/** More than four rarely helps and always costs four times the tokens. */
-export const AGENT_COUNTS = [2, 3, 4] as const
+/**
+ * Each of these has a real grid in LAYOUT_PRESETS, so nobody ends up with more
+ * agents than panes. They climb steeply on purpose: the cost climbs with them,
+ * and sixteen agents is a decision, not the next notch after eight.
+ */
+export const AGENT_COUNTS = [2, 3, 4, 6, 8, 16] as const
 export type AgentCount = (typeof AGENT_COUNTS)[number]
 
 /** One branch per agent, numbered so the panes read left to right. */
@@ -31,9 +35,18 @@ export function taskNameError(task: string): string | null {
   return branchNameError(`${task}-1`)
 }
 
-/** The grid these agents go in. Two abreast, four in a square. */
+/** The grid these agents go in — one entry per count, checked by its test. */
+const GRIDS: Record<AgentCount, string> = {
+  2: '2-cols',
+  3: '3-cols',
+  4: '4-grid',
+  6: '6-grid',
+  8: '8-grid',
+  16: '16-grid'
+}
+
 export function layoutIdFor(count: AgentCount): string {
-  return count === 2 ? '2-cols' : count === 3 ? '3-cols' : '4-grid'
+  return GRIDS[count]
 }
 
 /**
@@ -56,9 +69,15 @@ export function quotePrompt(prompt: string, isWindows: boolean): string {
  * The prompt rides in as an argument rather than being typed after Claude opens.
  * Typing it would mean guessing when Claude is ready to receive it, and guessing
  * at readiness is exactly the class of bug this app keeps having to remove.
+ *
+ * `plan` starts every agent in plan mode, which is often the better way to fan
+ * something out: three agents rewriting the code is expensive and awkward to
+ * compare, where three agents each proposing an approach is cheap, touches no
+ * files, and reads side by side. Pick the approach, then run it once.
  */
-export function agentCommand(prompt: string, isWindows: boolean): string {
-  return `claude ${quotePrompt(prompt, isWindows)}`
+export function agentCommand(prompt: string, isWindows: boolean, plan = false): string {
+  const mode = plan ? '--permission-mode plan ' : ''
+  return `claude ${mode}${quotePrompt(prompt, isWindows)}`
 }
 
 /** What a fan-out was asked to do. */
@@ -66,4 +85,6 @@ export interface FanOutRequest {
   task: string
   count: AgentCount
   prompt: string
+  /** Start every agent in plan mode — proposals to compare, not edits. */
+  plan: boolean
 }
