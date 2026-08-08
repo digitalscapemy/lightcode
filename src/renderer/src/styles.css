@@ -344,6 +344,54 @@ body.tab-dragging * {
   white-space: nowrap;
 }
 
+/* Branch chip. Quieter than the usage badge on purpose: the branch is context
+   you glance at, not a number you read. A worktree gets an accent left edge, so
+   a grid of panes shows at once which are copies and which is the repo. */
+.pane-git {
+  flex: 0 0 auto;
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 8px;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--fg-muted);
+  white-space: nowrap;
+  max-width: 14ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pane-git[data-worktree='yes'] {
+  border-left: 2px solid var(--accent);
+  color: var(--fg);
+}
+
+.prompt-input {
+  width: 100%;
+  margin-top: 10px;
+  padding: 6px 8px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--fg);
+  background: var(--term-bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  outline: none;
+}
+
+.prompt-input:focus {
+  border-color: var(--accent);
+}
+
+/* Reserves its line whether or not there is a complaint, so the dialog does not
+   jump a few pixels the first time you type something git will not take. */
+.prompt-hint {
+  min-height: 16px;
+  margin-top: 6px;
+  font-size: 11px;
+  color: #ff6b6b;
+}
+
 .pane-usage {
   flex: 0 0 auto;
   font-size: 11px;

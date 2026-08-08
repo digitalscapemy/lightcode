@@ -7,6 +7,7 @@ import { IPC } from '../shared/ipc'
 import type { ClipboardPasteResult } from '../shared/ipc'
 import type { PersistedState, ShortcutsConfig } from '../shared/types'
 import { HookWatcher, installHookAssets } from './agentHooks'
+import { addWorktree, gitInfo, removeWorktree } from './git'
 import { PtyManager } from './ptyManager'
 import { setHookSettings } from './shell'
 import {
@@ -69,6 +70,15 @@ function registerIpc(): void {
     return result
   })
   ipcMain.handle(IPC.ShortcutsImport, () => parseProfiles(importCandidates()))
+
+  // Worktrees: several agents on one repository without treading on each other's
+  // files. Reading is cheap enough to run whenever a shell prompt renders.
+  ipcMain.handle(IPC.GitInfo, (_e, cwd: string) => gitInfo(cwd))
+  ipcMain.handle(IPC.GitWorktreeAdd, (_e, cwd: string, name: string) => addWorktree(cwd, name))
+  ipcMain.handle(
+    IPC.GitWorktreeRemove,
+    (_e, cwd: string, path: string, force: boolean) => removeWorktree(cwd, path, force)
+  )
 
   // Terminal copy. xterm's selection lives in a canvas rather than the DOM, so
   // the platform's own copy command finds nothing to put on the clipboard and

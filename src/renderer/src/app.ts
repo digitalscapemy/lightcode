@@ -45,7 +45,10 @@ const paneCallbacks: PaneCallbacks = {
   onToggleMaximize: (paneId) => toggleMaximizePane(paneId),
   isMaximized: (paneId) => maximizedPane.get(tabOfPane(paneId)?.id ?? '') === paneId,
   onRename: (paneId, name) => renamePane(paneId, name),
-  onManualInput: (paneId) => noteManualInput(paneId)
+  onManualInput: (paneId) => noteManualInput(paneId),
+  // A worktree opens beside the pane it came from: side by side is the point,
+  // since that is where comparing two agents' work actually happens.
+  onSplitInto: (paneId, cwd) => void splitAt(paneId, 'row', false, cwd)
 }
 
 function createPane(paneId: string, cwd: string): TerminalPane {
@@ -211,6 +214,12 @@ export function renameTab(tabId: string, name: string): void {
 
 /** Remember each pane's live cwd so a restart respawns it in the same folder. */
 export function setPaneCwd(paneId: string, cwd: string): void {
+  // The prompt hook fires on every prompt render, not only on a `cd`, so this is
+  // also the moment to re-read git: a commit or a checkout changes the branch and
+  // the dirty marker without the directory moving at all. Deliberately ahead of
+  // the early return below, which exists to avoid persisting an unchanged cwd.
+  void panes.get(paneId)?.refreshGit(cwd)
+
   const tab = tabOfPane(paneId)
   if (!tab) return
   const node = paneNodes(tab.layout).find((p) => p.id === paneId)
@@ -244,13 +253,15 @@ export async function splitFocused(orientation: Orientation): Promise<void> {
 export async function splitAt(
   targetPaneId: string,
   orientation: Orientation,
-  before: boolean
+  before: boolean,
+  /** Overrides the inherited directory — a worktree opens in its own copy. */
+  intoCwd?: string
 ): Promise<void> {
   const tab = tabOfPane(targetPaneId)
   if (!tab) return
   maximizedPane.delete(tab.id) // splitting always restores the grid
   // A new split opens where the source pane currently is, not the tab root.
-  const srcCwd = paneNodes(tab.layout).find((p) => p.id === targetPaneId)?.cwd
+  const srcCwd = intoCwd ?? paneNodes(tab.layout).find((p) => p.id === targetPaneId)?.cwd
   const newPaneId = newId('p')
   tab.layout = splitPane(tab.layout, targetPaneId, orientation, newPaneId, before)
 

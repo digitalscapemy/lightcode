@@ -64,6 +64,12 @@ const api: LightClaudeApi = {
     save: (cfg: ShortcutsConfig) => ipcRenderer.invoke(IPC.ShortcutsSave, cfg),
     importFromProfile: () => ipcRenderer.invoke(IPC.ShortcutsImport)
   },
+  git: {
+    info: (cwd: string) => ipcRenderer.invoke(IPC.GitInfo, cwd),
+    addWorktree: (cwd: string, name: string) => ipcRenderer.invoke(IPC.GitWorktreeAdd, cwd, name),
+    removeWorktree: (cwd: string, path: string, force: boolean) =>
+      ipcRenderer.invoke(IPC.GitWorktreeRemove, cwd, path, force)
+  },
   // Electron 32 removed File.path, so webUtils is the only route from a dropped
   // File to its real path. Returns '' for a File the OS gave no path (dragged
   // out of a web page) and for anything that isn't a File at all.

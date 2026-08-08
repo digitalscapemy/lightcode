@@ -34,6 +34,9 @@ export const IPC = {
   UsageStatus: 'usage:status',
   ClipboardCopy: 'clipboard:copy',
   ClipboardPaste: 'clipboard:paste',
+  GitInfo: 'git:info',
+  GitWorktreeAdd: 'git:worktree-add',
+  GitWorktreeRemove: 'git:worktree-remove',
   WinMinimize: 'win:minimize',
   WinMaximize: 'win:maximize',
   WinClose: 'win:close'
@@ -100,6 +103,30 @@ export interface StatusUpdate {
   lastActivity: number
 }
 
+/** Where a pane's directory stands, git-wise. See main/git.ts. */
+export interface GitInfo {
+  /** False when the directory is not inside a repository at all. */
+  repo: boolean
+  root: string | null
+  /** Branch name, or null on a detached HEAD, which has none to give. */
+  branch: string | null
+  /** Tracked files differ from HEAD. Untracked files deliberately don't count. */
+  dirty: boolean
+  /** A linked worktree rather than the repository itself. */
+  worktree: boolean
+}
+
+export type WorktreeAddResult =
+  | { ok: true; path: string; branch: string }
+  | { ok: false; error: string }
+
+export interface WorktreeRemoveResult {
+  ok: boolean
+  error?: string
+  /** git refused because the worktree still holds work — ask before forcing. */
+  needsForce?: boolean
+}
+
 export interface UpdateAvailableInfo {
   version: string
   /**
@@ -164,6 +191,15 @@ export interface LightClaudeApi {
     /** Terminal selection to the OS clipboard. */
     copy(text: string): void
     paste(): Promise<ClipboardPasteResult>
+  }
+  git: {
+    /** Branch, dirty state and whether this is a worktree. Cheap enough to call
+     *  whenever a shell prompt renders, which is when it can have changed. */
+    info(cwd: string): Promise<GitInfo>
+    /** `git worktree add -b <name>` beside the repository. */
+    addWorktree(cwd: string, name: string): Promise<WorktreeAddResult>
+    /** Without force, git itself refuses to discard uncommitted work. */
+    removeWorktree(cwd: string, path: string, force: boolean): Promise<WorktreeRemoveResult>
   }
   shortcuts: {
     load(): Promise<ShortcutsConfig>

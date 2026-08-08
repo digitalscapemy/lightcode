@@ -64,6 +64,25 @@ honest. Two things follow from that:
 - A shell Light Code cannot hook into (fish, nu) still gets full token badges — that part only
   ever needed the transcript.
 
+### 🌿 A worktree per agent
+Six panes on one repository share one set of files, which is a footgun rather than
+a feature: two agents editing at once will tread on each other. A pane's `⋮` menu
+opens a **worktree** — a second checkout of the same repository, on its own branch,
+in its own folder — and puts it in a pane beside the first. Two agents, two working
+copies, side by side, which is where comparing their work actually happens.
+
+Every pane's header shows the branch it is on, with a dot when there are
+uncommitted changes. It refreshes when your shell draws a prompt — the moment a
+command has just finished — so the dot clears the instant you commit.
+
+Worktrees are created **beside** the repository (`myproject-auth-fix`), never
+hidden inside it, so `git worktree list` finds them and you can `cd` there from any
+terminal. Removing one asks first if it still holds uncommitted work, and never
+deletes the branch: finishing with a copy is not abandoning the work.
+
+There is no diff viewer, no merge button and no "pick the winner" screen. You have
+`git`, it is already better at all three, and it is already what you know.
+
 ### 👥 Multi-account Claude switching
 Run different Claude accounts in different panes. Define account shortcuts (e.g. `claude1`,
 `claude2`) that launch Claude Code with a dedicated `CLAUDE_CONFIG_DIR` — and the token badges

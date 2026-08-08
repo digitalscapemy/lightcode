@@ -2,12 +2,14 @@ import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { WebglAddon } from '@xterm/addon-webgl'
 import { isBabysitterOn, toggleBabysitter } from './babysitter'
+import { alertDialog, confirmDialog, promptDialog } from './confirmDialog'
 import { MOD_LABEL, isAppShortcut } from './keys'
 import { shellArgs } from './paths'
 import { state } from './store'
 import { xtermTheme } from './theme'
 
-import type { PaneStatus } from '../../shared/ipc'
+import { branchNameError } from '../../shared/git'
+import type { GitInfo, PaneStatus } from '../../shared/ipc'
 import type { Orientation } from '../../shared/types'
 
 const STATUS_LABEL: Record<PaneStatus, string> = {
@@ -39,6 +41,12 @@ export interface PaneCallbacks {
   onRename(paneId: string, name: string | null): void
   /** A human keystroke reached the terminal (resets the babysitter counter). */
   onManualInput?(paneId: string): void
+  /**
+   * Split beside this pane, but open the new shell in `cwd` rather than
+   * inheriting this pane's. Used for worktrees: the point is to end up with the
+   * two working copies side by side, which is where comparing agents happens.
+   */
+  onSplitInto(paneId: string, cwd: string): void
 }
 
 /**
@@ -88,6 +96,19 @@ export class TerminalPane {
   private titleEl: HTMLElement
   private statusEl: HTMLElement
   private usageEl: HTMLElement
+  private gitEl: HTMLElement
+  /** Last git reading, so the menu knows whether this pane is in a worktree. */
+  private git: GitInfo | null = null
+  /** One reading at a time: a burst of prompts must not spawn a burst of gits. */
+  private gitBusy = false
+  /**
+   * The directory the shell is actually in.
+   *
+   * `cwd` is readonly and records where the pane was spawned; a `cd` moves the
+   * shell without touching it. Worktree commands must run where the user is, so
+   * they follow this instead, which the prompt hook keeps current.
+   */
+  private liveCwd: string
   private menuBtn: HTMLElement
   private acctBtn!: HTMLElement
   private projBtn!: HTMLElement
@@ -99,6 +120,7 @@ export class TerminalPane {
     readonly cwd: string,
     private callbacks: PaneCallbacks
   ) {
+    this.liveCwd = cwd
     this.el = document.createElement('div')
     this.el.className = 'pane'
     this.el.dataset['paneId'] = id
@@ -114,6 +136,9 @@ export class TerminalPane {
     this.usageEl = document.createElement('span')
     this.usageEl.className = 'pane-usage'
     this.usageEl.hidden = true
+    this.gitEl = document.createElement('span')
+    this.gitEl.className = 'pane-git'
+    this.gitEl.hidden = true
     const acctBtn = document.createElement('button')
     acctBtn.className = 'pane-acct-btn'
     acctBtn.innerHTML = KEY_ICON
@@ -149,7 +174,16 @@ export class TerminalPane {
       e.stopPropagation()
       this.callbacks.onCloseRequest(this.id)
     })
-    header.append(this.titleEl, this.statusEl, this.usageEl, acctBtn, projBtn, menuBtn, killBtn)
+    header.append(
+      this.titleEl,
+      this.gitEl,
+      this.statusEl,
+      this.usageEl,
+      acctBtn,
+      projBtn,
+      menuBtn,
+      killBtn
+    )
 
     this.body = document.createElement('div')
     this.body.className = 'pane-body'
@@ -323,10 +357,93 @@ export class TerminalPane {
         {
           label: isBabysitterOn(this.id) ? 'Auto-continue: On' : 'Auto-continue: Off',
           action: () => void toggleBabysitter(this.id)
-        }
+        },
+        // Only offered where it means something. A pane outside a repository has
+        // nothing to branch from, and a greyed-out row that is greyed out most of
+        // the time is just noise in a menu this short.
+        ...(this.git?.repo
+          ? [
+              {
+                label: 'Open Worktree…',
+                action: () => void this.openWorktree()
+              }
+            ]
+          : []),
+        ...(this.git?.repo && this.git.worktree
+          ? [
+              {
+                label: 'Remove This Worktree…',
+                action: () => void this.removeWorktree()
+              }
+            ]
+          : [])
       ],
       this.menuBtn
     )
+  }
+
+  /**
+   * Create a worktree and open it beside this pane.
+   *
+   * The branch is named exactly what the user types — no `lc/` prefix and no
+   * generated name, because a `git branch` listing full of names you did not
+   * choose is worse than one extra thing to type.
+   */
+  private async openWorktree(): Promise<void> {
+    const cwd = this.liveCwd
+    const name = await promptDialog({
+      message: 'New worktree — branch name',
+      placeholder: 'auth-fix',
+      confirmLabel: 'Create',
+      validate: branchNameError
+    })
+    if (name === null) return
+
+    const result = await window.lightclaude.git.addWorktree(cwd, name)
+    if (!result.ok) {
+      await alertDialog(result.error)
+      return
+    }
+    // No success message: the new pane appears with the branch on its header,
+    // which says more than a toast would and does not need dismissing.
+    this.callbacks.onSplitInto(this.id, result.path)
+  }
+
+  /**
+   * Remove the worktree this pane sits in.
+   *
+   * git refuses when the worktree still holds modified or untracked files, and
+   * that refusal is the whole safety story — there is no separate check here to
+   * get wrong, and no path by which this deletes work without being told twice.
+   * The branch survives either way: removing a worktree is not abandoning it.
+   */
+  private async removeWorktree(): Promise<void> {
+    // Inside a linked worktree, git's toplevel IS that worktree's directory —
+    // not the repository's. So this is the thing being removed, and git is happy
+    // to remove it while we are standing in it (verified: `worktree remove .`).
+    const worktreePath = this.git?.root
+    if (!worktreePath) return
+    const first = await window.lightclaude.git.removeWorktree(this.liveCwd, worktreePath, false)
+    if (first.ok) {
+      this.callbacks.onCloseRequest(this.id)
+      return
+    }
+    if (!first.needsForce) {
+      await alertDialog(first.error ?? 'Could not remove the worktree.')
+      return
+    }
+    const forced = await confirmDialog(
+      'This worktree still has uncommitted changes. Removing it deletes them. ' +
+        'The branch itself is kept.',
+      'Delete anyway'
+    )
+    if (!forced) return
+    const second = await window.lightclaude.git.removeWorktree(this.liveCwd, worktreePath, true)
+    if (!second.ok) {
+      await alertDialog(second.error ?? 'Could not remove the worktree.')
+      return
+    }
+    this.callbacks.onCloseRequest(this.id)
   }
 
   /** Account/project quick-picker, built from the saved shortcuts. */
@@ -473,6 +590,47 @@ export class TerminalPane {
       else if (e.key === 'Escape') cancel()
     })
     input.addEventListener('blur', commit)
+  }
+
+  /**
+   * Re-read git for this pane's directory.
+   *
+   * Called when a shell prompt renders — the moment a command has just finished,
+   * and so the only moment the answer can have changed. A timer would ask over
+   * and over and still report the old branch for a second after every checkout.
+   */
+  async refreshGit(cwd: string): Promise<void> {
+    this.liveCwd = cwd
+    if (this.gitBusy) return // the next prompt will pick up whatever this misses
+    this.gitBusy = true
+    try {
+      this.git = await window.lightclaude.git.info(cwd)
+    } catch {
+      this.git = null // main is gone or git is missing: show nothing, say nothing
+    } finally {
+      this.gitBusy = false
+    }
+    this.renderGit()
+  }
+
+  private renderGit(): void {
+    const git = this.git
+    if (!git?.repo) {
+      this.gitEl.hidden = true
+      this.gitEl.textContent = ''
+      return
+    }
+    this.gitEl.hidden = false
+    // A detached HEAD has no branch to name, and saying so is more use than a sha
+    // nobody reads at this size.
+    const label = git.branch ?? 'detached'
+    this.gitEl.textContent = git.dirty ? `${label} ●` : label
+    this.gitEl.dataset['worktree'] = git.worktree ? 'yes' : 'no'
+    this.gitEl.title = [
+      git.worktree ? 'Worktree' : 'Repository',
+      git.branch ? `on ${git.branch}` : 'with a detached HEAD',
+      git.dirty ? '· uncommitted changes' : '· clean'
+    ].join(' ')
   }
 
   /** Token usage badge; null hides it. */
