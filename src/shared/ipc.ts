@@ -1,3 +1,4 @@
+import type { LcRequest, LcResponse } from './lc'
 import type {
   PersistedState,
   ShortcutsConfig,
@@ -39,6 +40,10 @@ export const IPC = {
   GitWorktreeRemove: 'git:worktree-remove',
   GitWorktreePrune: 'git:worktree-prune',
   GitBranchDelete: 'git:branch-delete',
+  LcRequest: 'lc:request',
+  LcReply: 'lc:reply',
+  LcSetEnabled: 'lc:set-enabled',
+  LcState: 'lc:state',
   WinMinimize: 'win:minimize',
   WinMaximize: 'win:maximize',
   WinClose: 'win:close'
@@ -243,6 +248,15 @@ export interface LightClaudeApi {
     onProgress(cb: (p: UpdateProgressInfo) => void): () => void
     onDownloaded(cb: (version: string) => void): () => void
     onError(cb: (message: string) => void): () => void
+  }
+  /** The `lc` agent CLI — off until switched on. See main/lcServer.ts. */
+  lc: {
+    /** Whether the socket is listening, and where the shell function finds it. */
+    state(): Promise<{ enabled: boolean; command: string }>
+    setEnabled(on: boolean): Promise<{ enabled: boolean; command: string }>
+    /** A request forwarded from the socket, to be answered with reply(). */
+    onRequest(cb: (id: number, req: LcRequest) => void): () => void
+    reply(id: number, res: LcResponse): void
   }
   window: {
     minimize(): void

@@ -9,6 +9,7 @@ import type {
   UpdateProgressInfo,
   UsageUpdate
 } from '../shared/ipc'
+import type { LcRequest, LcResponse } from '../shared/lc'
 import type { PersistedState, ShortcutsConfig } from '../shared/types'
 
 const api: LightClaudeApi = {
@@ -109,6 +110,16 @@ const api: LightClaudeApi = {
       ipcRenderer.on(IPC.UpdateError, listener)
       return () => ipcRenderer.removeListener(IPC.UpdateError, listener)
     }
+  },
+  lc: {
+    state: () => ipcRenderer.invoke(IPC.LcState),
+    setEnabled: (on: boolean) => ipcRenderer.invoke(IPC.LcSetEnabled, on),
+    onRequest: (cb) => {
+      const listener = (_e: IpcRendererEvent, id: number, req: LcRequest): void => cb(id, req)
+      ipcRenderer.on(IPC.LcRequest, listener)
+      return () => ipcRenderer.removeListener(IPC.LcRequest, listener)
+    },
+    reply: (id: number, res: LcResponse) => ipcRenderer.send(IPC.LcReply, id, res)
   },
   window: {
     minimize: () => ipcRenderer.send(IPC.WinMinimize),

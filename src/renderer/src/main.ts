@@ -4,6 +4,7 @@ import * as app from './app'
 import { initAboutUi } from './about'
 import { closeTabWithWorktrees, openFanOut } from './fanOutUi'
 import { MOD_LABEL, initShortcuts } from './keys'
+import { initLc } from './lcHandlers'
 import { initLayoutPicker } from './layoutPicker'
 import { openMission, toggleMissionControl } from './missionControl'
 import { clearDropTarget, hasDropTarget } from './pane'
@@ -42,6 +43,7 @@ async function boot(): Promise<void> {
   initAboutUi()
   initLayoutPicker()
   initUpdateToast()
+  initLc()
 
   document
     .getElementById('win-min')!

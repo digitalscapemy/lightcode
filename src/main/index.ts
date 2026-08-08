@@ -8,8 +8,10 @@ import type { ClipboardPasteResult } from '../shared/ipc'
 import type { PersistedState, ShortcutsConfig } from '../shared/types'
 import { HookWatcher, installHookAssets } from './agentHooks'
 import { addWorktree, deleteBranch, gitInfo, pruneWorktrees, removeWorktree } from './git'
+import { installLcClient } from './lcClient'
+import { LcServer, loadLcEnabled, saveLcEnabled, socketPath } from './lcServer'
 import { PtyManager } from './ptyManager'
-import { setHookSettings } from './shell'
+import { setHookSettings, setLcInstalled } from './shell'
 import {
   importCandidates,
   loadShortcuts,
@@ -27,6 +29,7 @@ app.setName('lightclaude')
 const usageWatcher = new UsageWatcher()
 const ptyManager = new PtyManager(usageWatcher)
 const hookWatcher = new HookWatcher()
+const lcServer = new LcServer()
 let mainWindow: BrowserWindow | null = null
 let isQuitting = false
 
@@ -83,6 +86,19 @@ function registerIpc(): void {
   ipcMain.handle(IPC.GitBranchDelete, (_e, cwd: string, branch: string) =>
     deleteBranch(cwd, branch)
   )
+
+  // The agent CLI. Off until switched on, and the switch is remembered.
+  const lcState = (): { enabled: boolean; command: string } => ({
+    enabled: lcServer.isEnabled(),
+    command: 'lc'
+  })
+  ipcMain.handle(IPC.LcState, () => lcState())
+  ipcMain.handle(IPC.LcSetEnabled, (_e, on: boolean) => {
+    lcServer.setEnabled(on)
+    saveLcEnabled(on)
+    return lcState()
+  })
+  ipcMain.on(IPC.LcReply, (_e, id: number, res) => lcServer.handleReply(id, res))
 
   // Terminal copy. xterm's selection lives in a canvas rather than the DOM, so
   // the platform's own copy command finds nothing to put on the clipboard and
@@ -225,6 +241,7 @@ function createWindow(): void {
 
   ptyManager.setTarget(mainWindow.webContents)
   usageWatcher.setTarget(mainWindow.webContents)
+  lcServer.setTarget(mainWindow.webContents)
 
   // A renderer reload (Ctrl+R / HMR full-reload) respawns every pane with new
   // ids — kill the old ptys so they don't linger as orphans. Fresh spawns
@@ -293,6 +310,12 @@ app.whenReady().then(() => {
   setHookSettings(hooks?.settings ?? null)
   if (hooks) hookWatcher.start(hooks.spool, (ev) => usageWatcher.applyHook(ev))
 
+  // The lc client is written out every launch, so the script and the socket it
+  // points at can never disagree. The shell function is defined either way —
+  // with the switch off the command explains that, which beats "not found".
+  setLcInstalled(installLcClient(socketPath()) !== null)
+  lcServer.setEnabled(loadLcEnabled())
+
   // Seed usage roots before any pane spawns so restored panes bind everywhere.
   usageWatcher.setConfigRoots(loadShortcuts().accounts.map((a) => a.configDir))
   registerIpc()
@@ -312,4 +335,5 @@ app.on('will-quit', () => {
   ptyManager.killAll()
   usageWatcher.unwatchAll()
   hookWatcher.stop()
+  lcServer.stop()
 })

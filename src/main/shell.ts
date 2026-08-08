@@ -4,6 +4,7 @@ import { existsSync, mkdirSync, writeFileSync } from 'fs'
 import { homedir } from 'os'
 import { basename, join } from 'path'
 import { hookPaths } from './agentHooks'
+import { lcPowerShellFunction, lcScriptPath, lcShellFunction } from './lcClient'
 
 export interface ShellInfo {
   file: string
@@ -24,6 +25,25 @@ let cached: ShellInfo | null = null
  * panes — a plain terminal is untouched, and there is nothing to uninstall.
  */
 let hookSettings: string | null = null
+
+/**
+ * Whether the generated rc files should define `lc`.
+ *
+ * Set once the client script exists. The function is defined even while the
+ * switch is off — the command then explains that it is off, which is a better
+ * answer than "command not found" to an agent trying to work out what it has.
+ */
+let lcInstalled = false
+
+export function setLcInstalled(on: boolean): void {
+  if (on === lcInstalled) return
+  lcInstalled = on
+  cached = null
+}
+
+function posixLc(): string {
+  return lcInstalled ? lcShellFunction(process.execPath, lcScriptPath()) : ''
+}
 
 export function setHookSettings(file: string | null): void {
   if (file === hookSettings) return
@@ -124,8 +144,9 @@ function detectWindowsShell(): ShellInfo {
   }
   if (!file) file = 'powershell.exe'
 
-  const wrapper = psClaudeWrapper()
-  const startup = wrapper ? `${psPromptHook}; ${wrapper}` : psPromptHook
+  const parts = [psPromptHook, psClaudeWrapper()]
+  if (lcInstalled) parts.push(lcPowerShellFunction(process.execPath, lcScriptPath()))
+  const startup = parts.filter(Boolean).join('; ')
   return { file, args: ['-NoLogo', '-NoExit', '-Command', startup] }
 }
 
@@ -174,6 +195,8 @@ function zshShell(file: string): ShellInfo {
       'precmd_functions+=(__lc_report_cwd)\n' +
       posixClaudeWrapper() +
       '\n' +
+      posixLc() +
+      '\n' +
       // leave the user's ZDOTDIR for nested shells
       'ZDOTDIR="$LC_USER_ZDOTDIR"\n'
   )
@@ -205,6 +228,7 @@ function bashShell(file: string): ShellInfo {
       '__lc_report_cwd() { printf \'\\033]9;9;%s\\007\' "$PWD"; }',
       'PROMPT_COMMAND="__lc_report_cwd${PROMPT_COMMAND:+;$PROMPT_COMMAND}"',
       posixClaudeWrapper(),
+      posixLc(),
       ''
     ].join('\n')
   )

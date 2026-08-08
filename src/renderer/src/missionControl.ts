@@ -84,6 +84,26 @@ function build(): void {
   // Selection toolbar for broadcast targeting.
   const toolbar = document.createElement('div')
   toolbar.className = 'mission-toolbar'
+
+  // The agent CLI switch. Here rather than in a settings screen because this is
+  // where you look at the fleet, and this decides whether the fleet can be
+  // driven by something other than your hands.
+  const lcBtn = document.createElement('button')
+  lcBtn.className = 'mission-secondary mission-lc'
+  const paintLc = (enabled: boolean): void => {
+    lcBtn.textContent = enabled ? 'Agent CLI: on' : 'Agent CLI: off'
+    lcBtn.classList.toggle('active', enabled)
+    lcBtn.title = enabled
+      ? 'Agents can drive panes with `lc`. Panes show a mark when they do.'
+      : 'Turn on to let an agent run `lc` and drive other panes. Off by default.'
+  }
+  paintLc(false)
+  void window.lightclaude.lc.state().then((s) => paintLc(s.enabled))
+  lcBtn.addEventListener('click', () => {
+    const next = !lcBtn.classList.contains('active')
+    void window.lightclaude.lc.setEnabled(next).then((s) => paintLc(s.enabled))
+  })
+  toolbar.appendChild(lcBtn)
   const mkSel = (label: string, fn: () => void): HTMLButtonElement => {
     const b = document.createElement('button')
     b.className = 'mission-secondary'

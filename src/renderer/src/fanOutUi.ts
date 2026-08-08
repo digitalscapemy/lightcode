@@ -21,7 +21,10 @@ import type { LayoutNode } from '../../shared/types'
  * Worktrees are created one at a time on purpose: `git worktree add` writes the
  * index, and two of them at once race for its lock.
  */
-export async function runFanOut(cwd: string, req: FanOutRequest): Promise<void> {
+export async function runFanOut(
+  cwd: string,
+  req: FanOutRequest
+): Promise<{ pane: string; branch: string }[] | null> {
   const names = branchNamesFor(req.task, req.count)
   const created: string[] = []
 
@@ -38,11 +41,11 @@ export async function runFanOut(cwd: string, req: FanOutRequest): Promise<void> 
       await window.lightclaude.git.removeWorktree(cwd, path, true)
     }
     await alertDialog(`Could not create ${name}: ${result.error}`)
-    return
+    return null
   }
 
   const preset = LAYOUT_PRESETS.find((p) => p.id === layoutIdFor(req.count))
-  if (!preset) return
+  if (!preset) return null
   const layout: LayoutNode = buildLayout(preset.spec, () => newId('p'))
 
   // paneNodes reads left to right, top to bottom, which is the order the
@@ -61,6 +64,8 @@ export async function runFanOut(cwd: string, req: FanOutRequest): Promise<void> 
     layout,
     awaitSpawn: true
   })
+
+  return nodes.map((node, i) => ({ pane: node.id, branch: names[i] ?? req.task }))
 }
 
 // ---------- The dialog ----------

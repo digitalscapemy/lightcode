@@ -103,6 +103,40 @@ you like, merge it with `git`.
 The prompt travels as an argument to `claude` rather than being typed in after it
 opens, so nothing has to guess when the agent is ready to hear it.
 
+### 🔌 `lc` — let an agent drive the cockpit
+The buttons above are things you press. `lc` is the same actions available to an
+agent, so Claude can open panes, send work to them, wait for it, and read what
+came back — without your hands.
+
+```
+lc ls                      every pane; * marks the one you are in
+lc send <pane> "<text>"    type into a pane
+lc read <pane> --tail 50   what is on its screen
+lc wait <pane...> --for idle | exit
+lc fan <task> <n> "<prompt>" [--plan]
+lc close <pane>
+```
+
+Ask Claude to *"use `lc` to fan this out three ways, wait for all of them, and
+tell me when they're done"* and it will. Every command takes `--json`, because
+its main reader is an agent parsing output rather than a person.
+
+**It is off until you switch it on**, in Mission Control. While it is off the
+socket does not exist at all — there is nothing listening to refuse. And a pane
+something drove through `lc` wears an `LC` badge for the rest of its life, so you
+can always see it happened.
+
+That last part is the whole safety story, and it is worth being straight about
+why. A socket with owner-only permissions keeps other *users* out. It cannot keep
+out other programs running as you — and it never could, because letting a program
+running as you type into a pane is precisely the feature. So the protection is
+not prevention. It is that nothing listens until you say so, and that nothing it
+does is invisible.
+
+`lc` needs nothing installed: it runs under the app's own runtime, and exists as
+a command only inside Light Code's panes, which is the only place it means
+anything.
+
 ### 👥 Multi-account Claude switching
 Run different Claude accounts in different panes. Define account shortcuts (e.g. `claude1`,
 `claude2`) that launch Claude Code with a dedicated `CLAUDE_CONFIG_DIR` — and the token badges
@@ -486,7 +520,7 @@ are sourced untouched, and a `claude` function of your own is left alone).
 
 ```
 src/shared    types + IPC contract (shared by all three layers)
-src/main      main process: PTY manager, usage watcher, agent hooks, shortcuts, updater
+src/main      main process: PTY manager, usage watcher, agent hooks, git, lc server, updater
 src/preload   contextBridge boundary (window.lightclaude)
 src/renderer  UI: tab bar, split tree, terminal panes, modals, toast
 ```

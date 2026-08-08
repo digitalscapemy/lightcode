@@ -347,6 +347,25 @@ body.tab-dragging * {
 /* Branch chip. Quieter than the usage badge on purpose: the branch is context
    you glance at, not a number you read. A worktree gets an accent left edge, so
    a grid of panes shows at once which are copies and which is the repo. */
+/* Something other than a person typed in this pane. Deliberately loud-ish: the
+   whole safety story for the agent CLI is that you can see when it acted. */
+.pane-driven {
+  flex: 0 0 auto;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 1px 5px;
+  border-radius: 8px;
+  background: var(--accent);
+  color: #ffffff;
+  white-space: nowrap;
+}
+
+.mission-lc.active {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
 .pane-git {
   flex: 0 0 auto;
   font-size: 11px;

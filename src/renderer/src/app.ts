@@ -616,6 +616,11 @@ export function focusPaneDirection(dir: Direction): void {
   if (target) goToPane(tab, target)
 }
 
+/** Show in the pane that the agent CLI drove it. See TerminalPane.markDriven. */
+export function markDrivenByLc(paneId: string): void {
+  panes.get(paneId)?.markDriven()
+}
+
 /** Human label for a pane in notifications — its tab name. */
 function paneLabel(paneId: string): string {
   return tabOfPane(paneId)?.name ?? 'Claude'

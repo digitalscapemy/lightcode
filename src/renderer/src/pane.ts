@@ -97,6 +97,15 @@ export class TerminalPane {
   private statusEl: HTMLElement
   private usageEl: HTMLElement
   private gitEl: HTMLElement
+  /**
+   * Marks a pane something drove through `lc` rather than a person typing.
+   *
+   * The protection around the agent CLI cannot be prevention — a program
+   * running as you is allowed to type here, that being the whole feature — so
+   * it is visibility instead. This never goes away for the life of the pane.
+   */
+  private drivenEl!: HTMLElement
+  private drivenCount = 0
   /** Last git reading, so the menu knows whether this pane is in a worktree. */
   private git: GitInfo | null = null
   /** One reading at a time: a burst of prompts must not spawn a burst of gits. */
@@ -139,6 +148,9 @@ export class TerminalPane {
     this.gitEl = document.createElement('span')
     this.gitEl.className = 'pane-git'
     this.gitEl.hidden = true
+    this.drivenEl = document.createElement('span')
+    this.drivenEl.className = 'pane-driven'
+    this.drivenEl.hidden = true
     const acctBtn = document.createElement('button')
     acctBtn.className = 'pane-acct-btn'
     acctBtn.innerHTML = KEY_ICON
@@ -176,6 +188,7 @@ export class TerminalPane {
     })
     header.append(
       this.titleEl,
+      this.drivenEl,
       this.gitEl,
       this.statusEl,
       this.usageEl,
@@ -631,6 +644,41 @@ export class TerminalPane {
       git.branch ? `on ${git.branch}` : 'with a detached HEAD',
       git.dirty ? '· uncommitted changes' : '· clean'
     ].join(' ')
+  }
+
+  /** What git last said about this pane, for `lc ls`. */
+  gitSnapshot(): GitInfo | null {
+    return this.git
+  }
+
+  /**
+   * The last `count` lines on screen, oldest first, for `lc read`.
+   *
+   * Straight out of the terminal's own buffer, so it is exactly what a person
+   * would see — trailing blanks trimmed, since a terminal pads every row to the
+   * full width and an agent reading this does not want the padding.
+   */
+  recentLines(count: number): string[] {
+    const buf = this.term.buffer.active
+    const end = buf.baseY + buf.cursorY
+    const start = Math.max(0, end - count + 1)
+    const lines: string[] = []
+    for (let y = start; y <= end; y++) {
+      lines.push(buf.getLine(y)?.translateToString(true).replace(/\s+$/, '') ?? '')
+    }
+    // A screen is mostly empty below the prompt; leading blanks are noise.
+    while (lines.length > 0 && lines[0] === '') lines.shift()
+    return lines
+  }
+
+  /** Show that something other than a person typed here. */
+  markDriven(): void {
+    this.drivenCount++
+    this.gitEl.hidden = false
+    this.drivenEl.hidden = false
+    this.drivenEl.textContent = this.drivenCount > 1 ? `lc ${this.drivenCount}` : 'lc'
+    this.drivenEl.title =
+      `${this.drivenCount} command${this.drivenCount === 1 ? '' : 's'} sent by the agent CLI`
   }
 
   /** Token usage badge; null hides it. */
