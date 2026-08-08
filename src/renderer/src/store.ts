@@ -33,6 +33,16 @@ export const state: AppState = {
 /** Latest Claude activity state per pane (ephemeral — never persisted). */
 export const paneStatus = new Map<string, StatusUpdate>()
 
+/**
+ * Commands waiting for their pane's first shell prompt.
+ *
+ * A freshly spawned shell is not ready to be typed into — it is still sourcing
+ * rc files — and guessing how long that takes is the class of bug this app keeps
+ * removing. The prompt hook already reports the exact moment a prompt is drawn,
+ * so a command sits here until then. Consumed once, by setPaneCwd.
+ */
+export const pendingCommand = new Map<string, string>()
+
 /** Latest token usage per pane (ephemeral — mirrors what the badge shows). */
 export const paneUsage = new Map<string, UsageUpdate>()
 

@@ -366,6 +366,50 @@ body.tab-dragging * {
   color: var(--fg);
 }
 
+/* Fan-out asks three things at once, so it needs more room than a one-line
+   prompt and a little structure between the fields. */
+.fanout-modal {
+  min-width: 420px;
+}
+
+.fanout-label {
+  margin-top: 14px;
+}
+
+.fanout-counts {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.fanout-count {
+  flex: 0 0 auto;
+  min-width: 40px;
+  padding: 5px 0;
+  font: inherit;
+  font-size: 13px;
+  color: var(--fg-muted);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.fanout-count:hover {
+  color: var(--fg);
+}
+
+.fanout-count.active {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.fanout-prompt {
+  resize: vertical;
+  min-height: 58px;
+  line-height: 1.4;
+}
+
 .prompt-input {
   width: 100%;
   margin-top: 10px;
@@ -929,8 +973,16 @@ body.tab-dragging * {
   color: #ffffff;
 }
 
-.shortcuts-primary:hover {
+.shortcuts-primary:hover:not(:disabled) {
   filter: brightness(1.15);
+}
+
+/* A refused button has to look refused. Without this it stayed fully accent
+   coloured while doing nothing when clicked, which reads as a broken button
+   rather than an unfinished form. Matches .mission-primary, which had it. */
+.shortcuts-primary:disabled {
+  opacity: 0.4;
+  cursor: default;
 }
 
 .shortcuts-secondary {

@@ -15,6 +15,7 @@ import {
   clampFontSize,
   newId,
   paneStatus,
+  pendingCommand,
   paneUsage,
   persist,
   state,
@@ -68,6 +69,12 @@ export interface CreateTabOptions {
   name?: string
   layout?: LayoutNode
   activate?: boolean
+  /**
+   * Wait for every shell to exist before returning. Off by default because
+   * opening sixteen tabs at once should not serialise on sixteen spawns; on for
+   * callers that need to talk to the panes straight afterwards.
+   */
+  awaitSpawn?: boolean
 }
 
 export async function createTab(opts: CreateTabOptions): Promise<void> {
@@ -96,7 +103,8 @@ export async function createTab(opts: CreateTabOptions): Promise<void> {
   updateEmptyState()
   if (opts.activate !== false) activateTab(tab.id)
 
-  for (const pid of paneIds(tab.layout)) void panes.get(pid)!.spawn()
+  const spawns = paneIds(tab.layout).map((pid) => panes.get(pid)!.spawn())
+  if (opts.awaitSpawn) await Promise.all(spawns)
   persist()
 }
 
@@ -219,6 +227,14 @@ export function setPaneCwd(paneId: string, cwd: string): void {
   // the dirty marker without the directory moving at all. Deliberately ahead of
   // the early return below, which exists to avoid persisting an unchanged cwd.
   void panes.get(paneId)?.refreshGit(cwd)
+
+  // A prompt has been drawn, so the shell is ready to be typed into — which is
+  // when a queued command can safely go in. See store.pendingCommand.
+  const queued = pendingCommand.get(paneId)
+  if (queued !== undefined) {
+    pendingCommand.delete(paneId)
+    window.lightclaude.pty.write(paneId, `${queued}\r`)
+  }
 
   const tab = tabOfPane(paneId)
   if (!tab) return

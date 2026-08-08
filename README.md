@@ -83,6 +83,18 @@ deletes the branch: finishing with a copy is not abandoning the work.
 There is no diff viewer, no merge button and no "pick the winner" screen. You have
 `git`, it is already better at all three, and it is already what you know.
 
+### 🔀 Fan one task out to several agents
+The button that follows from the last one. Give it a task name, a number, and a
+prompt: Light Code creates that many worktrees, opens them as a grid of panes, and
+starts an agent in each with the same prompt already sent.
+
+Leave, come back, and you have three independent attempts at the same problem on
+three branches that cannot have overwritten one another. Read them, keep the one
+you like, merge it with `git`.
+
+The prompt travels as an argument to `claude` rather than being typed in after it
+opens, so nothing has to guess when the agent is ready to hear it.
+
 ### 👥 Multi-account Claude switching
 Run different Claude accounts in different panes. Define account shortcuts (e.g. `claude1`,
 `claude2`) that launch Claude Code with a dedicated `CLAUDE_CONFIG_DIR` — and the token badges

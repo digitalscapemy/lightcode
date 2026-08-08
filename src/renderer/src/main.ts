@@ -2,6 +2,7 @@ import '@xterm/xterm/css/xterm.css'
 import './styles.css'
 import * as app from './app'
 import { initAboutUi } from './about'
+import { openFanOut } from './fanOutUi'
 import { MOD_LABEL, initShortcuts } from './keys'
 import { initLayoutPicker } from './layoutPicker'
 import { openMission, toggleMissionControl } from './missionControl'
@@ -105,6 +106,8 @@ async function boot(): Promise<void> {
     'pane-up': () => app.focusPaneDirection('up'),
     'pane-down': () => app.focusPaneDirection('down')
   })
+
+  document.getElementById('fanout-btn')!.addEventListener('click', () => void openFanOut())
 
   document
     .getElementById('mission-btn')!
