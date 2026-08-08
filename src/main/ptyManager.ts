@@ -5,7 +5,7 @@ import { existsSync } from 'fs'
 import { homedir } from 'os'
 import { IPC } from '../shared/ipc'
 import type { SpawnOptions, SpawnResult } from '../shared/ipc'
-import { detectShell } from './shell'
+import { detectShell, hookEnv } from './shell'
 import type { UsageWatcher } from './usageWatcher'
 
 /** OSC 9;9;<cwd> BEL|ST — emitted by the prompt hook injected in shell.ts. */
@@ -59,7 +59,15 @@ export class PtyManager {
       cols: Math.max(2, cols),
       rows: Math.max(1, rows),
       ...(process.platform === 'win32' ? { useConpty: true } : {}),
-      env: { ...(process.env as Record<string, string>), ...shell.env }
+      env: {
+        ...(process.env as Record<string, string>),
+        ...shell.env,
+        ...hookEnv(),
+        // Read by the agent-hook reporter, which stamps it onto every event it
+        // forwards. This is what makes session→pane attribution a fact rather
+        // than a guess from keystroke timing.
+        LIGHTCODE_PANE: paneId
+      }
     })
     this.ptys.set(paneId, proc)
     this.usage.resetPane(paneId) // don't dedupe a fresh session against the old one

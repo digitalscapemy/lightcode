@@ -3,6 +3,7 @@ import { app } from 'electron'
 import { existsSync, mkdirSync, writeFileSync } from 'fs'
 import { homedir } from 'os'
 import { basename, join } from 'path'
+import { hookPaths } from './agentHooks'
 
 export interface ShellInfo {
   file: string
@@ -12,6 +13,72 @@ export interface ShellInfo {
 }
 
 let cached: ShellInfo | null = null
+
+/**
+ * Path of the app's generated agent-hook settings, once installed.
+ *
+ * This is how Claude Code learns about our hooks, and the reason nothing here
+ * ever edits ~/.claude/settings.json: the shell integration defines a `claude`
+ * wrapper that adds `--settings <this file>`, which Claude Code merges on top
+ * of the user's own settings. The hooks therefore exist only inside Light Code's
+ * panes — a plain terminal is untouched, and there is nothing to uninstall.
+ */
+let hookSettings: string | null = null
+
+export function setHookSettings(file: string | null): void {
+  if (file === hookSettings) return
+  hookSettings = file
+  cached = null // integration files are rewritten on the next detectShell()
+}
+
+/** Per-pty environment the reporter script needs. Empty when hooks are off. */
+export function hookEnv(): Record<string, string> {
+  if (!hookSettings) return {}
+  return { LIGHTCODE_HOOK_SETTINGS: hookSettings, LIGHTCODE_HOOK_DIR: hookPaths().spool }
+}
+
+/**
+ * A `claude` that carries the app's hook settings.
+ *
+ * Deliberately skipped when the user already defines their own `claude`
+ * function: theirs is a customisation we have no business replacing, and the
+ * badge degrades to transcript-only inference, which is what it did before.
+ * An *alias* needs no such care — it expands before function lookup, so its
+ * arguments arrive in "$@" and survive.
+ */
+function posixClaudeWrapper(): string {
+  if (!hookSettings) return ''
+  return [
+    '',
+    '# Light Code: merge the app hook settings into Claude Code, so a pane can',
+    "# tell a permission prompt from a slow tool. The user's own claude",
+    '# function, if they have one, is left alone.',
+    'if ! typeset -f claude >/dev/null 2>&1; then',
+    '  claude() {',
+    '    if [ -n "$LIGHTCODE_HOOK_SETTINGS" ]; then',
+    '      command claude --settings "$LIGHTCODE_HOOK_SETTINGS" "$@"',
+    '    else',
+    '      command claude "$@"',
+    '    fi',
+    '  }',
+    'fi'
+  ].join('\n')
+}
+
+/** The same wrapper for PowerShell, appended to the startup -Command. */
+function psClaudeWrapper(): string {
+  if (!hookSettings) return ''
+  return (
+    '$global:__lcClaudeExe = (Get-Command claude -CommandType Application ' +
+    '-ErrorAction SilentlyContinue | Select-Object -First 1).Source; ' +
+    'if ($global:__lcClaudeExe -and -not (Get-Command claude -CommandType Function ' +
+    '-ErrorAction SilentlyContinue)) { ' +
+    'function global:claude { ' +
+    'if ($env:LIGHTCODE_HOOK_SETTINGS) { ' +
+    '& $global:__lcClaudeExe --settings $env:LIGHTCODE_HOOK_SETTINGS @args } ' +
+    'else { & $global:__lcClaudeExe @args } } }'
+  )
+}
 
 /**
  * Shell integration: every prompt render emits OSC 9;9 with the current
@@ -57,7 +124,9 @@ function detectWindowsShell(): ShellInfo {
   }
   if (!file) file = 'powershell.exe'
 
-  return { file, args: ['-NoLogo', '-NoExit', '-Command', psPromptHook] }
+  const wrapper = psClaudeWrapper()
+  const startup = wrapper ? `${psPromptHook}; ${wrapper}` : psPromptHook
+  return { file, args: ['-NoLogo', '-NoExit', '-Command', startup] }
 }
 
 // ---------- macOS / Linux ----------
@@ -103,6 +172,8 @@ function zshShell(file: string): ShellInfo {
       '__lc_report_cwd() { printf \'\\033]9;9;%s\\007\' "$PWD"; }\n' +
       'typeset -ga precmd_functions\n' +
       'precmd_functions+=(__lc_report_cwd)\n' +
+      posixClaudeWrapper() +
+      '\n' +
       // leave the user's ZDOTDIR for nested shells
       'ZDOTDIR="$LC_USER_ZDOTDIR"\n'
   )
@@ -133,6 +204,7 @@ function bashShell(file: string): ShellInfo {
       '[ -f "$HOME/.bashrc" ] && . "$HOME/.bashrc"',
       '__lc_report_cwd() { printf \'\\033]9;9;%s\\007\' "$PWD"; }',
       'PROMPT_COMMAND="__lc_report_cwd${PROMPT_COMMAND:+;$PROMPT_COMMAND}"',
+      posixClaudeWrapper(),
       ''
     ].join('\n')
   )

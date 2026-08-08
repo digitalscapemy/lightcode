@@ -83,8 +83,11 @@ export interface UsageUpdate {
  * NOTE: `waiting-approval` is never derived from the transcript, because it
  * cannot be: a permission prompt and a ten-minute build are byte-identical
  * there (tool_use, then silence). Guessing from silence made the red dot wrong
- * ~19% of wall-clock. The variant is kept for consumers (babysitter,
- * notifications) and awaits an honest source — Claude Code's Notification hook.
+ * ~19% of wall-clock. It now comes from Claude Code itself — the
+ * PermissionRequest and Notification hooks, via main/agentHooks.ts — and is
+ * retired when the tool it guarded produces a result, which is the only proof
+ * the prompt was answered. A pane whose shell cannot carry the hooks (fish, nu)
+ * simply never reports it, exactly as before.
  */
 export type PaneStatus = 'working' | 'waiting-input' | 'waiting-approval' | 'idle'
 

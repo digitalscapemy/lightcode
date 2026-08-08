@@ -6,7 +6,9 @@ import { join } from 'path'
 import { IPC } from '../shared/ipc'
 import type { ClipboardPasteResult } from '../shared/ipc'
 import type { PersistedState, ShortcutsConfig } from '../shared/types'
+import { HookWatcher, installHookAssets } from './agentHooks'
 import { PtyManager } from './ptyManager'
+import { setHookSettings } from './shell'
 import {
   importCandidates,
   loadShortcuts,
@@ -23,6 +25,7 @@ app.setName('lightclaude')
 
 const usageWatcher = new UsageWatcher()
 const ptyManager = new PtyManager(usageWatcher)
+const hookWatcher = new HookWatcher()
 let mainWindow: BrowserWindow | null = null
 let isQuitting = false
 
@@ -268,6 +271,14 @@ app.whenReady().then(() => {
   // notification the app raises is accepted and then silently dropped.
   if (process.platform === 'win32') app.setAppUserModelId('com.mikhail.lightclaude')
 
+  // Agent hooks, before the first pane spawns: the shell integration files are
+  // generated on the first detectShell(), and they only carry the `claude`
+  // wrapper if the reporter installed. Failure here is not fatal — the badge
+  // falls back to reading transcripts alone, exactly as it did before hooks.
+  const hooks = installHookAssets()
+  setHookSettings(hooks?.settings ?? null)
+  if (hooks) hookWatcher.start(hooks.spool, (ev) => usageWatcher.applyHook(ev))
+
   // Seed usage roots before any pane spawns so restored panes bind everywhere.
   usageWatcher.setConfigRoots(loadShortcuts().accounts.map((a) => a.configDir))
   registerIpc()
@@ -286,4 +297,5 @@ app.on('window-all-closed', () => {
 app.on('will-quit', () => {
   ptyManager.killAll()
   usageWatcher.unwatchAll()
+  hookWatcher.stop()
 })

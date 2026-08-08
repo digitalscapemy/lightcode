@@ -133,8 +133,11 @@ export function renderBlock(cfg: ShortcutsConfig): string {
       lines.push(`function ${p.name} { Set-Location -LiteralPath ${psQuote(p.path)} }`)
     }
     for (const a of cfg.accounts) {
+      // `claude` rather than `claude.exe`: inside Light Code that resolves to
+      // the wrapper carrying the agent-hook settings, and outside it PowerShell
+      // finds claude.exe on PATH through PATHEXT exactly as before.
       lines.push(
-        `function ${a.name} { $env:CLAUDE_CONFIG_DIR = ${psQuote(a.configDir)}; & claude.exe @args }`
+        `function ${a.name} { $env:CLAUDE_CONFIG_DIR = ${psQuote(a.configDir)}; & claude @args }`
       )
     }
   } else {

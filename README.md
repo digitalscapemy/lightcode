@@ -42,8 +42,27 @@ estimated:
 - **Context fill** — how full the model's context window is (e.g. `87k/1M`), with the window
   size detected from the model the session is actually using
 - **Per-pane attribution** — six panes, six sessions, six independent badges; sessions started
-  outside the app never pollute your numbers
+  outside the app never pollute your numbers, because each session says which pane it belongs
+  to rather than being matched by guesswork
 - Updates live while Claude streams, with negligible overhead (incremental transcript tailing)
+
+### 🔴 Knows when Claude is stuck waiting on you
+Alongside the numbers, each pane shows what its session is *doing*: working (with the tool it
+is running), waiting for your next prompt, or **needs approval** — blocked on a permission
+prompt. That last one matters most in a grid of sixteen: it is the state where nothing happens
+until you look, and the tab dot turns red so you can see it without opening the pane. A desktop
+notification fires too, if you are in another window.
+
+Status comes from Claude Code itself, through its hooks, rather than being inferred — a
+permission prompt and a ten-minute build look identical in a transcript, so guessing was never
+honest. Two things follow from that:
+
+- **Nothing is written to your Claude Code configuration.** Light Code generates its own
+  settings file and launches `claude --settings <that file>`, which Claude Code merges on top
+  of yours. The hooks exist only inside Light Code's panes; a plain terminal is untouched, and
+  there is nothing to uninstall.
+- A shell Light Code cannot hook into (fish, nu) still gets full token badges — that part only
+  ever needed the transcript.
 
 ### 👥 Multi-account Claude switching
 Run different Claude accounts in different panes. Define account shortcuts (e.g. `claude1`,
@@ -305,9 +324,20 @@ Run `claude` in any pane and its header badge starts showing live token usage, r
 from Claude Code's own session transcript rather than estimated. Hover for the full
 breakdown; the headline number is context fill, because that is the one that runs out.
 
+Next to it sits a coloured dot for what the session is doing — the tool it is running,
+`waiting` for your next prompt, or `needs approval` when Claude is blocked on a
+permission question. The tab shows the same dot, so a pane that needs you is visible
+without opening it.
+
 `Mod+Shift+M` opens **Mission Control** — every running Claude session in one list with
 its status, model, context fill and idle time. Click a row to jump to that pane, or
 tick several and send one command to all of them.
+
+Each row also has a 🤖 that turns on the **babysitter** for that pane: when Claude
+finishes a turn and sits idle for twelve seconds, Light Code types `continue` so a long
+autonomous run does not stall while you are away. It stands down after five consecutive
+nudges until you type in the pane yourself, and it never answers a permission question —
+those are yours.
 
 ## Keyboard shortcuts
 
@@ -404,13 +434,14 @@ To build a specific macOS architecture on a Mac: `npm run dist -- --mac --arm64`
 [electron-updater](https://www.electron.build/auto-update)
 
 **Shell support:** PowerShell 7 / Windows PowerShell 5.1 on Windows; zsh / bash on macOS
-(with automatic shell integration for cwd tracking — your rc files are sourced untouched).
+(with automatic shell integration for cwd tracking and the Claude Code hooks — your rc files
+are sourced untouched, and a `claude` function of your own is left alone).
 
 ### Project structure
 
 ```
 src/shared    types + IPC contract (shared by all three layers)
-src/main      main process: PTY manager, usage watcher, shortcuts, updater
+src/main      main process: PTY manager, usage watcher, agent hooks, shortcuts, updater
 src/preload   contextBridge boundary (window.lightclaude)
 src/renderer  UI: tab bar, split tree, terminal panes, modals, toast
 ```

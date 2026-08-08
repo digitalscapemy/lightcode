@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { deriveStatus, emptyFileState, ingest } from './usageWatcher'
-import type { FileState } from './usageWatcher'
+import { approvalResolved, deriveStatus, emptyFileState, ingest, statusFor } from './usageWatcher'
+import type { Approval, FileState } from './usageWatcher'
 
 /**
  * The dot is exactly `deriveStatus(fold(ingest, lines))` — no timers, no
@@ -12,10 +12,13 @@ import type { FileState } from './usageWatcher'
 const prompt = (text = 'hi'): string =>
   JSON.stringify({ type: 'user', message: { role: 'user', content: text } })
 
-const toolResult = (): string =>
+const toolResult = (id?: string): string =>
   JSON.stringify({
     type: 'user',
-    message: { role: 'user', content: [{ type: 'tool_result', content: 'ok' }] }
+    message: {
+      role: 'user',
+      content: [{ type: 'tool_result', content: 'ok', ...(id ? { tool_use_id: id } : {}) }]
+    }
   })
 
 interface AssistantOpts {
@@ -126,6 +129,182 @@ describe('deriveStatus — turn state', () => {
   it('tracks the last tool name for the pill', () => {
     const { state } = play(prompt(), assistant({ stop: 'tool_use', tool: 'Edit' }))
     expect(state.lastTool).toBe('Edit')
+  })
+})
+
+/**
+ * A tool_result is proof its tool ran, which is the only honest way to know a
+ * permission prompt was answered — the prompt itself leaves no trace at all
+ * (see the note on PaneStatus in shared/ipc.ts). The hook reports the prompt;
+ * these counters are what retire it.
+ */
+describe('ingest — tool results, for retiring a permission prompt', () => {
+  it('counts nothing before any tool has run', () => {
+    const { state } = play(prompt(), assistant({ stop: 'tool_use', tool: 'Bash' }))
+    expect(state.toolResults).toBe(0)
+  })
+
+  it('counts every result', () => {
+    const { state } = play(
+      prompt(),
+      assistant({ stop: 'tool_use', tool: 'Bash' }),
+      toolResult('toolu_1'),
+      toolResult('toolu_2')
+    )
+    expect(state.toolResults).toBe(2)
+  })
+
+  // The hook does not name the call it is guarding, so an id-less result has to
+  // count exactly the same as one carrying an id.
+  it('still counts a result that carries no id', () => {
+    const { state } = play(prompt(), toolResult())
+    expect(state.toolResults).toBe(1)
+  })
+
+  it('counts several results inside one message', () => {
+    const batch = JSON.stringify({
+      type: 'user',
+      message: {
+        content: [
+          { type: 'tool_result', tool_use_id: 'a' },
+          { type: 'tool_result', tool_use_id: 'b' },
+          { type: 'tool_result', tool_use_id: 'c' }
+        ]
+      }
+    })
+    const { state } = play(prompt(), batch)
+    expect(state.toolResults).toBe(3)
+  })
+
+  // Sidechain results belong to a subagent's own tool calls, not to a prompt
+  // the user is looking at.
+  it('ignores sidechain results', () => {
+    const side = JSON.stringify({
+      type: 'user',
+      isSidechain: true,
+      message: { content: [{ type: 'tool_result', tool_use_id: 'toolu_x' }] }
+    })
+    const { state } = play(prompt(), side)
+    expect(state.toolResults).toBe(0)
+  })
+
+  it('keeps counting across a long session', () => {
+    const lines = Array.from({ length: 200 }, (_, i) => toolResult(`toolu_${i}`))
+    const { state } = play(prompt(), ...lines)
+    expect(state.toolResults).toBe(200)
+  })
+})
+
+/**
+ * When the red dot goes out. Measured against Claude Code 2.1.226:
+ * PermissionRequest names the tool but not the call (`tool_name`, no
+ * `tool_use_id`), so a prompt cannot be matched to what it guards. Every answer
+ * does append one tool_result though — approved or denied — so the rule is
+ * arithmetic: as many answers as questions.
+ */
+describe('approvalResolved — retiring the red dot', () => {
+  const pending = (over: Partial<Approval> = {}): Approval => ({
+    toolName: 'Write',
+    results: 0,
+    outstanding: 1,
+    ...over
+  })
+
+  const withResults = (n: number): FileState => {
+    const state = emptyFileState()
+    state.toolResults = n
+    return state
+  }
+
+  it('holds while nothing has been answered', () => {
+    expect(approvalResolved(pending(), withResults(0))).toBe(false)
+  })
+
+  it('retires once the answer lands', () => {
+    expect(approvalResolved(pending(), withResults(1))).toBe(true)
+  })
+
+  it('counts from where the prompt appeared, not from zero', () => {
+    const p = pending({ results: 7 })
+    expect(approvalResolved(p, withResults(7))).toBe(false)
+    expect(approvalResolved(p, withResults(8))).toBe(true)
+  })
+
+  // The batch case, and the reason `outstanding` exists: three prompts from one
+  // parallel tool batch must not be retired by the first result.
+  it('waits for every prompt in a batch', () => {
+    const p = pending({ outstanding: 3 })
+    expect(approvalResolved(p, withResults(1))).toBe(false)
+    expect(approvalResolved(p, withResults(2))).toBe(false)
+    expect(approvalResolved(p, withResults(3))).toBe(true)
+  })
+
+  // A Notification-only prompt is never counted, since it fires alongside the
+  // request it accompanies. It retires on any answer at all.
+  it('treats an uncounted prompt as needing one answer', () => {
+    const p = pending({ outstanding: 0 })
+    expect(approvalResolved(p, withResults(0))).toBe(false)
+    expect(approvalResolved(p, withResults(1))).toBe(true)
+  })
+
+  // A prompt is on screen and no transcript has been read: nothing can have
+  // answered it, so the dot must stay lit.
+  it('holds when there is no transcript yet', () => {
+    expect(approvalResolved(pending(), undefined)).toBe(false)
+  })
+
+  it('stays retired once more answers arrive than were asked for', () => {
+    expect(approvalResolved(pending({ outstanding: 2 }), withResults(9))).toBe(true)
+  })
+})
+
+/**
+ * The precedence rule, which is where the hook signals and the transcript meet.
+ */
+describe('statusFor — hooks over inference', () => {
+  const prompting: Approval = { toolName: 'Write', results: 0, outstanding: 1 }
+
+  /** A transcript mid-turn: inference alone would call this `working`. */
+  const midTurn = (): FileState => {
+    const s = emptyFileState()
+    ingest(s, JSON.stringify({ type: 'user', message: { content: 'go' } }))
+    return s
+  }
+
+  it('falls through to the transcript when no hook has spoken', () => {
+    expect(statusFor(undefined, undefined, midTurn())).toBe('working')
+  })
+
+  it('shows an unanswered prompt above everything else', () => {
+    expect(statusFor(prompting, 'working', midTurn())).toBe('waiting-approval')
+  })
+
+  // The bug this rule exists for: rejecting every tool in a turn leaves the
+  // transcript ending on a tool_result, which reads as a turn starting. Without
+  // the hook's word the pane shows a busy pill for a Claude that has stopped.
+  it('does not let a trailing tool_result re-open a turn the hook ended', () => {
+    const state = midTurn()
+    ingest(state, JSON.stringify({ type: 'user', message: { content: [{ type: 'tool_result' }] } }))
+    expect(deriveStatus(state)).toBe('working') // what inference alone believes
+    expect(statusFor(undefined, 'ended', state)).toBe('waiting-input')
+  })
+
+  it('lets an answered prompt fall through to the ended turn', () => {
+    const state = midTurn()
+    state.toolResults = 1 // the rejection or the run itself
+    expect(statusFor(prompting, 'ended', state)).toBe('waiting-input')
+  })
+
+  // While the hook says a turn is running, the transcript may still end it, so a
+  // dropped Stop envelope cannot freeze a pane on `working` for ever.
+  it('still lets the transcript end a turn the hook thinks is running', () => {
+    const state = emptyFileState()
+    ingest(state, JSON.stringify({ type: 'user', message: { content: 'go' } }))
+    ingest(
+      state,
+      JSON.stringify({ type: 'assistant', message: { id: 'm', stop_reason: 'end_turn' } })
+    )
+    expect(statusFor(undefined, 'working', state)).toBe('waiting-input')
   })
 })
 
