@@ -1,7 +1,12 @@
+import { execFileSync } from 'child_process'
 import { Script } from 'vm'
 import { describe, expect, it } from 'vitest'
-import { lcClientScript } from './lcClient'
+import { lcClientScript, posixLauncher, windowsLauncher } from './lcClient'
 import { LC_PROTOCOL } from '../shared/lc'
+
+/** The real one, and the reason quoting is not optional: it has a space in it. */
+const ELECTRON = '/Applications/Light Code.app/Contents/MacOS/Light Code'
+const SCRIPT = '/Users/x/Library/Application Support/lightclaude/lc/lc.js'
 
 /**
  * The client is a string inside a template literal, which means the compiler
@@ -45,5 +50,64 @@ describe('lcClientScript', () => {
       .filter(({ line }) => (line.match(/'/g)?.length ?? 0) % 2 === 1)
       .filter(({ line }) => !line.trimStart().startsWith('//'))
     expect(offenders).toEqual([])
+  })
+})
+
+/**
+ * The launcher is what makes `lc` reachable at all. A shell function was the
+ * first attempt and it reached only a human at the prompt — never a child
+ * shell, which is where an agent runs everything it runs.
+ */
+describe('posixLauncher', () => {
+  it('quotes an install path with spaces in it', () => {
+    const sh = posixLauncher(ELECTRON, SCRIPT)
+    expect(sh).toContain(`'${ELECTRON}'`)
+    expect(sh).toContain(`'${SCRIPT}'`)
+  })
+
+  // Not hypothetical on a Mac: a user account named O'Brien puts an apostrophe
+  // in the path to userData, and an unescaped one ends the quoted string.
+  it('escapes an apostrophe rather than closing the quote on it', () => {
+    const sh = posixLauncher('/Users/o\'brien/Electron', SCRIPT)
+    expect(sh).toContain("'/Users/o'\\''brien/Electron'")
+  })
+
+  it('forwards its arguments and replaces itself with the client', () => {
+    const sh = posixLauncher(ELECTRON, SCRIPT)
+    expect(sh).toContain('"$@"')
+    // exec, so the client's exit code is the launcher's and no shell lingers
+    // between the agent and the process it is waiting on.
+    expect(sh).toMatch(/^exec /m)
+  })
+
+  // The same guard the client itself gets, for the same reason: this file is
+  // assembled as a string, so nothing else would notice if it stopped parsing.
+  it.runIf(process.platform !== 'win32')('is a script sh will accept', () => {
+    const sh = posixLauncher(ELECTRON, SCRIPT)
+    expect(() => execFileSync('sh', ['-n'], { input: sh })).not.toThrow()
+  })
+})
+
+describe('windowsLauncher', () => {
+  it('quotes both paths', () => {
+    const cmd = windowsLauncher('C:\\Program Files\\Light Code\\Light Code.exe', SCRIPT)
+    expect(cmd).toContain('"C:\\Program Files\\Light Code\\Light Code.exe"')
+    expect(cmd).toContain(`"${SCRIPT}"`)
+  })
+
+  /**
+   * `setlocal` restores the previous ERRORLEVEL at `endlocal`, so a plain
+   * `endlocal` would hand back 0 no matter how the client exited. The value has
+   * to be read on the same line, where it expands before endlocal runs — and an
+   * agent branching on whether `lc wait` succeeded needs it to be the real one.
+   */
+  it('carries the client exit code back out through endlocal', () => {
+    const cmd = windowsLauncher(ELECTRON, SCRIPT)
+    expect(cmd).toContain('endlocal & exit /b %ERRORLEVEL%')
+  })
+
+  it('uses CRLF, which is what cmd.exe expects of a .cmd', () => {
+    const cmd = windowsLauncher(ELECTRON, SCRIPT)
+    expect(cmd.split('\n').every((l) => l === '' || l.endsWith('\r'))).toBe(true)
   })
 })

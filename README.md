@@ -139,7 +139,10 @@ does is invisible.
 
 `lc` needs nothing installed: it runs under the app's own runtime, and exists as
 a command only inside Light Code's panes, which is the only place it means
-anything.
+anything. It gets there as a real file on the pane's `PATH`, not as a shell
+function — so everything the pane starts inherits it. That distinction is the
+whole feature: an agent runs its commands in a child shell, and a function never
+reaches one.
 
 ### 👥 Multi-account Claude switching
 Run different Claude accounts in different panes. Define account shortcuts (e.g. `claude1`,

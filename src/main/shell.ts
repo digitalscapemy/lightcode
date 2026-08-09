@@ -2,9 +2,9 @@ import { execFileSync } from 'child_process'
 import { app } from 'electron'
 import { existsSync, mkdirSync, writeFileSync } from 'fs'
 import { homedir } from 'os'
-import { basename, join } from 'path'
+import { basename, delimiter, join } from 'path'
 import { hookPaths } from './agentHooks'
-import { lcPowerShellFunction, lcScriptPath, lcShellFunction } from './lcClient'
+import { lcBinDir } from './lcClient'
 import { LC_SYSTEM_HINT } from '../shared/lc'
 
 export interface ShellInfo {
@@ -28,11 +28,11 @@ let cached: ShellInfo | null = null
 let hookSettings: string | null = null
 
 /**
- * Whether the generated rc files should define `lc`.
+ * Whether the launcher exists to be put on a pane's PATH.
  *
- * Set once the client script exists. The function is defined even while the
- * switch is off — the command then explains that it is off, which is a better
- * answer than "command not found" to an agent trying to work out what it has.
+ * Set once it has been written. PATH carries it even while the switch is off —
+ * the command then explains that it is off, which is a better answer than
+ * "command not found" to an agent trying to work out what it has.
  */
 let lcInstalled = false
 
@@ -42,8 +42,17 @@ export function setLcInstalled(on: boolean): void {
   cached = null
 }
 
-function posixLc(): string {
-  return lcInstalled ? lcShellFunction(process.execPath, lcScriptPath()) : ''
+/**
+ * The key PATH actually goes by in this process's environment.
+ *
+ * Windows environment names are case-insensitive, and Node hands them over
+ * however the parent happened to spell them — usually `Path`. Adding our own
+ * `PATH` beside an inherited `Path` gives the child two, and which one wins is
+ * anybody's guess. So the existing spelling is found and overwritten.
+ */
+function pathKey(): string {
+  if (process.platform !== 'win32') return 'PATH'
+  return Object.keys(process.env).find((k) => k.toLowerCase() === 'path') ?? 'Path'
 }
 
 export function setHookSettings(file: string | null): void {
@@ -59,7 +68,13 @@ export function hookEnv(): Record<string, string> {
 }
 
 /**
- * What the claude wrapper needs to mention `lc` to an agent.
+ * `lc` on PATH, and what the claude wrapper needs to mention it to an agent.
+ *
+ * PATH is prepended rather than appended: this is the `lc` that belongs to the
+ * window the pane is in, and if the user has another one anywhere, ours is the
+ * one that can answer. It goes on whenever the launcher exists, switch or no
+ * switch — the socket is the gate, and a command that says "I am switched off"
+ * teaches an agent more than a missing command does.
  *
  * The socket path is passed so the wrapper can check whether the switch is on
  * at the moment claude launches, rather than when the shell started — the
@@ -67,8 +82,16 @@ export function hookEnv(): Record<string, string> {
  * minutes ago cannot know that.
  */
 export function lcEnv(socket: string | null): Record<string, string> {
-  if (!lcInstalled || socket === null) return {}
-  return { LIGHTCODE_LC_SOCKET: socket, LIGHTCODE_LC_HINT: LC_SYSTEM_HINT }
+  if (!lcInstalled) return {}
+  const key = pathKey()
+  const env: Record<string, string> = {
+    [key]: lcBinDir() + delimiter + (process.env[key] ?? '')
+  }
+  if (socket !== null) {
+    env['LIGHTCODE_LC_SOCKET'] = socket
+    env['LIGHTCODE_LC_HINT'] = LC_SYSTEM_HINT
+  }
+  return env
 }
 
 /**
@@ -166,9 +189,9 @@ function detectWindowsShell(): ShellInfo {
   }
   if (!file) file = 'powershell.exe'
 
-  const parts = [psPromptHook, psClaudeWrapper()]
-  if (lcInstalled) parts.push(lcPowerShellFunction(process.execPath, lcScriptPath()))
-  const startup = parts.filter(Boolean).join('; ')
+  // No `lc` here any more: it is a real lc.cmd on PATH, which PowerShell finds
+  // for itself and — unlike a function — every process it starts finds too.
+  const startup = [psPromptHook, psClaudeWrapper()].filter(Boolean).join('; ')
   return { file, args: ['-NoLogo', '-NoExit', '-Command', startup] }
 }
 
@@ -217,9 +240,9 @@ function zshShell(file: string): ShellInfo {
       'precmd_functions+=(__lc_report_cwd)\n' +
       posixClaudeWrapper() +
       '\n' +
-      posixLc() +
-      '\n' +
-      // leave the user's ZDOTDIR for nested shells
+      // leave the user's ZDOTDIR for nested shells. This line is why `lc` is on
+      // PATH and not defined here: everything below it is invisible to a child
+      // shell, and a child shell is where an agent runs its commands.
       'ZDOTDIR="$LC_USER_ZDOTDIR"\n'
   )
 
@@ -250,7 +273,6 @@ function bashShell(file: string): ShellInfo {
       '__lc_report_cwd() { printf \'\\033]9;9;%s\\007\' "$PWD"; }',
       'PROMPT_COMMAND="__lc_report_cwd${PROMPT_COMMAND:+;$PROMPT_COMMAND}"',
       posixClaudeWrapper(),
-      posixLc(),
       ''
     ].join('\n')
   )
