@@ -171,7 +171,7 @@ function render(res) {
     const warning = res.panes.some((p) => p.self)
       ? ''
       : 'WARNING: could not identify which pane you are in, so no row is marked. ' +
-        'Do not send commands to any of these without checking which is yours.\n\n'
+        'Do not send commands to any of these without checking which is yours.\\n\\n'
     return warning + res.panes
       .map((p) => {
         const ctx = Math.round(p.contextTokens / 1000) + 'k/' + Math.round(p.contextWindow / 1000) + 'k'
