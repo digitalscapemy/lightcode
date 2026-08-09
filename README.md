@@ -15,6 +15,8 @@ multi-account switching, project shortcuts, and a terminal that stays out of you
 
 [Download](https://github.com/digitalscapemy/lightcode/releases/latest) ·
 [Features](#features) ·
+[Installation](#installation) ·
+[Using it](#using-it) ·
 [Keyboard shortcuts](#keyboard-shortcuts) ·
 [Build from source](#build-from-source)
 
@@ -423,6 +425,85 @@ finishes a turn and sits idle for twelve seconds, Light Code types `continue` so
 autonomous run does not stall while you are away. It stands down after five consecutive
 nudges until you type in the pane yourself, and it never answers a permission question —
 those are yours.
+
+### Giving each agent its own copy of the code
+
+Two panes on the same project share one set of files, so two agents working at once
+overwrite each other. A **worktree** is the fix: a second checkout of the same
+repository, on its own branch, in its own folder.
+
+Open a pane's `⋮` menu → **Open Worktree…**, type a branch name (`auth-fix`), and a new
+pane opens beside it already in that folder. The branch is named exactly what you typed;
+nothing is prefixed or generated for you. The folder lands in `myproject-worktrees/auth-fix`,
+**beside** the repository rather than inside it — inside, your test runner would find
+every suite twice and an agent would find every file twice.
+
+The menu row only appears when the pane is inside a git repository, since there is
+nothing to branch from otherwise.
+
+Every pane header shows its branch, with a dot when there are uncommitted changes. It
+refreshes when your shell draws a prompt, so the dot clears the moment you commit.
+
+When you're done, `⋮` → **Remove This Worktree…** from inside that pane. It lists the
+files at stake before deleting anything, and the branch survives either way — removing a
+worktree is not abandoning the work. Closing a pane or a tab that uses worktrees asks the
+same question, so one tab's `×` tidies a whole fan-out at once.
+
+Merging is `git`, as usual. There is no diff viewer and no merge button here.
+
+### Fanning one task out to several agents
+
+The fan-out button in the tab bar — one line branching into three dots, sitting between
+the layout grid and Mission Control — does all of the above in one go. It asks for four
+things:
+
+| | |
+| --- | --- |
+| **Task name** | each agent's branch is named from it — `auth-refactor` |
+| **Agents** | 2, 3, 4, 6, 8 or 16 (3 by default) |
+| **Prompt** | sent to every agent, identically |
+| **Mode** | **Build** changes files · **Plan first** proposes an approach instead |
+
+Light Code creates that many worktrees, opens them as a grid in a new tab named after the
+task, and starts an agent in each with the prompt already sent — as an argument to
+`claude`, so nothing has to guess when the agent is ready to hear it.
+
+Leave, come back, and you have several independent attempts on branches that cannot have
+overwritten one another. Read them, keep the one you like, merge it with `git`.
+
+**Try Plan first before Build.** Agents that propose an approach touch no files, cost
+less, finish sooner, and are far easier to read side by side — which is the whole point of
+running several.
+
+### Letting Claude drive the panes
+
+Everything above is a button you press. `lc` hands the same actions to the agent.
+
+**Switch it on first:** `Mod+Shift+M` for Mission Control, then the **Agent CLI** button.
+It is off by default, and while it is off there is no socket at all — nothing is listening
+to refuse. Any pane something drove through `lc` then wears an `LC` badge for the rest of
+its life.
+
+Then just ask, in words — *"fan this out three ways, wait for all of them, and tell me when
+they're done"*. Claude is told the command exists in one sentence pointing at `lc --help`,
+so you never have to explain it. What it has:
+
+```
+lc ls                                  every pane, with status and branch
+lc read <pane> [--tail N]              recent output, oldest line first
+lc send <pane> <text> [--no-enter]     type into a pane
+lc close <pane>                        close a pane (worktrees are kept)
+lc wait <pane...> [--for idle|exit] [--timeout-ms N]
+lc fan <task> <count> <prompt> [--plan]   worktrees + agents in one call
+```
+
+Every command takes `--json`, because its usual reader is an agent parsing output rather
+than a person. Nothing needs installing: `lc` runs under the app's own runtime and exists
+only inside Light Code's panes.
+
+One thing to know: `lc read` returns what is drawn on a pane's screen, which for an agent
+pane is its interface rather than its answer. If you want the result of a fan-out read
+back, tell the agents to write it to a file and have the reader open that.
 
 ## Keyboard shortcuts
 
