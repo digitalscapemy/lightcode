@@ -12,8 +12,12 @@
 /** Bumped when a field changes meaning. The CLI refuses a server it cannot read. */
 export const LC_PROTOCOL = 1
 
-/** Socket filename inside userData. Never a network port — see lcServer. */
-export const LC_SOCKET_NAME = 'lc.sock'
+/**
+ * Socket filename inside userData: `lc-<pid>.sock`, one per running instance.
+ * Never a network port. The pid is not decoration — see socketPath in lcServer.
+ */
+export const LC_SOCKET_PREFIX = 'lc-'
+export const LC_SOCKET_SUFFIX = '.sock'
 /** Windows has no unix sockets; Node speaks named pipes under this prefix. */
 export const LC_PIPE_PREFIX = '\\\\.\\pipe\\lightcode-lc-'
 
@@ -42,8 +46,15 @@ export type LcRequest =
    * which is what a plain command finishing looks like.
    */
   | { cmd: 'wait'; panes: string[]; for: LcWaitFor; timeoutMs: number }
-  /** Worktree, pane, agent and prompt in one call — a fan-out from the CLI. */
-  | { cmd: 'fan'; task: string; count: number; prompt: string; plan: boolean }
+  /**
+   * Worktree, pane, agent and prompt in one call — a fan-out from the CLI.
+   *
+   * `from` is the caller's own pane, and it decides which repository is branched
+   * from. Without it the app fell back to whichever pane the human last clicked,
+   * so an agent fanning out while its user was looking at another project
+   * created worktrees and launched agents in the wrong repository entirely.
+   */
+  | { cmd: 'fan'; task: string; count: number; prompt: string; plan: boolean; from?: string }
 
 /** One pane, as `lc ls` reports it. */
 export interface LcPane {

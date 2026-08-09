@@ -59,7 +59,9 @@ export async function askRemove(found: Worktree[]): Promise<'remove' | 'keep' | 
   const choice = await choiceDialog(
     `${many ? 'These panes are' : 'This pane is'} using ${found.length} worktree` +
       `${many ? 's' : ''}: ${names}. Removing ${many ? 'them' : 'it'} keeps every branch that ` +
-      'holds commits, and keeps anything with uncommitted changes.',
+      // "uncommitted changes" alone would be a promise this does not make: an
+      // untracked file is not a change to anything, and it is kept too.
+      'holds commits, and keeps any worktree still holding edits or untracked files.',
     ['Close only', `Close and remove ${found.length}`]
   )
   if (choice === null) return 'cancel'
@@ -70,9 +72,10 @@ export async function askRemove(found: Worktree[]): Promise<'remove' | 'keep' | 
  * Remove them, and report what git would not part with.
  *
  * Never forces. Bulk-deleting sixteen checkouts is the shape of action that
- * loses work, so a worktree holding uncommitted changes is kept and named.
- * Forcing one is still possible from its own pane menu, one at a time, where the
- * question is about something you are looking at rather than a number in a list.
+ * loses work, so a worktree holding anything at all — an edit, or a file nobody
+ * ever added — is kept and named. Forcing one is still possible from its own
+ * pane menu, one at a time, where the question is about something you are
+ * looking at rather than a number in a list, and where it lists the files.
  */
 export async function removeAll(found: Worktree[]): Promise<string[]> {
   const repo = found[0]?.mainRoot
@@ -101,9 +104,9 @@ export async function removeAll(found: Worktree[]): Promise<string[]> {
   const notes: string[] = []
   if (keptWorktree.length > 0) {
     notes.push(
-      `Kept ${keptWorktree.length} worktree${keptWorktree.length === 1 ? '' : 's'} with ` +
-        `uncommitted changes: ${keptWorktree.join(', ')}. Remove one from its own pane menu ` +
-        'if you meant to discard it.'
+      `Kept ${keptWorktree.length} worktree${keptWorktree.length === 1 ? '' : 's'} still ` +
+        `holding edits or untracked files: ${keptWorktree.join(', ')}. Remove one from its own ` +
+        'pane menu if you meant to discard it — that is where it names what it deletes.'
     )
   }
   if (keptBranch.length > 0) {

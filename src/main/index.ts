@@ -93,8 +93,14 @@ function registerIpc(): void {
     command: 'lc'
   })
   ipcMain.handle(IPC.LcState, () => lcState())
-  ipcMain.handle(IPC.LcSetEnabled, (_e, on: boolean) => {
-    lcServer.setEnabled(on)
+  ipcMain.handle(IPC.LcSetEnabled, async (_e, on: boolean) => {
+    // Awaited so the reply describes the socket rather than the request: the
+    // switch in Mission Control paints itself from what comes back, and a bind
+    // that failed must not come back looking like a bind that worked.
+    await lcServer.setEnabled(on)
+    // What is remembered is what was asked for, not what happened. A bind that
+    // failed once — userData not writable yet, a stale file we could not remove
+    // — should be attempted again next launch, not quietly forgotten.
     saveLcEnabled(on)
     return lcState()
   })
@@ -310,13 +316,15 @@ app.whenReady().then(() => {
   setHookSettings(hooks?.settings ?? null)
   if (hooks) hookWatcher.start(hooks.spool, (ev) => usageWatcher.applyHook(ev))
 
-  // The lc client is written out every launch, so the script and the socket it
-  // points at can never disagree. The shell function is defined either way —
-  // with the switch off the command explains that, which beats "not found".
-  const lcInstalled = installLcClient(socketPath()) !== null
+  // The lc client is written out every launch. It names no socket of its own —
+  // the file is shared by every running instance, so the socket travels in each
+  // pane's environment instead, which is the only channel a second Light Code
+  // cannot overwrite. The shell function is defined either way: with the switch
+  // off the command explains that, which beats "not found".
+  const lcInstalled = installLcClient() !== null
   setLcInstalled(lcInstalled)
   ptyManager.setLcSocket(lcInstalled ? socketPath() : null)
-  lcServer.setEnabled(loadLcEnabled())
+  void lcServer.setEnabled(loadLcEnabled())
 
   // Seed usage roots before any pane spawns so restored panes bind everywhere.
   usageWatcher.setConfigRoots(loadShortcuts().accounts.map((a) => a.configDir))

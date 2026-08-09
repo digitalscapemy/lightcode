@@ -116,11 +116,22 @@ function build(): void {
       ? 'On — an agent can run `lc` and drive other panes. Panes it drives are marked.'
       : 'Off — `lc` is not listening at all. Click to let agents drive panes.'
   }
+  // Off until main says otherwise, and main is asked every time this opens —
+  // what it reports is whether the socket is actually there, so a listener that
+  // failed to bind or died since cannot leave this dot lit.
   paintLc(false)
   void window.lightclaude.lc.state().then((s) => paintLc(s.enabled))
   lcBtn.addEventListener('click', () => {
     const next = !lcBtn.classList.contains('active')
-    void window.lightclaude.lc.setEnabled(next).then((s) => paintLc(s.enabled))
+    void window.lightclaude.lc.setEnabled(next).then((s) => {
+      paintLc(s.enabled)
+      // Asked for on and still off: the socket could not be opened. Without
+      // this the button just refuses to move and looks broken rather than
+      // honest.
+      if (next && !s.enabled) {
+        lcBtn.title = 'Could not open the socket — the agent CLI is still off.'
+      }
+    })
   })
 
   const spacer = document.createElement('div')

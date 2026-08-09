@@ -1,14 +1,15 @@
 import { execFileSync } from 'child_process'
-import { existsSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'fs'
+import { existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { basename, dirname, join } from 'path'
 import { beforeAll, describe, expect, it } from 'vitest'
-import { branchNameError } from '../shared/git'
+import { branchNameError, pendingWorkWarning } from '../shared/git'
 import {
   addWorktree,
   deleteBranch,
   gitErrorMessage,
   gitInfo,
+  parsePorcelain,
   pruneWorktrees,
   removeWorktree,
   worktreeDirFor
@@ -88,6 +89,69 @@ describe('gitErrorMessage', () => {
   })
 })
 
+describe('parsePorcelain', () => {
+  // The exact bytes `git status --porcelain -z` produced for a staged rename, an
+  // edited file and two untracked entries. One of the paths has a space in it,
+  // which the readable form C-quotes into "untracked file.txt" — a name no
+  // dialog should ever show back to the person who chose it.
+  const status = 'R  new name.txt\0old name.txt\0 M sub/keep.txt\0?? untracked file.txt\0?? build/\0'
+
+  it('separates what git knows about from what it has never seen', () => {
+    expect(parsePorcelain(status)).toEqual({
+      modified: ['new name.txt', 'sub/keep.txt'],
+      untracked: ['untracked file.txt', 'build/']
+    })
+  })
+
+  // The second field of a rename says where the file came from. Reading it as
+  // another entry would count one move as two files, and would name a path that
+  // is already gone among the things about to be deleted.
+  it("does not read a rename's old path as another file", () => {
+    expect(parsePorcelain(status).modified).not.toContain('old name.txt')
+  })
+
+  it('finds nothing in a clean tree', () => {
+    expect(parsePorcelain('')).toEqual({ modified: [], untracked: [] })
+  })
+})
+
+/**
+ * The sentence that stands between a fan-out pane and a file that exists nowhere
+ * else. It replaced "This worktree still has uncommitted changes", which was
+ * read — against a header saying clean — as the app being over-careful.
+ */
+describe('pendingWorkWarning', () => {
+  it('says nothing when there is nothing to lose', () => {
+    expect(pendingWorkWarning({ modified: [], untracked: [] })).toBeNull()
+  })
+
+  // A file that was never added is not a change to anything, and the branch the
+  // dialog promises to keep has no copy of it.
+  it('names an untracked file and refuses to promise it back', () => {
+    const text = pendingWorkWarning({ modified: [], untracked: ['notes/draft.md'] })
+    expect(text).toContain('notes/draft.md')
+    expect(text).toContain('1 untracked file')
+    expect(text).toContain('nothing brings it back')
+  })
+
+  it('offers the branch as comfort only for work that is on it', () => {
+    const text = pendingWorkWarning({ modified: ['src/a.ts'], untracked: [] })
+    expect(text).toContain('src/a.ts')
+    expect(text).toContain('The branch keeps every commit')
+    expect(text).not.toContain('untracked')
+  })
+
+  it('keeps both halves apart when there is some of each', () => {
+    const text = pendingWorkWarning({ modified: ['src/a.ts'], untracked: ['draft.md'] })
+    expect(text).toContain('1 modified file (src/a.ts) and 1 untracked file (draft.md)')
+  })
+
+  it('stops naming files before the list stops being read', () => {
+    const text = pendingWorkWarning({ modified: [], untracked: ['a', 'b', 'c', 'd', 'e', 'f'] })
+    expect(text).toContain('6 untracked files (a, b, c, d and 2 more)')
+  })
+})
+
 describe('worktreeDirFor', () => {
   // Never inside: with no vitest config, a nested checkout's tests are found by
   // the root's own **/*.test.ts and run alongside them, and an agent searching
@@ -161,6 +225,7 @@ describe('worktrees, against real git', () => {
       mainRoot: null,
       branch: null,
       dirty: false,
+      untracked: 0,
       worktree: false
     })
   })
@@ -173,10 +238,14 @@ describe('worktrees, against real git', () => {
   })
 
   // An untracked build directory or stray note is not work in progress, and
-  // counting it would leave the marker lit for ever.
-  it.skipIf(!gitPresent)('ignores untracked files', async () => {
+  // counting it as dirty would leave the marker lit for ever. It is still
+  // reported, separately: the header may not say "clean" about a directory that
+  // `git worktree remove` refuses to delete.
+  it.skipIf(!gitPresent)('reports untracked files without calling them dirty', async () => {
     writeFileSync(join(repo, 'scratch.txt'), 'note\n')
-    expect((await gitInfo(repo)).dirty).toBe(false)
+    const info = await gitInfo(repo)
+    expect(info.dirty).toBe(false)
+    expect(info.untracked).toBe(1)
   })
 
   it.skipIf(!gitPresent)('refuses a bad branch name without running git', async () => {
@@ -232,6 +301,87 @@ describe('worktrees, against real git', () => {
       encoding: 'utf8'
     })
     expect(branches.trim()).not.toBe('')
+  })
+})
+
+/**
+ * What a removal says before it deletes anything.
+ *
+ * The failure being covered is not git's. git refuses a worktree holding an
+ * untracked file — but only while it is allowed to look, and the app used to
+ * answer that refusal with the words "uncommitted changes" over a header that
+ * said "clean". An untracked file is the one thing removal destroys that no
+ * branch, no commit and no object database can give back.
+ */
+describe.skipIf(process.platform === 'win32')('removeWorktree names what it destroys', () => {
+  async function worktreeWith(seed: (dir: string) => void): Promise<{ repo: string; path: string }> {
+    const repo = join(realpathSync(mkdtempSync(join(tmpdir(), 'lc-pending-'))), 'repo')
+    execFileSync('git', ['init', '-q', '-b', 'main', repo], { stdio: 'ignore' })
+    writeFileSync(join(repo, 'a.txt'), 'hi\n')
+    execFileSync('git', ['add', '.'], { cwd: repo, stdio: 'ignore' })
+    execFileSync('git', ['-c', 'user.email=t@e.com', '-c', 'user.name=t', 'commit', '-qm', 'init'], {
+      cwd: repo,
+      stdio: 'ignore'
+    })
+    const added = await addWorktree(repo, 'wt')
+    if (!added.ok) throw new Error(added.error)
+    seed(added.path)
+    return { repo, path: added.path }
+  }
+
+  it('refuses over an untracked file, names it, and deletes nothing yet', async () => {
+    const { repo, path } = await worktreeWith((dir) => writeFileSync(join(dir, 'draft.md'), 'new\n'))
+    const result = await removeWorktree(repo, path, false)
+    expect(result.ok).toBe(false)
+    expect(result.needsForce).toBe(true)
+    expect(result.pending).toEqual({ modified: [], untracked: ['draft.md'] })
+    // The attempt that asks the question must not be the one that answers it.
+    expect(existsSync(join(path, 'draft.md'))).toBe(true)
+  })
+
+  it('names a modified tracked file too', async () => {
+    const { repo, path } = await worktreeWith((dir) => writeFileSync(join(dir, 'a.txt'), 'edited\n'))
+    const result = await removeWorktree(repo, path, false)
+    expect(result.pending).toEqual({ modified: ['a.txt'], untracked: [] })
+  })
+
+  // Why there is a check here at all rather than a reading of git's refusal.
+  // `git worktree remove` shells out to its own `git status` with no -u flag, so
+  // this config reaches it: without asking for untracked entries ourselves the
+  // removal below simply succeeds, and the file is gone with nothing ever asked.
+  it('still refuses when status.showUntrackedFiles is turned off', async () => {
+    const { repo, path } = await worktreeWith((dir) => writeFileSync(join(dir, 'draft.md'), 'new\n'))
+    execFileSync('git', ['config', 'status.showUntrackedFiles', 'no'], {
+      cwd: repo,
+      stdio: 'ignore'
+    })
+    // git itself, asked the same question, would go ahead:
+    const gitsOwnView = execFileSync('git', ['status', '--porcelain'], { cwd: path, encoding: 'utf8' })
+    expect(gitsOwnView.trim()).toBe('')
+
+    const result = await removeWorktree(repo, path, false)
+    expect(result.ok).toBe(false)
+    expect(result.pending?.untracked).toEqual(['draft.md'])
+    expect(existsSync(join(path, 'draft.md'))).toBe(true)
+  })
+
+  // git collapses a wholly untracked directory into one entry rather than
+  // walking it, and so does the warning: "1 untracked file (build/)" is what a
+  // person can act on, four hundred names is not.
+  it('counts an untracked directory once, the way git does', async () => {
+    const { repo, path } = await worktreeWith((dir) => {
+      mkdirSync(join(dir, 'build'))
+      writeFileSync(join(dir, 'build', 'out.js'), 'x\n')
+      writeFileSync(join(dir, 'build', 'out.css'), 'y\n')
+    })
+    const result = await removeWorktree(repo, path, false)
+    expect(result.pending?.untracked).toEqual(['build/'])
+  })
+
+  it('removes one with nothing in it without being forced', async () => {
+    const { repo, path } = await worktreeWith(() => {})
+    expect(await removeWorktree(repo, path, false)).toEqual({ ok: true })
+    expect(existsSync(path)).toBe(false)
   })
 })
 

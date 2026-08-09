@@ -13,6 +13,7 @@ import {
   FONT_SIZE_DEFAULT,
   activeTab,
   clampFontSize,
+  expectingAgent,
   newId,
   paneStatus,
   pendingCommand,
@@ -453,6 +454,7 @@ export async function closePaneRequest(paneId: string): Promise<void> {
 }
 
 export function closePane(paneId: string): void {
+  expectingAgent.delete(paneId)
   const tab = tabOfPane(paneId)
   if (!tab) return
   maximizedPane.delete(tab.id)
@@ -629,6 +631,11 @@ function paneLabel(paneId: string): string {
 /** Central status sink: updates the pane pill, tab dot, notifications, babysitter. */
 export function applyStatus(u: StatusUpdate): void {
   if (!panes.has(u.paneId)) return
+  // An agent a fan-out asked for has now reported, so the pane is no longer
+  // merely expected to have one. Left set, it would make `lc wait --for idle`
+  // hang for ever on a pane whose agent has since finished and exited, because
+  // that pane reports `idle` and the expectation says to keep waiting.
+  if (u.status !== 'idle') expectingAgent.delete(u.paneId)
   const prev = paneStatus.get(u.paneId)?.status
   paneStatus.set(u.paneId, u)
   panes.get(u.paneId)?.setStatus(u.status, u.lastTool)

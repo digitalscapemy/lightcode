@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { parseRequest, timeoutFor } from './lcServer'
+import { parseRequest, socketOwnerPid, timeoutFor } from './lcServer'
+import { LC_SOCKET_PREFIX, LC_SOCKET_SUFFIX } from '../shared/lc'
 import type { LcRequest } from '../shared/lc'
 
 /**
@@ -39,6 +40,34 @@ describe('parseRequest', () => {
       expect(out.error).toContain('destroy')
       expect(out.error).toContain('ls')
     }
+  })
+})
+
+/**
+ * What this decides is which files get deleted out of userData while other
+ * copies of the app are running. A name read as a pid that is not one costs
+ * somebody their live socket and sends their agents into the wrong window,
+ * which is the whole reason the pid is in the name.
+ */
+describe('socketOwnerPid', () => {
+  // The one case that must never drift: the reader has to agree with the writer
+  // in socketPath, or the sweep stops recognising this app's own sockets.
+  it('reads back the name this process would bind', () => {
+    const mine = `${LC_SOCKET_PREFIX}${process.pid}${LC_SOCKET_SUFFIX}`
+    expect(socketOwnerPid(mine)).toBe(process.pid)
+  })
+
+  it.each([
+    ['the fixed name older versions used', 'lc.sock'],
+    ['no pid at all', 'lc-.sock'],
+    ['a pid that is not a number', 'lc-abc.sock'],
+    ['digits with something after them', 'lc-12ab.sock'],
+    ['a leading zero we would never write', 'lc-0012.sock'],
+    ['a suffix of our own with more behind it', 'lc-12.sock.bak'],
+    ['somebody else\'s socket entirely', 'agent.sock'],
+    ['the switch file that lives in the same folder', 'enabled.json']
+  ])('refuses to claim %s', (_label, name) => {
+    expect(socketOwnerPid(name)).toBeNull()
   })
 })
 

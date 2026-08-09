@@ -8,7 +8,7 @@ import { shellArgs } from './paths'
 import { state } from './store'
 import { xtermTheme } from './theme'
 
-import { branchNameError } from '../../shared/git'
+import { branchNameError, pendingWorkWarning } from '../../shared/git'
 import type { GitInfo, PaneStatus } from '../../shared/ipc'
 import type { Orientation } from '../../shared/types'
 
@@ -425,10 +425,15 @@ export class TerminalPane {
   /**
    * Remove the worktree this pane sits in.
    *
-   * git refuses when the worktree still holds modified or untracked files, and
-   * that refusal is the whole safety story — there is no separate check here to
-   * get wrong, and no path by which this deletes work without being told twice.
+   * The first attempt never forces, so nothing is deleted before the removal has
+   * been described. What comes back is the list of files at stake, and that list
+   * is the question: "uncommitted changes" was too vague to survive contact with
+   * a header saying clean, and the one case where being vague costs something
+   * irreplaceable — an untracked file, on no branch and in no commit — is
+   * exactly the case the old wording described worst.
+   *
    * The branch survives either way: removing a worktree is not abandoning it.
+   * That is worth saying, and worth not saying alone.
    */
   private async removeWorktree(): Promise<void> {
     // Inside a linked worktree, git's toplevel IS that worktree's directory —
@@ -445,10 +450,18 @@ export class TerminalPane {
       await alertDialog(first.error ?? 'Could not remove the worktree.')
       return
     }
+    const pending = first.pending
+    const doomed = pending ? pending.modified.length + pending.untracked.length : 0
+    // The button carries the count too. "Delete anyway" invites the reading that
+    // the app is being over-careful and can be waved past; a button that says
+    // how many files it deletes cannot be pressed by someone who believes there
+    // are none. Only reached without a list when git refused over something the
+    // status read could not see, and then git's own sentence is all there is.
     const forced = await confirmDialog(
-      'This worktree still has uncommitted changes. Removing it deletes them. ' +
-        'The branch itself is kept.',
-      'Delete anyway'
+      (pending && pendingWorkWarning(pending)) ??
+        'Removing this worktree deletes the folder and everything in it. ' +
+          `git says: ${first.error ?? 'it still holds work'}`,
+      doomed > 0 ? `Delete ${doomed} file${doomed === 1 ? '' : 's'}` : 'Delete anyway'
     )
     if (!forced) return
     const second = await window.lightclaude.git.removeWorktree(this.liveCwd, worktreePath, true)
@@ -639,10 +652,20 @@ export class TerminalPane {
     const label = git.branch ?? 'detached'
     this.gitEl.textContent = git.dirty ? `${label} ●` : label
     this.gitEl.dataset['worktree'] = git.worktree ? 'yes' : 'no'
+    // Untracked files still do not light the dot — a build directory would leave
+    // it lit for ever, which is the reason it does not count as dirty. They do
+    // get said out loud here, because the alternative is the word "clean" over a
+    // directory that `git worktree remove` will not delete without a fight, and
+    // a user who has just read "clean" reads that fight as fussiness.
+    const notes: string[] = []
+    if (git.dirty) notes.push('uncommitted changes')
+    if (git.untracked > 0) {
+      notes.push(`${git.untracked} untracked file${git.untracked === 1 ? '' : 's'}`)
+    }
     this.gitEl.title = [
       git.worktree ? 'Worktree' : 'Repository',
       git.branch ? `on ${git.branch}` : 'with a detached HEAD',
-      git.dirty ? '· uncommitted changes' : '· clean'
+      notes.length > 0 ? `· ${notes.join(', ')}` : '· clean'
     ].join(' ')
   }
 

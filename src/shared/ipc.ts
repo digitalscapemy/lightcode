@@ -125,6 +125,18 @@ export interface GitInfo {
   branch: string | null
   /** Tracked files differ from HEAD. Untracked files deliberately don't count. */
   dirty: boolean
+  /**
+   * How many things git has never been told about, counted the way `git status`
+   * counts them — a wholly untracked directory is one entry, `build/`, not the
+   * four hundred files inside it.
+   *
+   * Reported apart from `dirty` because the two are not the same question. A
+   * build directory must not light the dirty marker for ever, so it does not;
+   * but `git worktree remove` deletes untracked files and the header used to
+   * call that directory "clean" right up until it did. Nothing here is allowed
+   * to say clean over a file that removing the worktree would destroy.
+   */
+  untracked: number
   /** A linked worktree rather than the repository itself. */
   worktree: boolean
 }
@@ -140,11 +152,29 @@ export interface BranchDeleteResult {
   hasWork?: boolean
 }
 
+/**
+ * What is in a worktree that removing it would take with it.
+ *
+ * Split in two because only one half is recoverable. A modified tracked file
+ * still has its committed version on the branch; an untracked file exists on
+ * disk and nowhere else — no index, no object database, no branch — so deleting
+ * the folder is the end of it. A dialog that calls both "uncommitted changes"
+ * offers the same reassurance about both, and it is only true of one.
+ */
+export interface PendingWork {
+  /** Tracked files that differ from HEAD, staged or not. */
+  modified: string[]
+  /** Paths git has never been told about, `build/` counting once. */
+  untracked: string[]
+}
+
 export interface WorktreeRemoveResult {
   ok: boolean
   error?: string
   /** git refused because the worktree still holds work — ask before forcing. */
   needsForce?: boolean
+  /** Exactly what forcing would destroy, so the question can name it. */
+  pending?: PendingWork
 }
 
 export interface UpdateAvailableInfo {

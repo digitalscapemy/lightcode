@@ -2,7 +2,7 @@ import { closePane, contextWindowFor, markDrivenByLc, panes } from './app'
 import { runFanOut } from './fanOutUi'
 import { AGENT_COUNTS } from './fanOut'
 import type { AgentCount } from './fanOut'
-import { paneStatus, paneUsage, state } from './store'
+import { expectingAgent, paneStatus, paneUsage, state } from './store'
 import { paneNodes } from './splitTree'
 import { LC_PROTOCOL } from '../../shared/lc'
 import type { LcPane, LcRequest, LcResponse } from '../../shared/lc'
@@ -100,7 +100,11 @@ function waitFor(ids: string[], target: 'idle' | 'exit', timeoutMs: number): Pro
   if (missing.length > 0) return Promise.resolve(no(`No such pane: ${missing.join(', ')}`))
 
   if (target === 'idle') {
-    const agentless = ids.filter((id) => !paneStatus.has(id))
+    // A pane a fan-out has just queued `claude` into has no status yet but is
+    // about to; refusing it here broke the documented fan-then-wait sequence for
+    // anyone quick enough to run the two back to back. Only a pane with neither
+    // a status nor an expectation genuinely has no turn coming.
+    const agentless = ids.filter((id) => !paneStatus.has(id) && !expectingAgent.has(id))
     if (agentless.length > 0) {
       return Promise.resolve(
         no(
@@ -114,6 +118,9 @@ function waitFor(ids: string[], target: 'idle' | 'exit', timeoutMs: number): Pro
   const reached = (id: string): boolean => {
     if (target === 'exit') return panes.get(id)?.exited === true
     const s = paneStatus.get(id)?.status
+    if (s === undefined) return false // expected but not started: keep waiting
+    if (s === 'idle' && expectingAgent.has(id)) return false // the agent we asked
+    // for has not reported yet, and `idle` here means "nothing bound", not "done"
     return s === 'waiting-input' || s === 'idle'
   }
 
@@ -182,7 +189,12 @@ export async function handleLcRequest(req: LcRequest): Promise<LcResponse> {
     if (!AGENT_COUNTS.includes(count)) {
       return no(`count must be one of ${AGENT_COUNTS.join(', ')}`)
     }
-    const here = state.focusedPaneId ? findPane(state.focusedPaneId) : null
+    // The caller's own pane decides the repository. Falling back to the focused
+    // pane — which is wherever the human last clicked — meant an agent fanning
+    // out while its user looked at another project branched the wrong one.
+    const caller = req.from ? findPane(req.from) : null
+    if (req.from && !caller) return no(`No such pane: ${req.from}`)
+    const here = caller ?? (state.focusedPaneId ? findPane(state.focusedPaneId) : null)
     const cwd = here?.cwd ?? state.tabs[0]?.projectPath
     if (!cwd) return no('No pane to branch from.')
     const created = await runFanOut(cwd, {

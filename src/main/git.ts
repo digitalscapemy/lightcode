@@ -5,6 +5,7 @@ import { branchNameError } from '../shared/git'
 import type {
   BranchDeleteResult,
   GitInfo,
+  PendingWork,
   WorktreeAddResult,
   WorktreeRemoveResult
 } from '../shared/ipc'
@@ -60,6 +61,68 @@ async function git(cwd: string, args: string[]): Promise<{ out: string; error: s
 }
 
 /**
+ * Split a `status --porcelain -z` run into what is changed and what git has
+ * never heard of.
+ *
+ * NUL-separated rather than the readable form, because plain `--porcelain`
+ * C-quotes any path with a space or a quote in it — `"my notes.md"` — and a
+ * dialog naming the file that is about to be deleted must name the file, not a
+ * shell-escaped rendering of it.
+ *
+ * The awkward part is renames: `R  new\0old\0` spends a second field on where
+ * the file came from. Reading that field as another entry would report two files
+ * for one move, and the extra name would be one that is no longer on disk —
+ * listed to the user among the things about to be deleted.
+ */
+export function parsePorcelain(out: string): PendingWork {
+  const modified: string[] = []
+  const untracked: string[] = []
+  const fields = out.split('\0')
+  for (let i = 0; i < fields.length; i++) {
+    const entry = fields[i] ?? ''
+    // A clean tree prints nothing, and the trailing NUL leaves one empty field;
+    // a real entry is two status letters, a space, and a path.
+    if (entry.length < 4) continue
+    const code = entry.slice(0, 2)
+    const path = entry.slice(3)
+    if (code.includes('R') || code.includes('C')) i++
+    if (code === '??') untracked.push(path)
+    else modified.push(path)
+  }
+  return { modified, untracked }
+}
+
+/**
+ * Everything in `dir` that deleting the directory would take with it.
+ *
+ * `--untracked-files=normal` is spelled out rather than left to the default
+ * because the default is a user setting. `status.showUntrackedFiles=no` is a
+ * real thing people put in a config to make status fast on a huge repository,
+ * and `git worktree remove` runs its own `git status` with no -u flag, so it
+ * inherits it: verified against the real binary, a worktree holding an
+ * untracked file is then removed silently, with no refusal, no --force and no
+ * question. Asking explicitly is what makes this app's warning independent of
+ * that config.
+ *
+ * `--ignore-submodules=none` matches the flag git's own check passes, so a dirty
+ * submodule counts here exactly as it counts there.
+ */
+export async function pendingWork(dir: string): Promise<PendingWork> {
+  const { out, error } = await git(dir, [
+    'status',
+    '--porcelain',
+    '-z',
+    '--untracked-files=normal',
+    '--ignore-submodules=none'
+  ])
+  // A status that could not run reports nothing rather than inventing work: git
+  // still refuses the removal on its own, and blocking a removal because our
+  // reading failed would strand the user with a worktree they cannot delete.
+  if (error !== null) return { modified: [], untracked: [] }
+  return parsePorcelain(out)
+}
+
+/**
  * Where a worktree for `name` goes: `<repo>-worktrees/<name>`, next to the
  * repository rather than inside it.
  *
@@ -101,6 +164,7 @@ export async function gitInfo(cwd: string): Promise<GitInfo> {
     mainRoot: null,
     branch: null,
     dirty: false,
+    untracked: 0,
     worktree: false
   }
 
@@ -123,7 +187,13 @@ export async function gitInfo(cwd: string): Promise<GitInfo> {
   const [root, gitDir, commonDir, head] = out.split('\n').map((l) => l.trim())
   if (!root || !gitDir || !commonDir) return absent
 
-  const status = await git(cwd, ['status', '--porcelain', '--untracked-files=no'])
+  // Untracked entries are asked for even though they are not "dirty", which
+  // costs a directory walk `-uno` skipped. Worth it: without them the header can
+  // only say "clean", and it was saying that about worktrees `git worktree
+  // remove` refuses to delete — the disagreement that talked a user through a
+  // "Delete anyway". Still one process; `normal` stops at an untracked directory
+  // rather than descending, so a build folder is one entry and not a walk of it.
+  const pending = await pendingWork(cwd)
 
   return {
     repo: true,
@@ -133,9 +203,12 @@ export async function gitInfo(cwd: string): Promise<GitInfo> {
     mainRoot: dirname(commonDir),
     // A detached HEAD reports the literal string "HEAD"; there is no branch to name.
     branch: head && head !== 'HEAD' ? head : null,
-    // Untracked files are excluded on purpose: a build directory or a stray note
-    // is not work in progress, and counting it would leave the marker always lit.
-    dirty: status.error === null && status.out.trim() !== '',
+    // Untracked files are excluded from this on purpose: a build directory or a
+    // stray note is not work in progress, and counting it would leave the marker
+    // always lit. They are reported beside it instead, so nothing has to choose
+    // between a marker that is useless and a header that lies.
+    dirty: pending.modified.length > 0,
+    untracked: pending.untracked.length,
     // In a linked worktree the git dir lives under <common>/worktrees/<name>; in
     // the repository itself the two are the same path.
     worktree: gitDir !== commonDir
@@ -161,10 +234,28 @@ export async function addWorktree(cwd: string, name: string): Promise<WorktreeAd
 }
 
 /**
- * Remove a worktree. Without `force`, git refuses when the worktree holds
- * modified or untracked files, and that refusal is the safety here — there is no
- * separate check to get wrong, and no way for this to quietly delete work. The
- * branch is left alone either way: removing a worktree is not abandoning it.
+ * Remove a worktree. Without `force`, anything still in it stops the removal and
+ * comes back named, for the caller to put in front of the user. The branch is
+ * left alone either way: removing a worktree is not abandoning it.
+ *
+ * This used to lean entirely on git refusing, on the grounds that a separate
+ * check is a thing to get wrong. Two problems with that, both real:
+ *
+ * git's refusal says "contains modified or untracked files" and nothing else,
+ * so the question the user got was "uncommitted changes" over a header saying
+ * clean — the app arguing with itself, and the user siding with the header.
+ * Reading the worktree first means the question can list the files.
+ *
+ * And the refusal is not unconditional. `git worktree remove` shells out to its
+ * own `git status` without -u, which honours `status.showUntrackedFiles=no`:
+ * with that set, a worktree holding nothing but an untracked file is deleted
+ * silently, no refusal to notice and no dialog to answer. Verified against the
+ * real binary. pendingWork() asks for untracked entries explicitly, so this path
+ * cannot be turned off by a config written for an unrelated reason.
+ *
+ * git is still the authority on everything else it guards — a locked worktree, a
+ * dirty submodule, a path that is not a worktree at all — and its own message
+ * still comes back for those.
  */
 export async function removeWorktree(
   cwd: string,
@@ -175,11 +266,23 @@ export async function removeWorktree(
   if (!info.repo || info.root === null) {
     return { ok: false, error: 'This pane is not inside a git repository.' }
   }
+  if (!force) {
+    const pending = await pendingWork(path)
+    if (pending.modified.length + pending.untracked.length > 0) {
+      return {
+        ok: false,
+        error: `${path} contains modified or untracked files.`,
+        needsForce: true,
+        pending
+      }
+    }
+  }
   const args = ['worktree', 'remove', ...(force ? ['--force'] : []), path]
   const { error } = await git(info.root, args)
   if (error !== null) {
-    // "use --force to delete it" is git telling us the work is not saved. The
-    // caller turns that into a question rather than pressing on.
+    // "use --force to delete it" is git telling us the work is not saved. Reached
+    // for whatever the read above could not see — a dirty submodule, say — so
+    // there is no file list to offer and the caller falls back to git's sentence.
     return { ok: false, error, needsForce: /--force/.test(error) }
   }
   return { ok: true }

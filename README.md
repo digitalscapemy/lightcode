@@ -85,8 +85,10 @@ Removing one asks first if it still holds uncommitted work. Branches that hold
 commits are always kept; empty ones are cleaned up, because a branch with nothing
 in it is not work being protected, it is a name you can never reuse.
 
-Right-clicking a tab offers **Close and Remove Worktrees**, which tidies a whole
-fan-out at once and leaves behind anything that still has work in it.
+Closing a pane or a tab that is using worktrees asks whether they should go too,
+with keeping them as a plain choice rather than something you have to know about.
+One tab's × tidies a whole fan-out at once and leaves behind anything that still
+has work in it.
 
 There is no diff viewer, no merge button and no "pick the winner" screen. You have
 `git`, it is already better at all three, and it is already what you know.

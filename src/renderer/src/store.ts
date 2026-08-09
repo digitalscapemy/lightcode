@@ -43,6 +43,18 @@ export const paneStatus = new Map<string, StatusUpdate>()
  */
 export const pendingCommand = new Map<string, string>()
 
+/**
+ * Panes where an agent has been asked for but has not reported yet.
+ *
+ * A fan-out queues `claude` and returns; the agent needs a second or two more
+ * before its first hook arrives and the pane gains a status. In that window
+ * `lc wait --for idle` used to refuse the pane outright — "no agent is running"
+ * — which broke the documented fan-then-wait sequence for anyone quick enough
+ * to run it back to back. Knowing that we asked is the honest difference
+ * between "there is no agent here" and "there is not one yet".
+ */
+export const expectingAgent = new Set<string>()
+
 /** Latest token usage per pane (ephemeral — mirrors what the badge shows). */
 export const paneUsage = new Map<string, UsageUpdate>()
 

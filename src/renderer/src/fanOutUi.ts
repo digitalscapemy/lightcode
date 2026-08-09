@@ -9,7 +9,7 @@ import {
 } from './fanOut'
 import type { AgentCount, FanOutRequest } from './fanOut'
 import { LAYOUT_PRESETS, buildLayout } from './layouts'
-import { newId, pendingCommand, state } from './store'
+import { expectingAgent, newId, pendingCommand, state } from './store'
 import { askRemove, removeAll, worktreesInTab } from './worktrees'
 import { paneNodes } from './splitTree'
 import type { LayoutNode } from '../../shared/types'
@@ -56,6 +56,9 @@ export async function runFanOut(
     node.cwd = created[i]
     // Runs when the pane's shell draws its first prompt. See store.pendingCommand.
     pendingCommand.set(node.id, command)
+    // And record that an agent is coming, so a wait issued immediately after
+    // this returns holds the line instead of refusing the pane.
+    expectingAgent.add(node.id)
   })
 
   await createTab({
