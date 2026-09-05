@@ -237,6 +237,13 @@ body.tab-dragging * {
 
 /* ---------- Content / splits ---------- */
 
+#workspace {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+  min-width: 0;
+}
+
 #content {
   flex: 1;
   position: relative;
@@ -406,6 +413,46 @@ body.tab-dragging * {
 .pane-git[data-worktree='yes'] {
   border-left: 2px solid var(--accent);
   color: var(--fg);
+}
+
+/* ---------- Shared working tree ----------
+   Two agents in one checkout. Amber rather than the red used for "needs
+   approval": that one means a session has stopped and is waiting for you, and
+   spending the same colour on a situation you may well have chosen on purpose
+   is how the colour stops meaning "look now". Clickable, because it is
+   dismissible — the cursor says so before the tooltip does. */
+.pane-warn {
+  flex: 0 0 auto;
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 8px;
+  background: transparent;
+  border: 1px solid #9e6a03;
+  color: #d29922;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.pane-warn:hover {
+  border-color: #d29922;
+}
+
+/* ---------- Squad role ----------
+   Which job this terminal holds. Sits left of everything else in the header
+   because it is the thing that does not change: the branch moves, the status
+   flickers, the role is what the pane IS for as long as it exists. */
+.pane-role {
+  flex: 0 0 auto;
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 8px;
+  background: var(--bg-raised, transparent);
+  border: 1px solid var(--border);
+  color: var(--fg);
+  white-space: nowrap;
+  max-width: 16ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* Fan-out asks three things at once, so it needs more room than a one-line
@@ -1588,4 +1635,189 @@ body.tab-dragging * {
 
 .mission-list::-webkit-scrollbar-thumb:hover {
   background: #555555;
+}
+
+/* ---------- Git tree panel ----------
+   Docked beside the panes rather than over them: it is meant to be read while
+   you work. Fixed width, because the useful content is short (a branch name and
+   two counts) and a resizable panel would be a gutter to maintain for nothing. */
+#git-panel {
+  flex: 0 0 260px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-panel);
+  border-left: 1px solid var(--border);
+  overflow: hidden;
+}
+
+.git-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 8px 6px 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.git-panel-title {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--fg-muted);
+}
+
+.git-panel-close {
+  background: none;
+  border: none;
+  color: var(--fg-muted);
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  padding: 0 2px;
+}
+
+.git-panel-close:hover {
+  color: var(--fg);
+}
+
+.git-panel-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 4px 0;
+}
+
+.git-panel-empty,
+.git-panel-note {
+  padding: 10px 10px;
+  font-size: 11px;
+  color: var(--fg-muted);
+  line-height: 1.5;
+}
+
+/* An unfinished merge is the one state here that stops other actions working,
+   so it is said in the warning colour rather than as another muted line. */
+.git-panel-note {
+  color: #d29922;
+  border-bottom: 1px solid var(--border);
+}
+
+.git-row {
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+  position: relative;
+}
+
+.git-row-clickable {
+  cursor: pointer;
+}
+
+.git-row-clickable:hover {
+  background: var(--bg-raised, rgba(255, 255, 255, 0.03));
+}
+
+/* The base branch is the thing everything else is measured against, so it reads
+   as the anchor rather than as one row among many. */
+.git-row-base .git-row-branch {
+  color: var(--fg);
+  font-weight: 600;
+}
+
+.git-row-top {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.git-row-branch {
+  font-size: 12px;
+  color: var(--fg);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.git-row-dirty {
+  font-size: 9px;
+  color: #d29922;
+  flex: 0 0 auto;
+}
+
+.git-row-counts {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--fg-muted);
+  flex: 0 0 auto;
+}
+
+.git-row-meta {
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--fg-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Hidden until the row is hovered: every branch that is ahead would otherwise
+   carry a button, and a column of them reads as a wall of things to press. */
+.git-row-action {
+  position: absolute;
+  right: 8px;
+  bottom: 6px;
+  font-size: 10px;
+  padding: 1px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg-panel);
+  color: var(--fg-muted);
+  cursor: pointer;
+  opacity: 0;
+}
+
+.git-row:hover .git-row-action {
+  opacity: 1;
+}
+
+.git-row-action:hover {
+  color: var(--fg);
+  border-color: var(--accent);
+}
+
+/* ---------- Squad dialog ---------- */
+.squad-roles {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 4px 0 2px;
+}
+
+.squad-role {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  padding: 3px 2px;
+  cursor: pointer;
+}
+
+/* The orchestrator's box is disabled — a squad without one is just a grid of
+   terminals — so it must not look merely unticked. */
+.squad-role input:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.squad-role-note {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--fg-muted);
+}
+
+/* A statement of fact about this window, not an error: everything except
+   layout persistence works exactly as usual. Muted, and above the rows. */
+.mission-note {
+  padding: 8px 14px;
+  font-size: 11px;
+  color: var(--fg-muted);
+  border-bottom: 1px solid var(--border);
 }

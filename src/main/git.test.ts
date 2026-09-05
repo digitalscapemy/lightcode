@@ -6,14 +6,41 @@ import { beforeAll, describe, expect, it } from 'vitest'
 import { branchNameError, pendingWorkWarning } from '../shared/git'
 import {
   addWorktree,
+  defaultBranch,
   deleteBranch,
+  divergence,
   gitErrorMessage,
   gitInfo,
+  gitTree,
+  listBranches,
+  listWorktrees,
+  mergeInProgress,
   parsePorcelain,
   pruneWorktrees,
   removeWorktree,
   worktreeDirFor
 } from './git'
+
+/**
+ * A temp directory named the way git will name it back.
+ *
+ * Two platform quirks, one helper. On Windows, `tmpdir()` can be an 8.3 short
+ * path (`MIKHAI~1`) while git always prints the long form, so a plain string
+ * compare fails on a machine whose profile name has a space in it — and passes
+ * on one whose name does not, which is the worst kind of test. On macOS,
+ * `/var` is a symlink to `/private/var` and git reports the resolved path.
+ * `realpathSync.native` settles both; plain `realpathSync` settles only the
+ * second.
+ */
+function tempDir(prefix: string): string {
+  return realpathSync.native(mkdtempSync(join(tmpdir(), prefix)))
+}
+
+/** Compare paths without arguing about which slash git chose to print. */
+function samePath(a: string | null | undefined, b: string): void {
+  const slash = (p: string): string => p.split('\\').join('/')
+  expect(slash(String(a))).toBe(slash(b))
+}
 
 describe('branchNameError', () => {
   it.each(['auth-fix', 'feat/auth', 'v2.1', 'a_b-c', 'WIP123'])('accepts %s', (name) => {
@@ -201,7 +228,7 @@ describe('worktrees, against real git', () => {
     }
     // realpath, because macOS /var is a symlink to /private/var and git reports
     // the resolved path — comparing the two forms fails for no useful reason.
-    repo = join(realpathSync(mkdtempSync(join(tmpdir(), 'lc-git-'))), 'repo')
+    repo = join(tempDir('lc-git-'), 'repo')
     const run = (args: string[]): void => {
       execFileSync('git', args, { cwd: repo, stdio: 'ignore' })
     }
@@ -214,11 +241,11 @@ describe('worktrees, against real git', () => {
   it.skipIf(!gitPresent)('reads the repository it is standing in', async () => {
     const info = await gitInfo(repo)
     expect(info).toMatchObject({ repo: true, branch: 'main', dirty: false, worktree: false })
-    expect(info.root).toBe(repo)
+    samePath(info.root, repo)
   })
 
   it.skipIf(!gitPresent)('says nothing at all outside a repository', async () => {
-    const info = await gitInfo(realpathSync(mkdtempSync(join(tmpdir(), 'lc-bare-'))))
+    const info = await gitInfo(tempDir('lc-bare-'))
     expect(info).toEqual({
       repo: false,
       root: null,
@@ -258,7 +285,7 @@ describe('worktrees, against real git', () => {
     const added = await addWorktree(repo, 'auth-fix')
     expect(added.ok).toBe(true)
     if (!added.ok) return
-    expect(added.path).toBe(worktreeDirFor(repo, 'auth-fix'))
+    samePath(added.path, worktreeDirFor(repo, 'auth-fix'))
     expect(existsSync(added.path)).toBe(true)
 
     const inside = await gitInfo(added.path)
@@ -271,8 +298,8 @@ describe('worktrees, against real git', () => {
   // existing the moment it is removed.
   it.skipIf(!gitPresent)('points at the repository from inside a worktree', async () => {
     const path = worktreeDirFor(repo, 'auth-fix')
-    expect((await gitInfo(path)).mainRoot).toBe(repo)
-    expect((await gitInfo(repo)).mainRoot).toBe(repo)
+    samePath((await gitInfo(path)).mainRoot, repo)
+    samePath((await gitInfo(repo)).mainRoot, repo)
   })
 
   it.skipIf(!gitPresent)('will not reuse a branch name', async () => {
@@ -315,7 +342,7 @@ describe('worktrees, against real git', () => {
  */
 describe.skipIf(process.platform === 'win32')('removeWorktree names what it destroys', () => {
   async function worktreeWith(seed: (dir: string) => void): Promise<{ repo: string; path: string }> {
-    const repo = join(realpathSync(mkdtempSync(join(tmpdir(), 'lc-pending-'))), 'repo')
+    const repo = join(tempDir('lc-pending-'), 'repo')
     execFileSync('git', ['init', '-q', '-b', 'main', repo], { stdio: 'ignore' })
     writeFileSync(join(repo, 'a.txt'), 'hi\n')
     execFileSync('git', ['add', '.'], { cwd: repo, stdio: 'ignore' })
@@ -393,7 +420,7 @@ describe.skipIf(process.platform === 'win32')('removeWorktree names what it dest
  */
 describe.skipIf(process.platform === 'win32')('deleteBranch, against real git', () => {
   function repoWith(branches: { name: string; commit?: boolean }[]): string {
-    const dir = join(realpathSync(mkdtempSync(join(tmpdir(), 'lc-branch-'))), 'repo')
+    const dir = join(tempDir('lc-branch-'), 'repo')
     execFileSync('git', ['init', '-q', '-b', 'main', dir], { stdio: 'ignore' })
     const run = (args: string[]): void => {
       execFileSync('git', ['-c', 'user.email=t@e.com', '-c', 'user.name=t', ...args], {
@@ -449,7 +476,7 @@ describe.skipIf(process.platform === 'win32')('pruneWorktrees', () => {
   // Deleting the folder in Finder leaves git's record behind, and the stale
   // record keeps the branch looking checked out — so the name cannot be reused.
   it('forgets a worktree whose folder was deleted outside git', async () => {
-    const repo = join(realpathSync(mkdtempSync(join(tmpdir(), 'lc-prune-'))), 'repo')
+    const repo = join(tempDir('lc-prune-'), 'repo')
     execFileSync('git', ['init', '-q', '-b', 'main', repo], { stdio: 'ignore' })
     writeFileSync(join(repo, 'a.txt'), 'hi\n')
     execFileSync('git', ['add', '.'], { cwd: repo, stdio: 'ignore' })
@@ -469,5 +496,135 @@ describe.skipIf(process.platform === 'win32')('pruneWorktrees', () => {
     await pruneWorktrees(repo)
     const after = execFileSync('git', ['worktree', 'list'], { cwd: repo, encoding: 'utf8' })
     expect(after).not.toContain('worktrees')
+  })
+})
+
+/**
+ * The git tree readers, against the real binary.
+ *
+ * A separate repository from the block above, because these need branches with
+ * commits on them and that block deliberately keeps a clean single-commit
+ * history for the worktree tests to reason about.
+ */
+describe('the git tree, against real git', () => {
+  let gitPresent = true
+  let repo = ''
+
+  const run = (args: string[], cwd = repo): void => {
+    execFileSync('git', ['-c', 'user.email=t@example.com', '-c', 'user.name=t', ...args], {
+      cwd,
+      stdio: 'ignore'
+    })
+  }
+
+  beforeAll(() => {
+    try {
+      execFileSync('git', ['--version'], { stdio: 'ignore' })
+    } catch {
+      gitPresent = false
+      return
+    }
+    repo = join(tempDir('lc-tree-'), 'repo')
+    execFileSync('git', ['init', '-q', '-b', 'main', repo], { stdio: 'ignore' })
+    writeFileSync(join(repo, 'a.txt'), 'one\n')
+    run(['add', '.'])
+    run(['commit', '-qm', 'init'])
+
+    // A branch two commits ahead of main, with a subject worth parsing: the
+    // format is NUL-separated precisely because a subject can contain anything.
+    run(['checkout', '-q', '-b', 'feature'])
+    writeFileSync(join(repo, 'b.txt'), 'two\n')
+    run(['add', '.'])
+    run(['commit', '-qm', 'add b, with a comma and "quotes"'])
+    writeFileSync(join(repo, 'c.txt'), 'three\n')
+    run(['add', '.'])
+    run(['commit', '-qm', 'add c'])
+    run(['checkout', '-q', 'main'])
+  })
+
+  it.skipIf(!gitPresent)('finds main without a remote to ask', async () => {
+    expect(await defaultBranch(repo)).toBe('main')
+  })
+
+  it.skipIf(!gitPresent)('counts how far a branch has moved from the base', async () => {
+    expect(await divergence(repo, 'main', 'feature')).toEqual({ ahead: 2, behind: 0 })
+    // Behind is the mirror of ahead, not a second measurement of it.
+    expect(await divergence(repo, 'feature', 'main')).toEqual({ ahead: 0, behind: 2 })
+  })
+
+  it.skipIf(!gitPresent)('measures a branch against itself as nothing', async () => {
+    expect(await divergence(repo, 'main', 'main')).toEqual({ ahead: 0, behind: 0 })
+  })
+
+  it.skipIf(!gitPresent)('lists branches with subjects intact', async () => {
+    const rows = await listBranches(repo)
+    const feature = rows.find((r) => r.branch === 'feature')
+    expect(feature?.subject).toBe('add c')
+    expect(rows.map((r) => r.branch).sort()).toEqual(['feature', 'main'])
+    // A commit subject can hold anything, so the separator must not be a
+    // character a person might type.
+    const beta = rows.find((r) => r.branch === 'main')
+    expect(beta?.head).toMatch(/^[0-9a-f]{40}$/)
+  })
+
+  it.skipIf(!gitPresent)('reports the repository itself as a worktree record', async () => {
+    const records = await listWorktrees(repo)
+    samePath(records.find((r) => r.branch === 'main')?.path, repo)
+  })
+
+  it.skipIf(!gitPresent)('names the worktree holding a branch', async () => {
+    const added = await addWorktree(repo, 'wt-branch')
+    expect(added.ok).toBe(true)
+    if (!added.ok) return
+    const records = await listWorktrees(repo)
+    samePath(records.find((r) => r.branch === 'wt-branch')?.path, added.path)
+    await removeWorktree(repo, added.path, false)
+  })
+
+  it.skipIf(!gitPresent)('says no merge is in progress on a settled repository', async () => {
+    expect(await mergeInProgress(repo)).toBe(false)
+  })
+
+  it.skipIf(!gitPresent)('sees a conflicted merge, which is what Integrate stops on', async () => {
+    // Two branches editing one line: the merge stops half-done, which is
+    // exactly the state the panel must refuse to queue another merge behind.
+    run(['checkout', '-q', '-b', 'left'])
+    writeFileSync(join(repo, 'clash.txt'), 'left\n')
+    run(['add', '.'])
+    run(['commit', '-qm', 'left'])
+    run(['checkout', '-q', 'main'])
+    run(['checkout', '-q', '-b', 'right'])
+    writeFileSync(join(repo, 'clash.txt'), 'right\n')
+    run(['add', '.'])
+    run(['commit', '-qm', 'right'])
+    try {
+      run(['merge', '--no-ff', 'left'])
+    } catch {
+      // expected: that is the conflict
+    }
+    expect(await mergeInProgress(repo)).toBe(true)
+    run(['merge', '--abort'])
+    expect(await mergeInProgress(repo)).toBe(false)
+    run(['checkout', '-q', 'main'])
+  })
+
+  it.skipIf(!gitPresent)('assembles a tree that names the base and every branch', async () => {
+    const tree = await gitTree(repo)
+    expect(tree).not.toBeNull()
+    if (tree === null) return
+    expect(tree.base).toBe('main')
+    expect(tree.mergeInProgress).toBe(false)
+    const feature = tree.rows.find((r) => r.branch === 'feature')
+    expect(feature).toMatchObject({ ahead: 2, behind: 0, worktreePath: null })
+    // No worktree holds it, so there is no working tree to call clean or dirty
+    // — saying "clean" would imply one exists.
+    expect(feature?.dirty).toBeNull()
+    const main = tree.rows.find((r) => r.branch === 'main')
+    samePath(main?.worktreePath, repo)
+    expect(main?.dirty).toBe(false)
+  })
+
+  it.skipIf(!gitPresent)('gives nothing at all outside a repository', async () => {
+    expect(await gitTree(tempDir('lc-notrepo-'))).toBeNull()
   })
 })

@@ -1,10 +1,13 @@
 import { execFile } from 'child_process'
+import { mkdir } from 'fs/promises'
 import { basename, dirname, join } from 'path'
 import { promisify } from 'util'
 import { branchNameError } from '../shared/git'
 import type {
   BranchDeleteResult,
+  GitBranchRow,
   GitInfo,
+  GitTree,
   PendingWork,
   WorktreeAddResult,
   WorktreeRemoveResult
@@ -314,4 +317,229 @@ export async function deleteBranch(cwd: string, branch: string): Promise<BranchD
   const { error } = await git(cwd, ['branch', '-d', branch])
   if (error === null) return { ok: true }
   return { ok: false, error, hasWork: /not fully merged/i.test(error) }
+}
+
+// ---------- Reading the shape of the repository ----------
+//
+// Everything below reads and nothing writes. It exists because the answer to
+// "where are my four branches" currently takes four git invocations by hand,
+// which in a window holding four agents is a question asked constantly.
+//
+// This is not the diff viewer the header of this file rules out, and the
+// distinction is not a quibble: showing which branch is ahead of main is
+// navigation, and showing what changed inside it is an editor's job. The panel
+// built on this stops at the former.
+
+/** One linked worktree, as `git worktree list --porcelain` describes it. */
+export interface WorktreeRecord {
+  path: string
+  /** Branch checked out there, or null when the checkout is detached. */
+  branch: string | null
+}
+
+/**
+ * Every worktree of this repository, the repository's own checkout included.
+ *
+ * Porcelain rather than the human format: the readable one aligns columns with
+ * spaces, and a path with a space in it then cannot be told from the column
+ * after it. Records are blank-line separated, one `key value` per line.
+ */
+export async function listWorktrees(cwd: string): Promise<WorktreeRecord[]> {
+  const { out, error } = await git(cwd, ['worktree', 'list', '--porcelain'])
+  if (error !== null) return []
+  const records: WorktreeRecord[] = []
+  let path: string | null = null
+  let branch: string | null = null
+  const flush = (): void => {
+    if (path !== null) records.push({ path, branch })
+    path = null
+    branch = null
+  }
+  for (const line of out.split('\n')) {
+    const text = line.trimEnd()
+    if (text === '') {
+      flush()
+      continue
+    }
+    if (text.startsWith('worktree ')) {
+      flush()
+      path = text.slice('worktree '.length)
+    } else if (text.startsWith('branch ')) {
+      // Printed as a full ref; the panel and the pane header both speak short names.
+      branch = text.slice('branch '.length).replace(/^refs\/heads\//, '')
+    }
+  }
+  flush()
+  return records
+}
+
+/** One local branch and its tip, before it is measured against anything. */
+export interface BranchRecord {
+  branch: string
+  head: string
+  subject: string
+  when: string
+}
+
+/**
+ * Every local branch, newest commit first.
+ *
+ * The separator is a NUL between fields and a record terminator git will not
+ * emit itself, because a commit subject can contain anything at all — including
+ * whatever single character looked safe when this was written.
+ */
+export async function listBranches(cwd: string): Promise<BranchRecord[]> {
+  const { out, error } = await git(cwd, [
+    'for-each-ref',
+    '--sort=-committerdate',
+    '--format=%(refname:short)%00%(objectname)%00%(committerdate:iso-strict)%00%(contents:subject)%00%0a',
+    'refs/heads'
+  ])
+  if (error !== null) return []
+  const rows: BranchRecord[] = []
+  for (const record of out.split('\u0000\n')) {
+    if (record.trim() === '') continue
+    const [branch, head, when, subject] = record.replace(/^\n/, '').split('\u0000')
+    if (!branch || !head) continue
+    rows.push({ branch, head, subject: subject ?? '', when: when ?? '' })
+  }
+  return rows
+}
+
+/**
+ * How far apart two branches are: commits each has that the other has not.
+ *
+ * Measured against the base branch rather than an upstream. This app is local
+ * git only, and "ahead of main" is the question a fan-out raises — "ahead of
+ * origin/main" is a question about a remote nobody has been asked about, and
+ * would read as zero on a repository that has never been pushed.
+ */
+export async function divergence(
+  cwd: string,
+  base: string,
+  branch: string
+): Promise<{ ahead: number; behind: number }> {
+  if (base === branch) return { ahead: 0, behind: 0 }
+  const { out, error } = await git(cwd, [
+    'rev-list',
+    '--left-right',
+    '--count',
+    `${base}...${branch}`
+  ])
+  if (error !== null) return { ahead: 0, behind: 0 }
+  const [behind, ahead] = out.trim().split(/\s+/).map(Number)
+  return {
+    ahead: Number.isFinite(ahead) ? ahead : 0,
+    behind: Number.isFinite(behind) ? behind : 0
+  }
+}
+
+/**
+ * The branch everything else is measured against.
+ *
+ * origin/HEAD first, because a repository with a remote has already answered
+ * this question and its answer beats a guess. Falling back to whichever of main
+ * or master exists — and finally to the current branch, so a repository using
+ * neither name still gets a coherent panel rather than an empty one.
+ */
+export async function defaultBranch(cwd: string): Promise<string | null> {
+  const head = await git(cwd, ['symbolic-ref', '--short', 'refs/remotes/origin/HEAD'])
+  if (head.error === null) {
+    const name = head.out.trim().replace(/^origin\//, '')
+    if (name) return name
+  }
+  for (const name of ['main', 'master']) {
+    const { error } = await git(cwd, ['rev-parse', '--verify', '--quiet', `refs/heads/${name}`])
+    if (error === null) return name
+  }
+  const current = await git(cwd, ['rev-parse', '--abbrev-ref', 'HEAD'])
+  const name = current.out.trim()
+  return name && name !== 'HEAD' ? name : null
+}
+
+/**
+ * True when a merge has been started here and not finished.
+ *
+ * This is what Integrate stops on. Running the next merge against a conflicted
+ * tree is how an automated sequence turns one conflict into a mess nobody can
+ * unpick, so the queue halts and the terminal keeps the half-done merge — which
+ * is where `git` resolves it.
+ */
+export async function mergeInProgress(cwd: string): Promise<boolean> {
+  const { error } = await git(cwd, ['rev-parse', '-q', '--verify', 'MERGE_HEAD'])
+  return error === null
+}
+
+/**
+ * The whole picture: every branch, where it is checked out, and how far it has
+ * moved from the base.
+ *
+ * Returns null when the directory is not in a repository, which the panel shows
+ * as nothing rather than as an error — a terminal sitting in a plain folder has
+ * not gone wrong.
+ */
+export async function gitTree(cwd: string): Promise<GitTree | null> {
+  const info = await gitInfo(cwd)
+  if (!info.repo || info.mainRoot === null) return null
+  const root = info.mainRoot
+
+  const base = await defaultBranch(root)
+  if (base === null) return null
+
+  const [branches, worktrees] = await Promise.all([listBranches(root), listWorktrees(root)])
+  const byBranch = new Map<string, string>()
+  for (const w of worktrees) if (w.branch !== null) byBranch.set(w.branch, w.path)
+
+  // In parallel, and that is not premature. This runs whenever a shell prompt
+  // renders; a repository with thirty branches would otherwise spawn sixty git
+  // processes one after another while the panel sat there empty.
+  const rows: GitBranchRow[] = await Promise.all(
+    branches.map(async (b): Promise<GitBranchRow> => {
+      const worktreePath = byBranch.get(b.branch) ?? null
+      const [counts, pending] = await Promise.all([
+        divergence(root, base, b.branch),
+        // Only asked of a checkout that exists: a branch nobody has checked out
+        // has no working tree to be dirty, and saying "clean" would imply one.
+        worktreePath === null ? Promise.resolve(null) : pendingWork(worktreePath)
+      ])
+      return {
+        branch: b.branch,
+        head: b.head,
+        subject: b.subject,
+        when: b.when,
+        ahead: counts.ahead,
+        behind: counts.behind,
+        worktreePath,
+        dirty: pending === null ? null : pending.modified.length > 0,
+        untracked: pending === null ? null : pending.untracked.length
+      }
+    })
+  )
+
+  return { root, base, rows, mergeInProgress: await mergeInProgress(root) }
+}
+
+/**
+ * The folder a squad shares, created and ready to be written into.
+ *
+ * Beside the repository for the same reason worktrees are: inside it, a report
+ * an agent wrote would show up as an untracked file in everybody's `git
+ * status`, and the squad's notes-to-each-other would end up in the diff being
+ * reviewed. The name carries the task, so two squads on one repository do not
+ * read each other's post.
+ *
+ * `reports/` is made now rather than by whichever agent finishes first, because
+ * an agent that has to create the directory has to be told to, and that is a
+ * sentence in every role's prompt paid for on every turn.
+ */
+export async function prepareSquad(cwd: string, task: string): Promise<string | null> {
+  const info = await gitInfo(cwd)
+  if (!info.repo || info.mainRoot === null) return null
+  const dir = worktreeDirFor(info.mainRoot, `${task}-squad`)
+  try {
+    await mkdir(join(dir, 'reports'), { recursive: true })
+  } catch {
+    return null
+  }
+  return dir
 }

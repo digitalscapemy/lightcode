@@ -1,7 +1,20 @@
 import type { PaneStatus, StatusUpdate, UsageUpdate } from '../../shared/ipc'
-import type { LayoutNode, Orientation, PersistedState, TabState } from '../../shared/types'
-import { forgetPane as forgetBabysitter, handleStatusChange, noteManualInput } from './babysitter'
+import type {
+  LayoutNode,
+  Orientation,
+  PaneNodeRole,
+  PersistedState,
+  TabState
+} from '../../shared/types'
+import {
+  forgetPane as forgetBabysitter,
+  handleStatusChange,
+  isBabysitterOn,
+  noteManualInput
+} from './babysitter'
 import { alertDialog, confirmDialog } from './confirmDialog'
+import { forgetCoexist, sharedRootWarnings } from './coexist'
+import { refreshGitTree } from './gitTree'
 import { renderLayout } from './layout'
 import { buildLayout } from './layouts'
 import type { LayoutPreset } from './layouts'
@@ -54,8 +67,8 @@ const paneCallbacks: PaneCallbacks = {
   onSplitInto: (paneId, cwd) => void splitAt(paneId, 'row', false, cwd)
 }
 
-function createPane(paneId: string, cwd: string): TerminalPane {
-  const pane = new TerminalPane(paneId, cwd, paneCallbacks)
+function createPane(paneId: string, cwd: string, role: PaneNodeRole | null = null): TerminalPane {
+  const pane = new TerminalPane(paneId, cwd, paneCallbacks, role)
   panes.set(paneId, pane)
   return pane
 }
@@ -96,7 +109,7 @@ export async function createTab(opts: CreateTabOptions): Promise<void> {
   tabViews.set(tab.id, view)
 
   for (const node of paneNodes(tab.layout)) {
-    const pane = createPane(node.id, node.cwd ?? tab.projectPath)
+    const pane = createPane(node.id, node.cwd ?? tab.projectPath, node.role ?? null)
     if (node.name) pane.setCustomName(node.name)
   }
   renderLayout(view, tab.layout, (id) => panes.get(id)!.el)
@@ -190,6 +203,7 @@ export function closeTab(tabId: string): void {
     paneUsage.delete(pid)
     lastNotified.delete(pid)
     forgetBabysitter(pid)
+    forgetCoexist(pid)
   }
   tabViews.get(tabId)?.remove()
   tabViews.delete(tabId)
@@ -228,7 +242,15 @@ export function setPaneCwd(paneId: string, cwd: string): void {
   // also the moment to re-read git: a commit or a checkout changes the branch and
   // the dirty marker without the directory moving at all. Deliberately ahead of
   // the early return below, which exists to avoid persisting an unchanged cwd.
-  void panes.get(paneId)?.refreshGit(cwd)
+  void panes
+    .get(paneId)
+    ?.refreshGit(cwd)
+    .then(() => {
+      refreshCoexistWarnings()
+      // The panel rides the same signal: a prompt render is when a commit,
+      // checkout or merge has just finished, which is when the tree changed.
+      refreshGitTree()
+    })
 
   // A prompt has been drawn, so the shell is ready to be typed into — which is
   // when a queued command can safely go in. See store.pendingCommand.
@@ -244,6 +266,25 @@ export function setPaneCwd(paneId: string, cwd: string): void {
   if (!node || node.cwd === cwd) return
   node.cwd = cwd
   persist()
+}
+
+/**
+ * Re-apply the shared-working-tree warning across every pane.
+ *
+ * Runs after a pane's git refresh — the same shell-prompt signal everything
+ * else here rides on — and whenever the babysitter is armed or disarmed, since
+ * that changes the answer without any directory changing. Cheap: it reads the
+ * git snapshot each pane already holds and asks no questions of main.
+ */
+export function refreshCoexistWarnings(): void {
+  const warnings = sharedRootWarnings(
+    [...panes.entries()].map(([paneId, pane]) => ({
+      paneId,
+      root: pane.gitSnapshot()?.root ?? null,
+      auto: isBabysitterOn(paneId)
+    }))
+  )
+  for (const [paneId, pane] of panes) pane.setCoexistWarning(warnings.get(paneId) ?? null)
 }
 
 /** Persist a pane's custom title on its layout node so it survives restarts. */
@@ -364,6 +405,7 @@ export async function applyLayout(preset: LayoutPreset): Promise<void> {
     paneUsage.delete(pid)
     lastNotified.delete(pid)
     forgetBabysitter(pid)
+    forgetCoexist(pid)
   }
   // New panes open where the first surviving pane is, matching splitAt().
   const srcCwd = (queue[0] ? prev.get(queue[0])?.cwd : undefined) ?? tab.projectPath
@@ -464,6 +506,7 @@ export function closePane(paneId: string): void {
   paneUsage.delete(paneId)
   lastNotified.delete(paneId)
   forgetBabysitter(paneId)
+  forgetCoexist(paneId)
 
   const newLayout = removePane(tab.layout, paneId)
   if (!newLayout) {
@@ -719,6 +762,7 @@ export function adjustFontSize(delta: number): void {
 export async function restore(persisted: PersistedState): Promise<void> {
   // Before any pane is built — TerminalPane reads state.fontSize at construction.
   if (persisted.fontSize) state.fontSize = clampFontSize(persisted.fontSize)
+  state.gitPanelOpen = persisted.gitPanelOpen ?? false
   for (const tab of persisted.tabs) {
     await createTab({
       id: tab.id,

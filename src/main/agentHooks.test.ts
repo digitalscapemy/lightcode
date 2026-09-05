@@ -1,5 +1,13 @@
 import { execFileSync } from 'child_process'
-import { mkdtempSync, readdirSync, readFileSync, renameSync, utimesSync, writeFileSync } from 'fs'
+import {
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  renameSync,
+  utimesSync,
+  writeFileSync
+} from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
 import { describe, expect, it } from 'vitest'
@@ -11,7 +19,8 @@ import {
   posixScript,
   renderHookSettings,
   reporterCommand,
-  statusForEvent
+  statusForEvent,
+  sweepDeadHookDirs
 } from './agentHooks'
 import type { HookEvent } from './agentHooks'
 
@@ -319,5 +328,49 @@ describe('reporterCommand', () => {
       expect(command).toBe('/bin/sh')
       expect(args).toEqual(['/tmp/r.sh'])
     }
+  })
+})
+
+/**
+ * The sweep that replaced a shared spool.
+ *
+ * Every running Light Code used to drain one directory: a second window's
+ * startup purge deleted the first one's in-flight envelopes, and whichever
+ * drain timer fired first ate events meant for the other. Both losses are
+ * silent, and both matter — `waiting-approval` exists only because of hooks, so
+ * the red dot goes dark, and a lost `Stop` stalls the babysitter for good.
+ */
+describe('sweepDeadHookDirs', () => {
+  const DEAD_PID = 4_194_303
+
+  it('removes a dead run\'s folder and everything under it', () => {
+    const root = mkdtempSync(join(tmpdir(), 'lc-hooks-'))
+    const dead = join(root, String(DEAD_PID))
+    mkdirSync(join(dead, 'spool'), { recursive: true })
+    writeFileSync(join(dead, 'spool', 'a.json'), '{}')
+    sweepDeadHookDirs(root)
+    expect(readdirSync(root)).toEqual([])
+  })
+
+  it('never touches a live run\'s folder', () => {
+    // The whole point. A pid that still answers is a window somebody is using,
+    // and deleting its spool mid-turn is the exact accident being fixed.
+    const root = mkdtempSync(join(tmpdir(), 'lc-hooks-'))
+    mkdirSync(join(root, String(process.pid)), { recursive: true })
+    mkdirSync(join(root, String(DEAD_PID)), { recursive: true })
+    sweepDeadHookDirs(root)
+    expect(readdirSync(root)).toEqual([String(process.pid)])
+  })
+
+  it('leaves alone anything that is not a pid folder', () => {
+    const root = mkdtempSync(join(tmpdir(), 'lc-hooks-'))
+    mkdirSync(join(root, 'spool'), { recursive: true }) // the old shared layout
+    writeFileSync(join(root, 'settings.json'), '{}')
+    sweepDeadHookDirs(root)
+    expect(readdirSync(root).sort()).toEqual(['settings.json', 'spool'])
+  })
+
+  it('says nothing about a root that does not exist yet', () => {
+    expect(() => sweepDeadHookDirs(join(tmpdir(), 'lc-hooks-nothing-here'))).not.toThrow()
   })
 })

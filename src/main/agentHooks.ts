@@ -1,8 +1,9 @@
 import { app } from 'electron'
-import { chmodSync, mkdirSync, watch, writeFileSync } from 'fs'
+import { chmodSync, mkdirSync, readdirSync, rmSync, watch } from 'fs'
 import type { FSWatcher } from 'fs'
 import { readdir, readFile, stat, unlink } from 'fs/promises'
 import { join } from 'path'
+import { atomicWrite, isPidAlive, ownerPid } from './instance'
 
 /**
  * Claude Code lifecycle events, straight from the CLI rather than inferred.
@@ -164,13 +165,65 @@ export interface HookPaths {
   script: string
 }
 
+/** The folder holding every instance's hook assets, one subfolder per pid. */
+export function hookRoot(): string {
+  return join(app.getPath('userData'), 'agent-hooks')
+}
+
+/**
+ * This instance's hook assets, under its own pid.
+ *
+ * The pid is not decoration, and its absence was a real bug. Every running Light
+ * Code used to share one spool: `HookWatcher.start` purges the spool on the
+ * belief that anything in it predates this launch, so a second window starting
+ * deleted the first one's in-flight envelopes; and `pass()` unlinks each file
+ * before dispatching it, so whichever instance's timer fired first ate an event
+ * meant for the other, which then dropped it silently for a pane it had never
+ * heard of.
+ *
+ * Both losses are invisible and neither degrades gracefully. `waiting-approval`
+ * exists only because of hooks, so the red "needs approval" dot goes dark; and
+ * the babysitter arms only on `waiting-input`, so a lost `Stop` stalls an
+ * autonomous run for good. The `lc` socket already keyed itself by pid for
+ * exactly this reason — this is the same fix applied to the other door.
+ *
+ * Keying the whole directory rather than only the spool also settles a second
+ * hazard: `settings.json` and the reporter script are rewritten on every launch
+ * and handed to `claude --settings` by path, so two instances could truncate one
+ * while the other's agent was starting.
+ */
 export function hookPaths(): HookPaths {
-  const dir = join(app.getPath('userData'), 'agent-hooks')
+  const dir = join(hookRoot(), String(process.pid))
   return {
     dir,
     spool: join(dir, 'spool'),
     settings: join(dir, 'settings.json'),
     script: join(dir, process.platform === 'win32' ? 'report.ps1' : 'report.sh')
+  }
+}
+
+/**
+ * Hook folders left by runs that were killed rather than closed.
+ *
+ * Same rule as the socket sweep it mirrors: only a pid that is provably gone.
+ * A pid that still answers may be a Light Code somebody is using, and deleting
+ * its spool mid-turn is precisely the accident the pid exists to prevent.
+ */
+export function sweepDeadHookDirs(root = hookRoot()): void {
+  let names: string[]
+  try {
+    names = readdirSync(root)
+  } catch {
+    return
+  }
+  for (const name of names) {
+    const pid = ownerPid(name)
+    if (pid === null || pid === process.pid || isPidAlive(pid)) continue
+    try {
+      rmSync(join(root, name), { recursive: true, force: true })
+    } catch {
+      // another instance swept it first
+    }
   }
 }
 
@@ -270,7 +323,10 @@ export function installHookAssets(): HookPaths | null {
   try {
     mkdirSync(paths.spool, { recursive: true })
     const script = process.platform === 'win32' ? windowsScript() : posixScript()
-    writeFileSync(paths.script, script, 'utf8')
+    // Atomic even though the directory is now ours alone: a crash mid-write
+    // would otherwise leave a truncated reporter that every later launch keeps,
+    // and `claude --settings` reads these by path at every agent start.
+    if (!atomicWrite(paths.script, script)) return null
     if (process.platform !== 'win32') {
       try {
         chmodSync(paths.script, 0o755)
@@ -279,11 +335,8 @@ export function installHookAssets(): HookPaths | null {
       }
     }
     const { command, args } = reporterCommand(paths.script)
-    writeFileSync(
-      paths.settings,
-      JSON.stringify(renderHookSettings(command, args), null, 2),
-      'utf8'
-    )
+    const settings = JSON.stringify(renderHookSettings(command, args), null, 2)
+    if (!atomicWrite(paths.settings, settings)) return null
     return paths
   } catch {
     return null
@@ -318,6 +371,8 @@ export class HookWatcher {
     this.spool = spool
     this.onEvent = onEvent
     // Anything already in the spool predates this launch: its panes are gone.
+    // True only because the spool is keyed by pid — see hookPaths. While it was
+    // shared, this line deleted another running window's in-flight events.
     void this.purge()
     this.attach()
     this.poll = setInterval(() => {

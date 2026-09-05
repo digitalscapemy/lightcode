@@ -24,6 +24,18 @@
           <svg width="12" height="12" viewBox="0 0 12 12"><path d="M1.5 6 H4 M4 6 C6 6 6 1.5 9 1.5 M4 6 H10.5 M4 6 C6 6 6 10.5 9 10.5" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" /><circle cx="1.5" cy="6" r="1" fill="currentColor" /><circle cx="10.5" cy="1.5" r="1" fill="currentColor" /><circle cx="10.5" cy="6" r="1" fill="currentColor" /><circle cx="10.5" cy="10.5" r="1" fill="currentColor" /></svg>
         </button>
         <div class="tabbar-divider"></div>
+        <!-- A squad: one conductor and its players. Distinct from the fan-out
+             icon beside it, which branches one line into three equal ones —
+             here the lines are different lengths because the roles are. -->
+        <button id="squad-btn" class="tabbar-btn" title="Open a squad: an orchestrator directing specialist agents">
+          <svg width="12" height="12" viewBox="0 0 12 12"><circle cx="2" cy="6" r="1.4" fill="currentColor" /><path d="M3.6 6 H6" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" /><path d="M6 6 V2 H10 M6 6 H10 M6 6 V10 H10" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" /><rect x="9.2" y="1.3" width="1.6" height="1.4" fill="currentColor" /><rect x="9.2" y="5.3" width="1.6" height="1.4" fill="currentColor" /><rect x="9.2" y="9.3" width="1.6" height="1.4" fill="currentColor" /></svg>
+        </button>
+        <div class="tabbar-divider"></div>
+        <!-- The git tree: what every branch and worktree is doing right now. -->
+        <button id="git-btn" class="tabbar-btn" title="Git tree (Ctrl+Shift+G)">
+          <svg width="12" height="12" viewBox="0 0 12 12"><path d="M3 2.5 V9.5 M3 5 H7 A2 2 0 0 1 9 7 V8" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" /><circle cx="3" cy="1.8" r="1.2" fill="none" stroke="currentColor" stroke-width="1" /><circle cx="3" cy="10.2" r="1.2" fill="none" stroke="currentColor" stroke-width="1" /><circle cx="9" cy="9" r="1.2" fill="none" stroke="currentColor" stroke-width="1" /></svg>
+        </button>
+        <div class="tabbar-divider"></div>
         <button id="mission-btn" class="tabbar-btn" title="Mission Control (Ctrl+Shift+M)">
           <svg width="12" height="12" viewBox="0 0 12 12"><circle cx="6" cy="6" r="5" fill="none" stroke="currentColor" stroke-width="1" /><circle cx="6" cy="6" r="2" fill="none" stroke="currentColor" stroke-width="1" /><path d="M6 1 V3 M6 9 V11 M1 6 H3 M9 6 H11" stroke="currentColor" stroke-width="1" /></svg>
         </button>
@@ -47,7 +59,13 @@
           </button>
         </div>
       </header>
-      <main id="content"></main>
+      <!-- A row so the git tree can dock beside the panes rather than over
+           them: it is meant to be read while you work, which a modal cannot be.
+           #content keeps flex:1 and its absolutely-positioned tab views. -->
+      <div id="workspace">
+        <main id="content"></main>
+        <aside id="git-panel" hidden></aside>
+      </div>
       <div id="empty-state" hidden>
         <div class="empty-card">
           <img class="empty-logo" src="./logo.png" alt="Light Code" />

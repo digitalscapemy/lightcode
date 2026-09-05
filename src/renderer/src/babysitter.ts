@@ -31,7 +31,13 @@ interface Sitter {
 }
 
 const sitters = new Map<string, Sitter>()
-let onChange: (() => void) | null = null
+/**
+ * Several things care when a sitter changes: Mission Control repaints its nudge
+ * counts, and the shared-folder warning has to be recomputed because arming a
+ * pane changes the answer without any directory having changed. A list rather
+ * than one slot, so neither has to know the other exists.
+ */
+const listeners = new Set<() => void>()
 
 function get(paneId: string): Sitter {
   let s = sitters.get(paneId)
@@ -84,13 +90,14 @@ export function forgetPane(paneId: string): void {
   sitters.delete(paneId)
 }
 
-/** Called by Mission Control to re-render when nudge counts change. */
-export function onBabysitterChange(cb: () => void): void {
-  onChange = cb
+/** Register interest in sitter changes. Returns an unsubscribe. */
+export function onBabysitterChange(cb: () => void): () => void {
+  listeners.add(cb)
+  return () => listeners.delete(cb)
 }
 
 function notify(): void {
-  onChange?.()
+  for (const cb of listeners) cb()
 }
 
 function clearTimer(s: Sitter): void {

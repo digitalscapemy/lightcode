@@ -2,13 +2,16 @@ import '@xterm/xterm/css/xterm.css'
 import './styles.css'
 import * as app from './app'
 import { initAboutUi } from './about'
+import { onBabysitterChange } from './babysitter'
 import { closeTabWithWorktrees, openFanOut } from './fanOutUi'
 import { MOD_LABEL, initShortcuts } from './keys'
 import { initLc } from './lcHandlers'
+import { initGitTree, toggleGitTree } from './gitTree'
 import { initLayoutPicker } from './layoutPicker'
 import { openMission, toggleMissionControl } from './missionControl'
 import { clearDropTarget, hasDropTarget } from './pane'
 import { initShortcutsUi } from './shortcuts'
+import { openSquad } from './squadUi'
 import { initUpdateToast } from './toast'
 import { flushPersist, persist, state } from './store'
 import { initTabBar } from './tabbar'
@@ -23,6 +26,7 @@ async function boot(): Promise<void> {
     }
   }
   document.getElementById('mission-btn')!.title = `Mission Control (${MOD_LABEL}+Shift+M)`
+  document.getElementById('git-btn')!.title = `Git tree (${MOD_LABEL}+Shift+G)`
 
   initTabBar({
     onActivate: (id) => app.activateTab(id),
@@ -38,6 +42,11 @@ async function boot(): Promise<void> {
   document
     .getElementById('empty-open')!
     .addEventListener('click', () => void app.addTabViaPicker())
+
+  // Arming or disarming a pane changes whether two agents are about to tread on
+  // each other, without any directory having changed — so the warning is
+  // recomputed here as well as on every shell prompt.
+  onBabysitterChange(app.refreshCoexistWarnings)
 
   initShortcutsUi()
   initAboutUi()
@@ -98,6 +107,7 @@ async function boot(): Promise<void> {
       if (state.focusedPaneId) void app.closePaneRequest(state.focusedPaneId)
     },
     'mission-control': () => toggleMissionControl(),
+    'git-tree': () => toggleGitTree(),
     'font-larger': () => app.adjustFontSize(1),
     'font-smaller': () => app.adjustFontSize(-1),
     'font-reset': () => app.adjustFontSize(0),
@@ -111,6 +121,8 @@ async function boot(): Promise<void> {
   })
 
   document.getElementById('fanout-btn')!.addEventListener('click', () => void openFanOut())
+  document.getElementById('squad-btn')!.addEventListener('click', () => void openSquad())
+  document.getElementById('git-btn')!.addEventListener('click', toggleGitTree)
 
   document
     .getElementById('mission-btn')!
@@ -126,6 +138,11 @@ async function boot(): Promise<void> {
     await app.createTab({ projectPath: home, name: 'Home' })
   }
   app.updateEmptyState()
+
+  // After restore, not before: whether the panel is docked open is part of the
+  // persisted state, and initialising it earlier would read the default every
+  // time and quietly discard the user's choice.
+  initGitTree()
 }
 
 void boot()

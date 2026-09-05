@@ -6,11 +6,20 @@ import { join } from 'path'
 import { IPC } from '../shared/ipc'
 import type { ClipboardPasteResult } from '../shared/ipc'
 import type { PersistedState, ShortcutsConfig } from '../shared/types'
-import { HookWatcher, installHookAssets } from './agentHooks'
-import { addWorktree, deleteBranch, gitInfo, pruneWorktrees, removeWorktree } from './git'
+import { HookWatcher, installHookAssets, sweepDeadHookDirs } from './agentHooks'
+import {
+  addWorktree,
+  deleteBranch,
+  gitInfo,
+  gitTree,
+  prepareSquad,
+  pruneWorktrees,
+  removeWorktree
+} from './git'
 import { installLcClient } from './lcClient'
 import { LcServer, loadLcEnabled, saveLcEnabled, socketPath } from './lcServer'
 import { PtyManager } from './ptyManager'
+import { loadRoles } from './roles'
 import { setHookSettings, setLcInstalled } from './shell'
 import {
   importCandidates,
@@ -18,7 +27,13 @@ import {
   parseProfiles,
   saveShortcuts
 } from './shortcuts'
-import { loadState, saveState } from './stateStore'
+import {
+  claimStateOwnership,
+  loadState,
+  ownsState,
+  releaseStateOwnership,
+  saveState
+} from './stateStore'
 import { initUpdater, scheduleUpdateCheck } from './updater'
 import { UsageWatcher } from './usageWatcher'
 
@@ -38,6 +53,8 @@ function registerIpc(): void {
   initUpdater(() => mainWindow)
 
   ipcMain.handle(IPC.StateLoad, (): PersistedState | null => loadState())
+
+  ipcMain.handle(IPC.StateOwned, (): boolean => ownsState())
 
   ipcMain.handle(IPC.StateSave, (_e, state: PersistedState): void => {
     if (mainWindow && !mainWindow.isDestroyed()) {
@@ -86,6 +103,14 @@ function registerIpc(): void {
   ipcMain.handle(IPC.GitBranchDelete, (_e, cwd: string, branch: string) =>
     deleteBranch(cwd, branch)
   )
+  // The git tree panel: read-only, and refreshed on the same shell-prompt
+  // signal the pane header uses rather than on a timer of its own.
+  ipcMain.handle(IPC.GitTree, (_e, cwd: string) => gitTree(cwd))
+  ipcMain.handle(IPC.GitSquadPrepare, (_e, cwd: string, task: string) =>
+    prepareSquad(cwd, task)
+  )
+
+  ipcMain.handle(IPC.RolesList, (_e, cwd: string) => loadRoles(cwd))
 
   // The agent CLI. Off until switched on, and the switch is remembered.
   const lcState = (): { enabled: boolean; command: string } => ({
@@ -312,6 +337,15 @@ app.whenReady().then(() => {
   // generated on the first detectShell(), and they only carry the `claude`
   // wrapper if the reporter installed. Failure here is not fatal — the badge
   // falls back to reading transcripts alone, exactly as it did before hooks.
+  // Clear out folders belonging to runs that were killed rather than closed,
+  // before claiming ours. Only provably dead pids — a live one is a window
+  // somebody is using.
+  // Only one window may save state.json — it is a whole-window document, and a
+  // second saver silently discards the first one's tabs. Claimed before the
+  // renderer can ask, so Mission Control's answer is right the first time.
+  claimStateOwnership()
+
+  sweepDeadHookDirs()
   const hooks = installHookAssets()
   setHookSettings(hooks?.settings ?? null)
   if (hooks) hookWatcher.start(hooks.spool, (ev) => usageWatcher.applyHook(ev))
@@ -346,4 +380,5 @@ app.on('will-quit', () => {
   usageWatcher.unwatchAll()
   hookWatcher.stop()
   lcServer.stop()
+  releaseStateOwnership()
 })

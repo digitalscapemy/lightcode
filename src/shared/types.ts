@@ -1,3 +1,10 @@
+/** The role a pane holds, as remembered across restarts. */
+export interface PaneNodeRole {
+  id: string
+  /** Folder this squad shares; where reports are written and read. */
+  squadDir: string
+}
+
 export type Orientation = 'row' | 'column'
 
 export interface PaneNode {
@@ -7,6 +14,15 @@ export interface PaneNode {
   name?: string
   /** Last live cwd (from shell integration); respawn opens here. */
   cwd?: string
+  /**
+   * Squad role this pane holds, and where its squad keeps its reports.
+   *
+   * On the layout node rather than only in memory so a role survives a restart.
+   * A pane that came back as a plain terminal while still sitting in its role's
+   * worktree would be the worst of both: the branch says it is the developer,
+   * the agent has never been told, and nothing on screen disagrees.
+   */
+  role?: PaneNodeRole
 }
 
 export interface SplitNode {
@@ -41,6 +57,8 @@ export interface PersistedState {
   tabs: TabState[]
   /** Terminal font size in px, shared by every pane. Absent on pre-0.3 state. */
   fontSize?: number
+  /** Git tree panel docked open. Absent on pre-0.5 state, which means closed. */
+  gitPanelOpen?: boolean
 }
 
 /** `function <name> { Set-Location -LiteralPath '<path>' }` */

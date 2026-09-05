@@ -4,6 +4,7 @@ export type ShortcutAction =
   | 'new-tab'
   | 'close-pane'
   | 'mission-control'
+  | 'git-tree'
   | 'font-larger'
   | 'font-smaller'
   | 'font-reset'
@@ -92,6 +93,9 @@ export function matchShortcut(e: KeyboardEvent): ShortcutAction | null {
       return 'close-pane'
     case 'KeyM':
       return 'mission-control'
+    // G for git. Free, and the only letter anyone guesses for this.
+    case 'KeyG':
+      return 'git-tree'
     // J for "jump". Deliberately not a letter the shell wants: Ctrl+J is a
     // newline in a terminal, but the Shift here keeps it clear of that.
     case 'KeyJ':

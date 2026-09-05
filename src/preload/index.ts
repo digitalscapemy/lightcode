@@ -39,6 +39,7 @@ const api: LightClaudeApi = {
   state: {
     load: (): Promise<PersistedState | null> => ipcRenderer.invoke(IPC.StateLoad),
     save: (state: PersistedState) => ipcRenderer.invoke(IPC.StateSave, state),
+    owned: () => ipcRenderer.invoke(IPC.StateOwned),
     onFlushRequest: (cb) => {
       ipcRenderer.on(IPC.FlushState, () => cb())
     },
@@ -72,7 +73,13 @@ const api: LightClaudeApi = {
       ipcRenderer.invoke(IPC.GitWorktreeRemove, cwd, path, force),
     pruneWorktrees: (cwd: string) => ipcRenderer.invoke(IPC.GitWorktreePrune, cwd),
     deleteBranch: (cwd: string, branch: string) =>
-      ipcRenderer.invoke(IPC.GitBranchDelete, cwd, branch)
+      ipcRenderer.invoke(IPC.GitBranchDelete, cwd, branch),
+    tree: (cwd: string) => ipcRenderer.invoke(IPC.GitTree, cwd),
+    prepareSquad: (cwd: string, task: string) =>
+      ipcRenderer.invoke(IPC.GitSquadPrepare, cwd, task)
+  },
+  roles: {
+    list: (cwd: string) => ipcRenderer.invoke(IPC.RolesList, cwd)
   },
   // Electron 32 removed File.path, so webUtils is the only route from a dropped
   // File to its real path. Returns '' for a File the OS gave no path (dragged

@@ -5,6 +5,7 @@ import { createServer } from 'net'
 import type { Server, Socket } from 'net'
 import { join } from 'path'
 import { IPC } from '../shared/ipc'
+import { atomicWrite, isPidAlive } from './instance'
 import {
   LC_OFF_MESSAGE,
   LC_PIPE_PREFIX,
@@ -96,13 +97,8 @@ function sweepDeadSockets(dir: string): void {
   for (const name of names) {
     const pid = socketOwnerPid(name)
     if (pid === null || pid === process.pid) continue
-    try {
-      process.kill(pid, 0)
-      continue // answers, so it is somebody's — leave it
-    } catch (err) {
-      // EPERM is a live process owned by another user. Only ESRCH means gone.
-      if ((err as NodeJS.ErrnoException).code !== 'ESRCH') continue
-    }
+    // EPERM is a live process owned by another user; only ESRCH means gone.
+    if (isPidAlive(pid)) continue // answers, so it is somebody's — leave it
     try {
       unlinkSync(join(dir, name))
     } catch {
@@ -339,7 +335,9 @@ export function loadLcEnabled(): boolean {
 export function saveLcEnabled(enabled: boolean): void {
   try {
     mkdirSync(join(app.getPath('userData'), 'lc'), { recursive: true })
-    writeFileSync(switchFile(), JSON.stringify({ enabled }), 'utf8')
+    // Atomic: this file is shared by every running instance, and a reader that
+    // caught it half-written would read the switch as off.
+    atomicWrite(switchFile(), JSON.stringify({ enabled }))
   } catch {
     // the switch still works for this run; it just will not be remembered
   }

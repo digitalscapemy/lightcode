@@ -1,7 +1,8 @@
 import { app } from 'electron'
-import { chmodSync, mkdirSync, readFileSync, writeFileSync } from 'fs'
+import { chmodSync, mkdirSync, readFileSync } from 'fs'
 import { join } from 'path'
 import { LC_PROTOCOL } from '../shared/lc'
+import { atomicWrite } from './instance'
 
 /**
  * The `lc` command itself, generated at runtime rather than built.
@@ -108,7 +109,7 @@ const SOCKET = process.env.LIGHTCODE_LC_SOCKET
 const USAGE = [
   'lc — drive Light Code panes from a terminal',
   '',
-  '  lc ls                                  every pane, with status and branch',
+  '  lc ls                                  every pane, with status, role and branch',
   '  lc read <pane> [--tail N]              recent output, oldest line first',
   '  lc send <pane> <text> [--no-enter]     type into a pane',
   '  lc close <pane>                        close a pane (worktrees are kept)',
@@ -204,12 +205,17 @@ function render(res) {
       ? ''
       : 'WARNING: could not identify which pane you are in, so no row is marked. ' +
         'Do not send commands to any of these without checking which is yours.\\n\\n'
+    const anyRole = res.panes.some((p) => p.role)
     return warning + res.panes
       .map((p) => {
         const ctx = Math.round(p.contextTokens / 1000) + 'k/' + Math.round(p.contextWindow / 1000) + 'k'
         const branch = p.branch ? (p.worktree ? p.branch + ' (worktree)' : p.branch) : '-'
         const who = p.self ? '* ' : '  '
-        return who + [p.pane, p.status.padEnd(8), ctx.padEnd(11), branch.padEnd(24), p.cwd].join('  ')
+        // The role column earns its width only in a squad, so it is dropped
+        // entirely when no pane has one — an ordinary window should not grow a
+        // column of dashes to accommodate a feature it is not using.
+        const role = anyRole ? [(p.role || '-').padEnd(13)] : []
+        return who + [p.pane, p.status.padEnd(8)].concat(role, [ctx.padEnd(11), branch.padEnd(24), p.cwd]).join('  ')
       })
       .join('\\n')
   }
@@ -270,10 +276,13 @@ conn.on('close', () => {
 /**
  * Rewrite a generated file only when its content actually changed.
  *
- * Every running instance shares these paths, so a second launch truncating and
- * rewriting one could hand half a file to a pane running `lc` at that moment.
- * Nothing in either file varies between instances, so an identical file is left
- * exactly where it is.
+ * Every running instance shares these paths, so a second launch rewriting one
+ * could hand a partial file to a pane running `lc` at that moment. Two guards,
+ * because the cheap one is not sufficient on its own: an identical file is left
+ * exactly where it is, and a file that does have to change is written through a
+ * temporary and renamed into place, which no reader can observe half-done. The
+ * content check alone was a check-then-act — two instances of different app
+ * versions disagree about the bytes and would race.
  */
 function writeIfChanged(path: string, body: string, mode?: number): void {
   let current: string | null = null
@@ -282,7 +291,7 @@ function writeIfChanged(path: string, body: string, mode?: number): void {
   } catch {
     // first launch, or somebody deleted it
   }
-  if (current !== body) writeFileSync(path, body, 'utf8')
+  if (current !== body) atomicWrite(path, body)
   // Claimed every launch rather than only on write: a file that survived with
   // the right bytes and the wrong bits is still a command that will not run.
   if (mode !== undefined) chmodSync(path, mode)

@@ -49,7 +49,7 @@ export class PtyManager {
     )
   }
 
-  spawn({ paneId, cwd, cols, rows }: SpawnOptions): SpawnResult {
+  spawn({ paneId, cwd, cols, rows, role }: SpawnOptions): SpawnResult {
     this.kill(paneId)
     const shell = detectShell()
 
@@ -74,7 +74,17 @@ export class PtyManager {
         // Read by the agent-hook reporter, which stamps it onto every event it
         // forwards. This is what makes session→pane attribution a fact rather
         // than a guess from keystroke timing.
-        LIGHTCODE_PANE: paneId
+        LIGHTCODE_PANE: paneId,
+        // The squad role, read by the generated `claude` wrapper at every
+        // launch. See SpawnOptions.role on why it lives here and not on the
+        // first command line.
+        ...(role
+          ? {
+              LIGHTCODE_ROLE: role.id,
+              LIGHTCODE_ROLE_PROMPT: role.prompt,
+              LIGHTCODE_SQUAD_DIR: role.squadDir
+            }
+          : {})
       }
     })
     this.ptys.set(paneId, proc)

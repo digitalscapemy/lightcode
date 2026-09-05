@@ -25,9 +25,14 @@ describe('readChangelog', () => {
    * on, which is what makes it worth pinning.
    */
   it('parses a CRLF checkout identically to an LF one', () => {
-    const crlf = source.replace(/\r?\n/g, '\r\n')
-    expect(crlf).not.toBe(source) // the fixture must actually differ
-    expect(readChangelog(crlf)).toEqual(readChangelog(source))
+    // Both fixtures are built from a normalised copy rather than from the
+    // file as it sits on disk. Reading it raw meant the two were identical on
+    // a Windows checkout — where the file is already CRLF — so the very test
+    // written to catch a Windows-only bug failed on Windows and nowhere else.
+    const lf = source.replace(/\r\n/g, '\n')
+    const crlf = lf.replace(/\n/g, '\r\n')
+    expect(crlf).not.toBe(lf) // the fixture must actually differ
+    expect(readChangelog(crlf)).toEqual(readChangelog(lf))
   })
 
   it('survives a checkout with no trailing newline', () => {

@@ -1,9 +1,10 @@
 import { execFileSync } from 'child_process'
 import { app } from 'electron'
-import { existsSync, mkdirSync, writeFileSync } from 'fs'
+import { existsSync, mkdirSync } from 'fs'
 import { homedir } from 'os'
 import { basename, delimiter, join } from 'path'
 import { hookPaths } from './agentHooks'
+import { atomicWrite } from './instance'
 import { lcBinDir } from './lcClient'
 import { LC_SYSTEM_HINT } from '../shared/lc'
 
@@ -118,6 +119,12 @@ function posixClaudeWrapper(): string {
     '    if [ -S "$LIGHTCODE_LC_SOCKET" ] && [ -n "$LIGHTCODE_LC_HINT" ]; then',
     '      set -- --append-system-prompt "$LIGHTCODE_LC_HINT" "$@"',
     '    fi',
+    '    # The squad role, re-applied at every launch. Read from the environment',
+    '    # rather than baked in here, so restarting claude, /clear or --resume',
+    '    # cannot quietly leave a role pane with no role.',
+    '    if [ -n "$LIGHTCODE_ROLE_PROMPT" ]; then',
+    '      set -- --append-system-prompt "$LIGHTCODE_ROLE_PROMPT" "$@"',
+    '    fi',
     '    if [ -n "$LIGHTCODE_HOOK_SETTINGS" ]; then',
     '      set -- --settings "$LIGHTCODE_HOOK_SETTINGS" "$@"',
     '    fi',
@@ -141,6 +148,9 @@ function psClaudeWrapper(): string {
     // a unix socket is, so Windows mentions lc whenever it is installed. The
     // worst case is an agent running `lc --help` and being told it is off.
     'if ($env:LIGHTCODE_LC_HINT) { $a += \'--append-system-prompt\'; $a += $env:LIGHTCODE_LC_HINT }; ' +
+    // The squad role, re-applied at every launch — see the POSIX wrapper above.
+    'if ($env:LIGHTCODE_ROLE_PROMPT) { $a += \'--append-system-prompt\'; ' +
+    '$a += $env:LIGHTCODE_ROLE_PROMPT }; ' +
     '& $global:__lcClaudeExe @a @args } }'
   )
 }
@@ -228,10 +238,13 @@ function zshShell(file: string): ShellInfo {
       'ZDOTDIR="$LC_APP_ZDOTDIR"'
     ].join('\n')
 
-  writeFileSync(join(dir, '.zshenv'), sourceUser('.zshenv') + '\n')
-  writeFileSync(join(dir, '.zprofile'), sourceUser('.zprofile') + '\n')
-  writeFileSync(join(dir, '.zlogin'), sourceUser('.zlogin') + '\n')
-  writeFileSync(
+  // Atomic: a pane spawning while these are rewritten would otherwise source
+  // a half-written rc — a shell with no cwd reporting and no claude wrapper,
+  // and no sign that anything went wrong.
+  atomicWrite(join(dir, '.zshenv'), sourceUser('.zshenv') + '\n')
+  atomicWrite(join(dir, '.zprofile'), sourceUser('.zprofile') + '\n')
+  atomicWrite(join(dir, '.zlogin'), sourceUser('.zlogin') + '\n')
+  atomicWrite(
     join(dir, '.zshrc'),
     sourceUser('.zshrc') +
       '\n' +
@@ -262,7 +275,7 @@ function bashShell(file: string): ShellInfo {
   const dir = join(app.getPath('userData'), 'shell-integration', 'bash')
   mkdirSync(dir, { recursive: true })
   const rc = join(dir, 'lc-bashrc.sh')
-  writeFileSync(
+  atomicWrite(
     rc,
     [
       '[ -f /etc/profile ] && . /etc/profile',

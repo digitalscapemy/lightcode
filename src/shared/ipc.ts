@@ -1,4 +1,5 @@
 import type { LcRequest, LcResponse } from './lc'
+import type { RolesResult } from './roles'
 import type {
   PersistedState,
   ShortcutsConfig,
@@ -17,6 +18,7 @@ export const IPC = {
   PtyClaudeActive: 'pty:claude-active',
   StateLoad: 'state:load',
   StateSave: 'state:save',
+  StateOwned: 'state:owned',
   ShortcutsLoad: 'shortcuts:load',
   ShortcutsSave: 'shortcuts:save',
   ShortcutsImport: 'shortcuts:import',
@@ -40,6 +42,9 @@ export const IPC = {
   GitWorktreeRemove: 'git:worktree-remove',
   GitWorktreePrune: 'git:worktree-prune',
   GitBranchDelete: 'git:branch-delete',
+  GitTree: 'git:tree',
+  GitSquadPrepare: 'git:squad-prepare',
+  RolesList: 'roles:list',
   LcRequest: 'lc:request',
   LcReply: 'lc:reply',
   LcSetEnabled: 'lc:set-enabled',
@@ -54,6 +59,26 @@ export interface SpawnOptions {
   cwd: string
   cols: number
   rows: number
+  /**
+   * Squad role for this pane, if it has one.
+   *
+   * Carried in the pty's environment rather than only on the first `claude`
+   * command, because a role that rides the command line evaporates the moment
+   * the agent or the user restarts claude, runs /clear, or resumes a session —
+   * leaving a pane that still wears its role chip while having forgotten the
+   * job. In the environment, the generated `claude` wrapper re-applies it at
+   * every launch, for the life of the pane.
+   */
+  role?: PaneRole
+}
+
+/** What a pane is told about the role it holds. See shared/roles.ts. */
+export interface PaneRole {
+  id: string
+  /** The assembled system prompt: the squad contract plus this role's brief. */
+  prompt: string
+  /** Where this squad leaves its reports, shared by every pane in it. */
+  squadDir: string
 }
 
 export interface SpawnResult {
@@ -139,6 +164,50 @@ export interface GitInfo {
   untracked: number
   /** A linked worktree rather than the repository itself. */
   worktree: boolean
+}
+
+/**
+ * One branch, as the git tree panel shows it.
+ *
+ * Everything here is read with plumbing commands and nothing is inferred. The
+ * counts are against the base branch rather than an upstream: this app is local
+ * git only, and "ahead of main" is the question a fan-out actually raises,
+ * where "ahead of origin/main" is a question about a remote nobody asked about.
+ */
+export interface GitBranchRow {
+  branch: string
+  head: string
+  /** First line of the tip commit's message. */
+  subject: string
+  /** Tip commit date, ISO 8601, for a relative label in the panel. */
+  when: string
+  /** Commits this branch has that the base does not. */
+  ahead: number
+  /** Commits the base has that this branch does not. */
+  behind: number
+  /** The linked worktree checked out on it, when there is one. */
+  worktreePath: string | null
+  /** Tracked changes in that worktree. Null when no worktree holds the branch. */
+  dirty: boolean | null
+  /** Untracked entries there, counted as `git status` counts them. */
+  untracked: number | null
+}
+
+/** Every branch in one repository, measured against one base. */
+export interface GitTree {
+  /** The repository itself, never a linked worktree. */
+  root: string
+  /** main, master, or whatever origin/HEAD points at. */
+  base: string
+  rows: GitBranchRow[]
+  /**
+   * A merge is half-finished somewhere in the repository's own checkout.
+   *
+   * Integrate stops on this rather than pressing on: the next merge would run
+   * against a conflicted tree, and the honest place to finish the first one is
+   * the terminal it was started in.
+   */
+  mergeInProgress: boolean
 }
 
 export type WorktreeAddResult =
@@ -231,6 +300,13 @@ export interface LightClaudeApi {
     save(state: PersistedState): Promise<void>
     onFlushRequest(cb: () => void): void
     flushDone(): void
+    /**
+     * False when another running Light Code owns state.json and this window's
+     * layout is therefore not being remembered. Mission Control says so; a
+     * window that quietly stopped saving its tabs is worse than one that admits
+     * it. See main/stateStore.ts.
+     */
+    owned(): Promise<boolean>
   }
   usage: {
     onUpdate(cb: (update: UsageUpdate) => void): () => void
@@ -254,6 +330,14 @@ export interface LightClaudeApi {
     pruneWorktrees(cwd: string): Promise<void>
     /** `git branch -d`: refuses anything holding commits of its own. */
     deleteBranch(cwd: string, branch: string): Promise<BranchDeleteResult>
+    /** Every branch measured against the base. Read-only; no diff, no merge. */
+    tree(cwd: string): Promise<GitTree | null>
+    /** Make the folder a squad shares, beside the repo. Null if not in one. */
+    prepareSquad(cwd: string, task: string): Promise<string | null>
+  }
+  roles: {
+    /** Built-in squad roles, with `.lightcode/roles.json` applied when present. */
+    list(cwd: string): Promise<RolesResult>
   }
   shortcuts: {
     load(): Promise<ShortcutsConfig>

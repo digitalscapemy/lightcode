@@ -21,13 +21,16 @@ export interface AppState {
   activeTabId: string | null
   focusedPaneId: string | null
   fontSize: number
+  /** The git tree panel is docked open. Closed until asked for, and remembered. */
+  gitPanelOpen: boolean
 }
 
 export const state: AppState = {
   tabs: [],
   activeTabId: null,
   focusedPaneId: null,
-  fontSize: FONT_SIZE_DEFAULT
+  fontSize: FONT_SIZE_DEFAULT,
+  gitPanelOpen: false
 }
 
 /** Latest Claude activity state per pane (ephemeral — never persisted). */
@@ -106,7 +109,8 @@ function serialize(): PersistedState {
     version: 1,
     activeTabId: state.activeTabId,
     tabs: state.tabs,
-    fontSize: state.fontSize
+    fontSize: state.fontSize,
+    gitPanelOpen: state.gitPanelOpen
   }
 }
 

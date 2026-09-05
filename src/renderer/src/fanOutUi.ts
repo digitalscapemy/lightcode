@@ -16,33 +16,46 @@ import type { LayoutNode } from '../../shared/types'
 
 
 /**
- * Create the worktrees, then a tab of panes sitting in them.
+ * Create several worktrees, or none at all.
  *
- * Worktrees are created one at a time on purpose: `git worktree add` writes the
- * index, and two of them at once race for its lock.
+ * One at a time on purpose: `git worktree add` writes the index, and two of
+ * them at once race for its lock. Shared with the squad, which has exactly the
+ * same requirement — two copies of this loop would be two chances to forget
+ * why it is serial.
+ *
+ * All-or-nothing on purpose too. The ones already made are seconds old and have
+ * never been written to, so forcing them away is safe here in a way it never is
+ * for a worktree the user has been working in — and half a fan-out left behind
+ * is worse than either outcome.
  */
-export async function runFanOut(
+export async function createWorktreesSerially(
   cwd: string,
-  req: FanOutRequest
-): Promise<{ pane: string; branch: string }[] | null> {
-  const names = branchNamesFor(req.task, req.count)
+  names: string[]
+): Promise<string[] | null> {
   const created: string[] = []
-
   for (const name of names) {
     const result = await window.lightclaude.git.addWorktree(cwd, name)
     if (result.ok) {
       created.push(result.path)
       continue
     }
-    // Undo the ones already made. They are seconds old and have never been
-    // written to, so forcing is safe here in a way it never is for the user's
-    // own worktrees — and leaving half a fan-out behind is worse than either.
     for (const path of created) {
       await window.lightclaude.git.removeWorktree(cwd, path, true)
     }
     await alertDialog(`Could not create ${name}: ${result.error}`)
     return null
   }
+  return created
+}
+
+/** Create the worktrees, then a tab of panes sitting in them. */
+export async function runFanOut(
+  cwd: string,
+  req: FanOutRequest
+): Promise<{ pane: string; branch: string }[] | null> {
+  const names = branchNamesFor(req.task, req.count)
+  const created = await createWorktreesSerially(cwd, names)
+  if (created === null) return null
 
   const preset = LAYOUT_PRESETS.find((p) => p.id === layoutIdFor(req.count))
   if (!preset) return null

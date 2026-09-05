@@ -24,6 +24,8 @@ let composeInput: HTMLInputElement
 let sendBtn: HTMLButtonElement
 let countEl: HTMLElement
 let ticker: number | null = null
+/** Held so closing actually stops repainting a panel that no longer exists. */
+let unsubscribe: (() => void) | null = null
 /** Broadcast selection — persists across the live re-renders. */
 const selected = new Set<string>()
 
@@ -36,7 +38,7 @@ export function openMission(): void {
   if (overlay) return
   build()
   ticker = window.setInterval(render, 1000)
-  onBabysitterChange(render)
+  unsubscribe = onBabysitterChange(render)
   render()
 }
 
@@ -45,7 +47,8 @@ function closeMission(): void {
     window.clearInterval(ticker)
     ticker = null
   }
-  onBabysitterChange(() => {})
+  unsubscribe?.()
+  unsubscribe = null
   document.removeEventListener('keydown', onKeydown, { capture: true })
   overlay?.remove()
   overlay = null
@@ -80,6 +83,18 @@ function build(): void {
   close.addEventListener('click', closeMission)
   header.append(title, close)
   modal.appendChild(header)
+
+  // Whether this window is the one remembering its layout. Said out loud
+  // because the failure is otherwise invisible: a second Light Code used to
+  // overwrite the first one's tabs on quit, and nothing anywhere admitted it.
+  void window.lightclaude.state.owned().then((owned) => {
+    if (owned || !overlay) return
+    const note = document.createElement('div')
+    note.className = 'mission-note'
+    note.textContent =
+      'Layout is not being saved — another Light Code window owns it. Everything else works normally.'
+    header.after(note)
+  })
 
   // Selection toolbar for broadcast targeting.
   const toolbar = document.createElement('div')

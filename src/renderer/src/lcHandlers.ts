@@ -72,6 +72,7 @@ function describe(from: string | undefined): LcPane[] {
         cwd: node.cwd ?? tab.projectPath,
         branch: git?.branch ?? null,
         worktree: git?.worktree ?? false,
+        role: node.role?.id ?? null,
         self: node.id === from
       })
     }

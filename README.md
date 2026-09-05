@@ -92,8 +92,43 @@ with keeping them as a plain choice rather than something you have to know about
 One tab's × tidies a whole fan-out at once and leaves behind anything that still
 has work in it.
 
-There is no diff viewer, no merge button and no "pick the winner" screen. You have
-`git`, it is already better at all three, and it is already what you know.
+There is no diff viewer and no "pick the winner" screen. You have `git`, it is
+already better at both, and it is already what you know. There is now one merge
+button — see the git tree below — and it does not merge anything itself.
+
+### ⚠️ It tells you when two agents share a folder
+
+Worktrees only help if you remember to use one, and auto mode is exactly when
+nobody is watching. So when two panes sit in the same working tree and at least
+one of them is running unattended, both headers show an amber chip saying so and
+naming the fix.
+
+It **warns and nothing more**. No dialog, no confirmation, no refusal. Working
+four panes in one folder by hand is a perfectly good way to work — often the
+right one, when the agents are reading rather than writing — and a tool that
+argues about it has decided it knows your job better than you do. Click the chip
+and it stays gone for the life of that pane.
+
+### 🌲 A git tree, docked beside the panes
+
+`Mod+Shift+G` opens a panel listing every branch in the repository: how far each
+has moved from `main`, which have uncommitted work, and **which pane is sitting
+in each one**. That last column is the point — it is what turns "four branches"
+into "these four terminals". Click a row to jump to its pane.
+
+It refreshes when a shell draws its prompt, the same signal the pane headers use,
+so it is current the moment a command finishes rather than a second later.
+
+A branch that is ahead of `main` offers **Integrate**. It types
+`git merge --no-ff <branch>` into the pane that is on `main`, and then leaves it
+alone. The app does not run the merge, and that is deliberate: the command, the
+output, the conflict and the resolution were always git's, and what was missing
+was only remembering which branch, in which pane, in which order. So the app
+supplies that and your terminal supplies the rest — which means you can watch it,
+interrupt it, and find it in your shell history afterwards.
+
+It refuses rather than guesses: no pane on `main`, uncommitted work in that pane,
+or a half-finished merge already sitting there, and it says which and stops.
 
 ### 🔀 Fan one task out to several agents
 The button that follows from the last one. Give it a task name, a number, and a
@@ -107,13 +142,58 @@ you like, merge it with `git`.
 The prompt travels as an argument to `claude` rather than being typed in after it
 opens, so nothing has to guess when the agent is ready to hear it.
 
+### 🎼 A squad: one orchestrator, several specialists
+
+Fan-out gives you several agents *competing* on one task. A squad gives you
+several agents doing *different jobs* on one task: an orchestrator directing a
+developer, a UI/UX reviewer, a devops engineer and a security reviewer, each in
+its own pane, each told what it is for.
+
+The orchestrator edits nothing. It delegates through `lc`, waits for each agent
+to finish its turn, and reads what came back.
+
+**Only the roles that write code get a branch**, and that is the decision the
+whole thing rests on. Five roles with five branches would be five diverging
+branches nobody asked for. So the developer and the devops engineer each get a
+worktree; the reviewers read the code and write their findings as files, which
+means they cannot conflict with anything, and there is nothing of theirs to merge.
+
+**Results come back as files, not as terminal output.** This is not a detail:
+`lc read` returns what is *drawn on a pane's screen*, and for a Claude session
+that is its interface, not its answer. An orchestrator that scrapes screens is
+unreliable by construction. Every role writes its result into a shared squad
+folder beside the repository, and the orchestrator reads that.
+
+A role's brief rides in its pane's environment rather than on the command line,
+so it survives the agent restarting `claude`, running `/clear`, or resuming a
+session. A pane still wearing its role badge while having forgotten the job would
+be the worst of both.
+
+The five are built in, and any repository can replace them with its own
+`.lightcode/roles.json`:
+
+```json
+[
+  { "id": "developer", "label": "Developer", "emoji": "⌨️",
+    "writes": true, "prompt": "You own the implementation on this branch." },
+  { "id": "dba", "label": "DBA", "emoji": "🗄",
+    "writes": false, "prompt": "Review schema and query changes only." }
+]
+```
+
+`writes` is the field that matters: `true` earns a worktree and a branch, `false`
+means read and report. It lives in the repository rather than in app settings
+because a Rails app and an embedded firmware tree do not want the same five
+terminals — and there it is versioned, reviewed, and shared with everyone who
+clones it. A file that cannot be used is reported rather than ignored.
+
 ### 🔌 `lc` — let an agent drive the cockpit
 The buttons above are things you press. `lc` is the same actions available to an
 agent, so Claude can open panes, send work to them, wait for it, and read what
 came back — without your hands.
 
 ```
-lc ls                      every pane; * marks the one you are in
+lc ls                      every pane, with its role; * marks the one you are in
 lc send <pane> "<text>"    type into a pane
 lc read <pane> --tail 50   what is on its screen
 lc wait <pane...> --for idle | exit
@@ -475,6 +555,42 @@ overwritten one another. Read them, keep the one you like, merge it with `git`.
 less, finish sooner, and are far easier to read side by side — which is the whole point of
 running several.
 
+### Running a squad
+
+The button between fan-out and Mission Control — a conductor and three players.
+It asks for three things:
+
+| | |
+| --- | --- |
+| **Task name** | names the branches and the squad folder — `rate-limiting` |
+| **Roles** | all ticked by default; the orchestrator cannot be unticked |
+| **Brief** | goes to the orchestrator, which decides who does what |
+
+You get one tab: the orchestrator in the large pane, the specialists beside it.
+Only the roles that write code have a worktree of their own — the reviewers sit
+in the repository, read it, and write findings into
+`<project>-worktrees/<task>-squad/reports/`.
+
+Then talk to the orchestrator pane. It can see the others (`lc ls` shows each
+pane's role), give them work, wait for them, and read their reports. **The agent
+CLI must be on** for any of that — `Mod+Shift+M`, then **Agent CLI** — because
+without it the orchestrator has no way to reach the panes it is meant to direct.
+
+To use your own roles, put a `.lightcode/roles.json` in the repository. See the
+[squad feature section](#-a-squad-one-orchestrator-several-specialists) for the
+shape; `writes: true` is what earns a role a branch.
+
+### Watching the branches
+
+`Mod+Shift+G` docks the git tree on the right: every branch, how far ahead of
+`main` it is, whether its worktree is dirty, and which pane is in it. Click a row
+to jump to that pane. The panel stays where you left it between restarts.
+
+Hovering a branch that is ahead of `main` reveals **Integrate**, which types the
+merge into the pane sitting on `main`. It does not press Enter on your behalf for
+anything else, and it will tell you why it cannot rather than doing something
+approximate — merging into a dirty tree is how work disappears.
+
 ### Letting Claude drive the panes
 
 Everything above is a button you press. `lc` hands the same actions to the agent.
@@ -489,7 +605,7 @@ they're done"*. Claude is told the command exists in one sentence pointing at `l
 so you never have to explain it. What it has:
 
 ```
-lc ls                                  every pane, with status and branch
+lc ls                                  every pane, with status, role and branch
 lc read <pane> [--tail N]              recent output, oldest line first
 lc send <pane> <text> [--no-enter]     type into a pane
 lc close <pane>                        close a pane (worktrees are kept)
@@ -514,6 +630,7 @@ back, tell the agents to write it to a file and have the reader open that.
 | `Ctrl+Shift+T` | `⌘+Shift+T` | New terminal tab |
 | `Ctrl+Shift+W` | `⌘+Shift+W` | Close focused pane |
 | `Ctrl+Shift+M` | `⌘+Shift+M` | Mission Control |
+| `Ctrl+Shift+G` | `⌘+Shift+G` | Git tree panel |
 | `Ctrl+Shift+J` | `⌘+Shift+J` | Jump to the pane that needs you |
 | `Ctrl+C` (or `Ctrl+Shift+C`) | `⌘+C` | Copy the selection — sends `^C` when nothing is selected |
 | `Ctrl+V` | `⌘+V` | Paste text — or clipboard image as a file path |

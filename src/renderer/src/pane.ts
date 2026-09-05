@@ -3,13 +3,16 @@ import { FitAddon } from '@xterm/addon-fit'
 import { WebglAddon } from '@xterm/addon-webgl'
 import { isBabysitterOn, toggleBabysitter } from './babysitter'
 import { alertDialog, confirmDialog, promptDialog } from './confirmDialog'
+import { dismissCoexist, isCoexistDismissed } from './coexist'
 import { MOD_LABEL, isAppShortcut } from './keys'
 import { shellArgs } from './paths'
 import { state } from './store'
 import { xtermTheme } from './theme'
 
 import { branchNameError, pendingWorkWarning } from '../../shared/git'
-import type { GitInfo, PaneStatus } from '../../shared/ipc'
+import type { GitInfo, PaneRole, PaneStatus } from '../../shared/ipc'
+import { roleById, rolePrompt } from '../../shared/roles'
+import type { PaneNodeRole } from '../../shared/types'
 import type { Orientation } from '../../shared/types'
 
 const STATUS_LABEL: Record<PaneStatus, string> = {
@@ -97,6 +100,8 @@ export class TerminalPane {
   private statusEl: HTMLElement
   private usageEl: HTMLElement
   private gitEl: HTMLElement
+  private warnEl: HTMLElement
+  private roleEl: HTMLElement
   /**
    * Marks a pane something drove through `lc` rather than a person typing.
    *
@@ -127,7 +132,9 @@ export class TerminalPane {
   constructor(
     readonly id: string,
     readonly cwd: string,
-    private callbacks: PaneCallbacks
+    private callbacks: PaneCallbacks,
+    /** Squad role, when this pane was opened as part of one. */
+    readonly role: PaneNodeRole | null = null
   ) {
     this.liveCwd = cwd
     this.el = document.createElement('div')
@@ -148,6 +155,21 @@ export class TerminalPane {
     this.gitEl = document.createElement('span')
     this.gitEl.className = 'pane-git'
     this.gitEl.hidden = true
+    this.roleEl = document.createElement('span')
+    this.roleEl.className = 'pane-role'
+    this.roleEl.hidden = true
+
+    // Two agents in one folder. A chip rather than a dialog, and clicking it
+    // makes it go away for good — see coexist.ts on why this never blocks.
+    this.warnEl = document.createElement('span')
+    this.warnEl.className = 'pane-warn'
+    this.warnEl.textContent = '⚠ shared folder'
+    this.warnEl.hidden = true
+    this.warnEl.addEventListener('click', (e) => {
+      e.stopPropagation()
+      dismissCoexist(this.id)
+      this.warnEl.hidden = true
+    })
     this.drivenEl = document.createElement('span')
     this.drivenEl.className = 'pane-driven'
     this.drivenEl.hidden = true
@@ -188,7 +210,9 @@ export class TerminalPane {
     })
     header.append(
       this.titleEl,
+      this.roleEl,
       this.drivenEl,
+      this.warnEl,
       this.gitEl,
       this.statusEl,
       this.usageEl,
@@ -669,6 +693,22 @@ export class TerminalPane {
     ].join(' ')
   }
 
+  /**
+   * Show or clear the shared-working-tree warning.
+   *
+   * A pane that dismissed it never shows it again, even if the situation
+   * recurs: the dismissal is the user saying they know, and asking twice is how
+   * a warning becomes noise.
+   */
+  setCoexistWarning(text: string | null): void {
+    if (text === null || isCoexistDismissed(this.id)) {
+      this.warnEl.hidden = true
+      return
+    }
+    this.warnEl.hidden = false
+    this.warnEl.title = text
+  }
+
   /** What git last said about this pane, for `lc ls`. */
   gitSnapshot(): GitInfo | null {
     return this.git
@@ -811,7 +851,8 @@ export class TerminalPane {
         paneId: this.id,
         cwd: this.cwd,
         cols: this.term.cols,
-        rows: this.term.rows
+        rows: this.term.rows,
+        ...(this.role ? { role: await this.resolveRole(this.role) } : {})
       })
       if (result.cwdFallback) {
         this.write(`\x1b[33mProject folder not found — opened in ${result.cwd}\x1b[0m\r\n`)
@@ -821,6 +862,32 @@ export class TerminalPane {
       if (text) text.textContent = 'Failed to start terminal'
       this.loading?.querySelector('.spinner')?.remove()
     }
+  }
+
+  /**
+   * Turn the role id this pane remembers into the prompt its agent is given.
+   *
+   * Resolved at spawn rather than stored, so a repository whose roles.json has
+   * changed since the squad was created gets the role as it is written now.
+   * A role id that no longer exists yields a prompt saying only which role it
+   * was meant to be, which is honest: inventing a brief for a role the project
+   * has deleted would be worse than admitting the definition is gone.
+   */
+  private async resolveRole(role: PaneNodeRole): Promise<PaneRole> {
+    let prompt = `You hold the "${role.id}" role in a Light Code squad, but this project no longer defines it. Say so before doing any work.`
+    try {
+      const { roles } = await window.lightclaude.roles.list(this.cwd)
+      const found = roleById(roles, role.id)
+      if (found) {
+        prompt = rolePrompt(found)
+        this.roleEl.hidden = false
+        this.roleEl.textContent = `${found.emoji} ${found.label}`
+        this.roleEl.title = `Squad role: ${found.label}${found.writes ? '' : ' — reads and reports, does not edit code'}`
+      }
+    } catch {
+      // main is gone; the pane still opens, just without a brief
+    }
+    return { id: role.id, prompt, squadDir: role.squadDir }
   }
 
   write(data: string): void {

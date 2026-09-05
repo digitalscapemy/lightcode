@@ -10,7 +10,7 @@
  */
 
 /** Bumped when a field changes meaning. The CLI refuses a server it cannot read. */
-export const LC_PROTOCOL = 1
+export const LC_PROTOCOL = 2
 
 /**
  * Socket filename inside userData: `lc-<pid>.sock`, one per running instance.
@@ -70,6 +70,14 @@ export interface LcPane {
   branch: string | null
   /** True when this pane sits in a linked worktree rather than the repo. */
   worktree: boolean
+  /**
+   * Squad role this pane holds, or null for an ordinary terminal.
+   *
+   * The orchestrator's whole job is deciding who to give a piece of work to,
+   * and without this it would have to infer that from branch names — which are
+   * a convention it cannot verify and a plain pane does not follow at all.
+   */
+  role: string | null
   /** This is the pane `lc` was run from — do not send yourself commands. */
   self: boolean
 }
