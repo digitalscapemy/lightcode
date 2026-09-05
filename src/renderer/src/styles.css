@@ -1651,6 +1651,15 @@ body.tab-dragging * {
   overflow: hidden;
 }
 
+/* Required, not belt-and-braces: an id selector setting `display` outranks the
+   browser's own `[hidden] { display: none }`, so without this the panel is
+   permanently on screen while the code that fills it correctly believes it is
+   hidden and declines to load anything. #empty-state above carries the same
+   companion rule for the same reason. */
+#git-panel[hidden] {
+  display: none;
+}
+
 .git-panel-header {
   display: flex;
   align-items: center;
