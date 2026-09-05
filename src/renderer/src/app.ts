@@ -56,6 +56,11 @@ const paneCallbacks: PaneCallbacks = {
     if (tab) lastFocusedInTab.set(tab.id, paneId)
     document.querySelectorAll('.pane.focused').forEach((p) => p.classList.remove('focused'))
     panes.get(paneId)?.el.classList.add('focused')
+    // The git tree describes whichever pane has the focus, so moving the focus
+    // is a change of subject. Without this it kept describing the pane you left
+    // until the one you arrived at happened to draw a prompt — which, in a pane
+    // sitting idle at a shell, is never.
+    refreshGitTree()
   },
   onSplit: (paneId, orientation, before) => void splitAt(paneId, orientation, before),
   onToggleMaximize: (paneId) => toggleMaximizePane(paneId),
