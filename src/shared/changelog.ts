@@ -10,7 +10,7 @@ export const DEVELOPER = 'Digital Scape MY'
 export const CHANGELOG: ChangelogEntry[] = [
   {
     version: '0.5.0',
-    date: '2026-09-05',
+    date: '2026-09-06',
     notes: [
       'Four panes on one folder, all running unattended, will quietly overwrite each other. Worktrees have always been the answer to that, but nothing connected the two, and auto mode is precisely when nobody is watching. A pane now says so: when it shares a working tree with another pane and at least one of them is on auto, an amber chip appears in both headers naming the fix. It warns and nothing more — no dialog, no refusal. Working several panes in one folder by hand is a perfectly good way to work, often the right one, and a tool that argues with you about it has decided it knows your job better than you do. Click the chip and it is gone for the life of that pane.',
       'A git tree panel, on Ctrl/Cmd+Shift+G, docked beside the panes rather than over them. Every branch in the repository, how far each has moved from main, which ones have uncommitted work, and — the column that makes it worth having — which terminal is sitting in each one. That is what turns "four branches" into "these four panes". It is a read view: still no diff viewer, because that is an editor’s job and this is a terminal.',
