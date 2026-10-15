@@ -1675,18 +1675,65 @@ body.tab-dragging * {
   color: var(--fg-muted);
 }
 
-.git-panel-close {
-  background: none;
-  border: none;
-  color: var(--fg-muted);
-  cursor: pointer;
-  font-size: 14px;
-  line-height: 1;
-  padding: 0 2px;
+.git-panel-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
 }
 
-.git-panel-close:hover {
+.git-panel-btn {
+  background: none;
+  border: none;
+  border-radius: 4px;
+  color: var(--fg-muted);
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1;
+  padding: 2px 4px;
+}
+
+.git-panel-btn:hover:not(:disabled) {
   color: var(--fg);
+  background: var(--bg-raised, rgba(255, 255, 255, 0.06));
+}
+
+.git-panel-btn:disabled {
+  cursor: default;
+}
+
+/* Only the fetch button spins, and only while git is actually talking to the
+   remote — the one wait here long enough to need saying. */
+.git-panel-btn.spinning {
+  animation: git-spin 0.9s linear infinite;
+}
+
+@keyframes git-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.git-panel-chip {
+  margin: 0 2px;
+  padding: 1px 5px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: none;
+  color: var(--fg-muted);
+  cursor: pointer;
+  font-size: 9px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.git-panel-chip.on {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.git-panel-close {
+  font-size: 14px;
+  padding: 0 2px;
 }
 
 .git-panel-body {
@@ -1708,6 +1755,50 @@ body.tab-dragging * {
 .git-panel-note {
   color: #d29922;
   border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.git-note-text {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.git-note-btn {
+  flex: 0 0 auto;
+  padding: 1px 8px;
+  border: 1px solid currentColor;
+  border-radius: 8px;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+  font-size: 10px;
+}
+
+/* The branches nobody has checked out: folded under the worktrees, because
+   they are the rarer thing to go looking for. */
+.git-section-header {
+  display: block;
+  width: 100%;
+  padding: 8px 10px;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  background: none;
+  color: var(--fg-muted);
+  cursor: pointer;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-align: left;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.git-section-header:hover {
+  color: var(--fg);
 }
 
 .git-row {
@@ -1751,11 +1842,52 @@ body.tab-dragging * {
   flex: 0 0 auto;
 }
 
-.git-row-counts {
+.git-row-badge {
+  flex: 0 0 auto;
+  padding: 0 4px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--fg-muted);
+  font-size: 9px;
+}
+
+.git-row-badge-warn {
+  color: #d29922;
+  border-color: #d29922;
+}
+
+/* A worktree whose folder is gone is only a record; it reads as one. */
+.git-row-missing .git-row-branch,
+.git-row-missing .git-row-meta {
+  opacity: 0.6;
+}
+
+.git-row-right {
   margin-left: auto;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+
+.git-row-counts {
   font-size: 11px;
   color: var(--fg-muted);
   flex: 0 0 auto;
+}
+
+.git-row-upstream {
+  font-size: 11px;
+  color: var(--fg-muted);
+}
+
+/* Unpushed or unpulled work is the thing to act on, so it takes the accent. */
+.git-row-upstream-pending {
+  color: var(--accent);
+}
+
+.git-row-upstream-warn {
+  color: #d29922;
 }
 
 .git-row-meta {
@@ -1767,12 +1899,27 @@ body.tab-dragging * {
   text-overflow: ellipsis;
 }
 
-/* Hidden until the row is hovered: every branch that is ahead would otherwise
-   carry a button, and a column of them reads as a wall of things to press. */
-.git-row-action {
+/* Hidden until the row is hovered: every worktree would otherwise carry three
+   buttons, and a column of them reads as a wall of things to press. */
+.git-row-actions {
   position: absolute;
   right: 8px;
-  bottom: 6px;
+  bottom: 4px;
+  display: flex;
+  gap: 4px;
+  padding-left: 8px;
+  background: var(--bg-panel);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.git-row:hover .git-row-actions,
+.git-row:focus-within .git-row-actions {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.git-row-action {
   font-size: 10px;
   padding: 1px 8px;
   border-radius: 8px;
@@ -1780,11 +1927,6 @@ body.tab-dragging * {
   background: var(--bg-panel);
   color: var(--fg-muted);
   cursor: pointer;
-  opacity: 0;
-}
-
-.git-row:hover .git-row-action {
-  opacity: 1;
 }
 
 .git-row-action:hover {

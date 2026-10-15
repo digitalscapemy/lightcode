@@ -109,17 +109,35 @@ right one, when the agents are reading rather than writing — and a tool that
 argues about it has decided it knows your job better than you do. Click the chip
 and it stays gone for the life of that pane.
 
-### 🌲 A git tree, docked beside the panes
+### 🌲 Every worktree, docked beside the panes
 
-`Mod+Shift+G` opens a panel listing every branch in the repository: how far each
-has moved from `main`, which have uncommitted work, and **which pane is sitting
-in each one**. That last column is the point — it is what turns "four branches"
-into "these four terminals". Click a row to jump to its pane.
+`Mod+Shift+G` opens a panel listing every worktree of the repository — its own
+checkout first, then each linked one: the branch it holds, whether it has
+uncommitted work, how far it has moved from `main`, whether it has reached
+GitHub, and **which pane is sitting in it**. That last column is the point — it
+is what turns "four worktrees" into "these four terminals". Click a row to jump
+to its pane, or to open one there if nothing is. Branches no worktree holds are
+folded away underneath, each with **Open worktree**.
+
+- `↑2 ↓1` is against `main`. `⇡2 ⇣1` is against the remote branch it tracks,
+  `local` means it was never pushed, and `gone` means the remote branch was
+  deleted — merged and cleaned up, usually.
+- **⟳** fetches (`git fetch --all --prune`). While the panel is open it also
+  fetches on its own every five minutes; the **auto** chip switches that off. A
+  fetch that fails — offline, or credentials needed — says so in a note and
+  nothing else stops working. It never asks for a password.
+- **Pull** and **Push** type `git pull --ff-only` / `git push` (or
+  `git push -u origin HEAD` for a branch never pushed) into that worktree's own
+  pane, so a conflict or a login prompt lands where you can deal with it. A pane
+  with Claude running in it is not typed into; a fresh one opens beside it.
+- **+** makes a new worktree, **Remove** takes one away (the branch stays, and it
+  lists any file that would be lost first), and **Prune** clears the record of a
+  worktree whose folder was deleted by hand.
 
 It refreshes when a shell draws its prompt, the same signal the pane headers use,
 so it is current the moment a command finishes rather than a second later.
 
-A branch that is ahead of `main` offers **Integrate**. It types
+A worktree that is ahead of `main` offers **Integrate**. It types
 `git merge --no-ff <branch>` into the pane that is on `main`, and then leaves it
 alone. The app does not run the merge, and that is deliberate: the command, the
 output, the conflict and the resolution were always git's, and what was missing

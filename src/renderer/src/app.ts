@@ -319,15 +319,19 @@ export async function splitAt(
   orientation: Orientation,
   before: boolean,
   /** Overrides the inherited directory — a worktree opens in its own copy. */
-  intoCwd?: string
-): Promise<void> {
+  intoCwd?: string,
+  /** Typed at the new shell's first prompt. See store.pendingCommand. */
+  command?: string
+): Promise<string | null> {
   const tab = tabOfPane(targetPaneId)
-  if (!tab) return
+  if (!tab) return null
   maximizedPane.delete(tab.id) // splitting always restores the grid
   // A new split opens where the source pane currently is, not the tab root.
   const srcCwd = intoCwd ?? paneNodes(tab.layout).find((p) => p.id === targetPaneId)?.cwd
   const newPaneId = newId('p')
   tab.layout = splitPane(tab.layout, targetPaneId, orientation, newPaneId, before)
+  // Queued before the spawn, so the first prompt cannot be drawn ahead of it.
+  if (command !== undefined) pendingCommand.set(newPaneId, command)
 
   const pane = createPane(newPaneId, srcCwd ?? tab.projectPath)
   const view = tabViews.get(tab.id)!
@@ -338,6 +342,7 @@ export async function splitAt(
   if (tab.id === state.activeTabId) pane.attachWebgl()
   pane.focus()
   persist()
+  return newPaneId
 }
 
 /** The preset whose shape the active tab currently has, if any. */
@@ -768,6 +773,7 @@ export async function restore(persisted: PersistedState): Promise<void> {
   // Before any pane is built — TerminalPane reads state.fontSize at construction.
   if (persisted.fontSize) state.fontSize = clampFontSize(persisted.fontSize)
   state.gitPanelOpen = persisted.gitPanelOpen ?? false
+  state.gitAutoFetch = persisted.gitAutoFetch ?? true
   for (const tab of persisted.tabs) {
     await createTab({
       id: tab.id,

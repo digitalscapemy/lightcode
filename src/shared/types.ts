@@ -59,6 +59,12 @@ export interface PersistedState {
   fontSize?: number
   /** Git tree panel docked open. Absent on pre-0.5 state, which means closed. */
   gitPanelOpen?: boolean
+  /**
+   * The git panel fetches from the remote every few minutes while it is open.
+   * Absent means on: it only ever reads the remote, and a panel that says
+   * "in sync" about a remote it last saw yesterday is worse than one that asks.
+   */
+  gitAutoFetch?: boolean
 }
 
 /** `function <name> { Set-Location -LiteralPath '<path>' }` */

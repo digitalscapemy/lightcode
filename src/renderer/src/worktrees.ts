@@ -1,6 +1,7 @@
-import { alertDialog, choiceDialog } from './confirmDialog'
+import { alertDialog, choiceDialog, confirmDialog } from './confirmDialog'
 import { paneNodes } from './splitTree'
 import { state } from './store'
+import { pendingWorkWarning } from '../../shared/git'
 
 /**
  * Deciding what to do with a worktree when its window onto the repository is
@@ -66,6 +67,48 @@ export async function askRemove(found: Worktree[]): Promise<'remove' | 'keep' | 
   )
   if (choice === null) return 'cancel'
   return choice === 0 ? 'keep' : 'remove'
+}
+
+/**
+ * Remove one worktree, asking before anything in it is lost. True when it went.
+ *
+ * The first attempt never forces, so nothing is deleted before the removal has
+ * been described. What comes back is the list of files at stake, and that list
+ * is the question: "uncommitted changes" was too vague to survive contact with
+ * a header saying clean, and the one case where being vague costs something
+ * irreplaceable — an untracked file, on no branch and in no commit — is
+ * exactly the case the old wording described worst.
+ *
+ * Shared by the pane menu and the git panel, so the question is worded the same
+ * wherever it is asked. The branch survives either way.
+ */
+export async function removeWorktreeAsking(cwd: string, worktreePath: string): Promise<boolean> {
+  const first = await window.lightclaude.git.removeWorktree(cwd, worktreePath, false)
+  if (first.ok) return true
+  if (!first.needsForce) {
+    await alertDialog(first.error ?? 'Could not remove the worktree.')
+    return false
+  }
+  const pending = first.pending
+  const doomed = pending ? pending.modified.length + pending.untracked.length : 0
+  // The button carries the count too. "Delete anyway" invites the reading that
+  // the app is being over-careful and can be waved past; a button that says
+  // how many files it deletes cannot be pressed by someone who believes there
+  // are none. Only reached without a list when git refused over something the
+  // status read could not see, and then git's own sentence is all there is.
+  const forced = await confirmDialog(
+    (pending && pendingWorkWarning(pending)) ??
+      'Removing this worktree deletes the folder and everything in it. ' +
+        `git says: ${first.error ?? 'it still holds work'}`,
+    doomed > 0 ? `Delete ${doomed} file${doomed === 1 ? '' : 's'}` : 'Delete anyway'
+  )
+  if (!forced) return false
+  const second = await window.lightclaude.git.removeWorktree(cwd, worktreePath, true)
+  if (!second.ok) {
+    await alertDialog(second.error ?? 'Could not remove the worktree.')
+    return false
+  }
+  return true
 }
 
 /**

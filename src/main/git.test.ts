@@ -6,9 +6,11 @@ import { beforeAll, describe, expect, it } from 'vitest'
 import { branchNameError, pendingWorkWarning } from '../shared/git'
 import {
   addWorktree,
+  checkoutWorktree,
   defaultBranch,
   deleteBranch,
   divergence,
+  fetchRemotes,
   gitErrorMessage,
   gitInfo,
   gitTree,
@@ -16,6 +18,8 @@ import {
   listWorktrees,
   mergeInProgress,
   parsePorcelain,
+  parseTrack,
+  primaryRemote,
   pruneWorktrees,
   removeWorktree,
   worktreeDirFor
@@ -608,23 +612,181 @@ describe('the git tree, against real git', () => {
     run(['checkout', '-q', 'main'])
   })
 
-  it.skipIf(!gitPresent)('assembles a tree that names the base and every branch', async () => {
+  it.skipIf(!gitPresent)('assembles a tree of worktrees, with the rest of the branches below', async () => {
     const tree = await gitTree(repo)
     expect(tree).not.toBeNull()
     if (tree === null) return
     expect(tree.base).toBe('main')
     expect(tree.mergeInProgress).toBe(false)
-    const feature = tree.rows.find((r) => r.branch === 'feature')
-    expect(feature).toMatchObject({ ahead: 2, behind: 0, worktreePath: null })
-    // No worktree holds it, so there is no working tree to call clean or dirty
-    // — saying "clean" would imply one exists.
-    expect(feature?.dirty).toBeNull()
-    const main = tree.rows.find((r) => r.branch === 'main')
-    samePath(main?.worktreePath, repo)
-    expect(main?.dirty).toBe(false)
+    // No remote, so nothing to fetch and nothing to say about GitHub.
+    expect(tree.remote).toBeNull()
+    expect(tree.lastFetch).toBeNull()
+
+    // The repository's own checkout, first and marked as such.
+    const [main] = tree.worktrees
+    samePath(main?.path, repo)
+    expect(main).toMatchObject({ branch: 'main', isMain: true, dirty: false, prunable: false })
+
+    // Nobody has feature checked out, so it is a branch row and not a worktree.
+    expect(tree.worktrees.some((w) => w.branch === 'feature')).toBe(false)
+    const feature = tree.branches.find((r) => r.branch === 'feature')
+    expect(feature).toMatchObject({ ahead: 2, behind: 0, upstream: null })
+  })
+
+  it.skipIf(!gitPresent)('moves a branch into the worktree list once one holds it', async () => {
+    const opened = await checkoutWorktree(repo, 'feature')
+    expect(opened.ok).toBe(true)
+    if (!opened.ok) return
+    samePath(opened.path, worktreeDirFor(repo, 'feature'))
+    try {
+      const tree = await gitTree(repo)
+      const row = tree?.worktrees.find((w) => w.branch === 'feature')
+      samePath(row?.path, opened.path)
+      expect(row).toMatchObject({ isMain: false, ahead: 2, dirty: false, untracked: 0 })
+      expect(tree?.branches.some((b) => b.branch === 'feature')).toBe(false)
+    } finally {
+      await removeWorktree(repo, opened.path, true)
+    }
+  })
+
+  it.skipIf(!gitPresent)('refuses to check out a branch that does not exist', async () => {
+    const result = await checkoutWorktree(repo, 'no-such-branch')
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error).toMatch(/no-such-branch/)
+  })
+
+  it.skipIf(!gitPresent)('reads a detached and a locked worktree', async () => {
+    const path = worktreeDirFor(repo, 'detached-one')
+    run(['worktree', 'add', '--detach', path, 'main'])
+    run(['worktree', 'lock', path])
+    try {
+      const record = (await listWorktrees(repo)).find((r) => r.branch === null && r.locked)
+      expect(record?.head).toMatch(/^[0-9a-f]{40}$/)
+      const row = (await gitTree(repo))?.worktrees.find((w) => w.branch === null)
+      expect(row).toMatchObject({ locked: true, subject: 'init' })
+    } finally {
+      run(['worktree', 'unlock', path])
+      run(['worktree', 'remove', '--force', path])
+    }
   })
 
   it.skipIf(!gitPresent)('gives nothing at all outside a repository', async () => {
     expect(await gitTree(tempDir('lc-notrepo-'))).toBeNull()
+  })
+})
+
+describe('parseTrack', () => {
+  it.each([
+    ['ahead 2, behind 1', { ahead: 2, behind: 1, gone: false }],
+    ['ahead 3', { ahead: 3, behind: 0, gone: false }],
+    ['behind 4', { ahead: 0, behind: 4, gone: false }],
+    ['gone', { ahead: 0, behind: 0, gone: true }],
+    // Level with the upstream, or no upstream at all: git prints nothing.
+    ['', { ahead: 0, behind: 0, gone: false }]
+  ])('reads %j', (text, expected) => {
+    expect(parseTrack(text)).toEqual(expected)
+  })
+})
+
+/**
+ * Sync with a remote, against the real binary and a bare repository on disk.
+ *
+ * A local bare repository stands in for GitHub: it speaks the same protocol to
+ * `fetch` and `push`, and a test that needed the network would fail on a plane.
+ */
+describe('the remote side of the tree, against real git', () => {
+  let gitPresent = true
+  let origin = ''
+  let repo = ''
+  let other = ''
+
+  const run = (args: string[], cwd: string): void => {
+    execFileSync('git', ['-c', 'user.email=t@example.com', '-c', 'user.name=t', ...args], {
+      cwd,
+      stdio: 'ignore'
+    })
+  }
+  const commit = (cwd: string, file: string): void => {
+    writeFileSync(join(cwd, file), `${file}\n`)
+    run(['add', '.'], cwd)
+    run(['commit', '-qm', file], cwd)
+  }
+
+  beforeAll(() => {
+    try {
+      execFileSync('git', ['--version'], { stdio: 'ignore' })
+    } catch {
+      gitPresent = false
+      return
+    }
+    const base = tempDir('lc-remote-')
+    origin = join(base, 'origin.git')
+    repo = join(base, 'repo')
+    other = join(base, 'other')
+    execFileSync('git', ['init', '-q', '--bare', '-b', 'main', origin], { stdio: 'ignore' })
+    execFileSync('git', ['init', '-q', '-b', 'main', repo], { stdio: 'ignore' })
+    commit(repo, 'a.txt')
+    run(['remote', 'add', 'origin', origin], repo)
+    run(['push', '-q', '-u', 'origin', 'main'], repo)
+    execFileSync('git', ['clone', '-q', origin, other], { stdio: 'ignore' })
+  })
+
+  it.skipIf(!gitPresent)('names the remote and starts level with it', async () => {
+    const tree = await gitTree(repo)
+    expect(tree?.remote).toBe('origin')
+    expect(tree?.worktrees[0]).toMatchObject({
+      upstream: 'origin/main',
+      upstreamAhead: 0,
+      upstreamBehind: 0,
+      upstreamGone: false
+    })
+  })
+
+  it.skipIf(!gitPresent)('counts a commit not pushed yet', async () => {
+    commit(repo, 'local.txt')
+    expect((await gitTree(repo))?.worktrees[0]?.upstreamAhead).toBe(1)
+    run(['push', '-q'], repo)
+    expect((await gitTree(repo))?.worktrees[0]?.upstreamAhead).toBe(0)
+  })
+
+  it.skipIf(!gitPresent)('sees someone else\'s push only after a fetch', async () => {
+    run(['pull', '-q'], other)
+    commit(other, 'theirs.txt')
+    run(['push', '-q'], other)
+    // Nothing local knows yet — which is the reason the panel fetches.
+    expect((await gitTree(repo))?.worktrees[0]?.upstreamBehind).toBe(0)
+    expect(await fetchRemotes(repo)).toEqual({ ok: true })
+    const tree = await gitTree(repo)
+    expect(tree?.worktrees[0]?.upstreamBehind).toBe(1)
+    expect(tree?.lastFetch).not.toBeNull()
+  })
+
+  it.skipIf(!gitPresent)('says gone once the remote branch is deleted and pruned', async () => {
+    run(['checkout', '-q', '-b', 'topic'], repo)
+    commit(repo, 'topic.txt')
+    run(['push', '-q', '-u', 'origin', 'topic'], repo)
+    run(['checkout', '-q', 'main'], repo)
+    execFileSync('git', ['branch', '-D', 'topic'], { cwd: origin, stdio: 'ignore' })
+    await fetchRemotes(repo)
+    const topic = (await gitTree(repo))?.branches.find((b) => b.branch === 'topic')
+    expect(topic?.upstreamGone).toBe(true)
+  })
+
+  it.skipIf(!gitPresent)('reports a fetch that cannot reach its remote, without hanging', async () => {
+    run(['remote', 'add', 'broken', join(origin, '..', 'nowhere.git')], repo)
+    try {
+      const result = await fetchRemotes(repo)
+      expect(result.ok).toBe(false)
+      expect(result.error).toBeTruthy()
+    } finally {
+      run(['remote', 'remove', 'broken'], repo)
+    }
+  })
+
+  it.skipIf(!gitPresent)('knows a repository with no remote has none', async () => {
+    const lone = join(tempDir('lc-lone-'), 'repo')
+    execFileSync('git', ['init', '-q', '-b', 'main', lone], { stdio: 'ignore' })
+    commit(lone, 'x.txt')
+    expect(await primaryRemote(lone)).toBeNull()
   })
 })

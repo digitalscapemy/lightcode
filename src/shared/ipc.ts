@@ -43,6 +43,8 @@ export const IPC = {
   GitWorktreePrune: 'git:worktree-prune',
   GitBranchDelete: 'git:branch-delete',
   GitTree: 'git:tree',
+  GitWorktreeCheckout: 'git:worktree-checkout',
+  GitFetch: 'git:fetch',
   GitSquadPrepare: 'git:squad-prepare',
   RolesList: 'roles:list',
   LcRequest: 'lc:request',
@@ -167,39 +169,73 @@ export interface GitInfo {
 }
 
 /**
- * One branch, as the git tree panel shows it.
+ * Where a branch stands, locally and on the remote.
  *
- * Everything here is read with plumbing commands and nothing is inferred. The
- * counts are against the base branch rather than an upstream: this app is local
- * git only, and "ahead of main" is the question a fan-out actually raises,
- * where "ahead of origin/main" is a question about a remote nobody asked about.
+ * Everything here is read with plumbing commands and nothing is inferred. Two
+ * measurements, because they answer two different questions: `ahead`/`behind`
+ * are against the base branch ("has this reached main yet"), and the upstream
+ * counts are against the remote branch it tracks ("has this reached GitHub
+ * yet"), as of the last fetch.
  */
-export interface GitBranchRow {
+export interface GitBranchState {
+  /** Commits this branch has that the base does not. */
+  ahead: number
+  /** Commits the base has that this branch does not. */
+  behind: number
+  /** The remote branch it tracks, `origin/feat`. Null when it was never pushed. */
+  upstream: string | null
+  /** Commits not pushed yet. */
+  upstreamAhead: number
+  /** Commits on the remote not pulled yet, as of the last fetch. */
+  upstreamBehind: number
+  /** It tracks a remote branch that has since been deleted. */
+  upstreamGone: boolean
+}
+
+/** A branch no worktree is sitting in, listed below the worktrees. */
+export interface GitBranchRow extends GitBranchState {
   branch: string
   head: string
   /** First line of the tip commit's message. */
   subject: string
   /** Tip commit date, ISO 8601, for a relative label in the panel. */
   when: string
-  /** Commits this branch has that the base does not. */
-  ahead: number
-  /** Commits the base has that this branch does not. */
-  behind: number
-  /** The linked worktree checked out on it, when there is one. */
-  worktreePath: string | null
-  /** Tracked changes in that worktree. Null when no worktree holds the branch. */
+}
+
+/** One checkout of the repository — its own, or a linked worktree. */
+export interface GitWorktreeRow extends GitBranchState {
+  path: string
+  /** Branch checked out there, or null on a detached HEAD. */
+  branch: string | null
+  head: string
+  subject: string
+  when: string
+  /** Tracked changes there. Null when the folder is gone and cannot be read. */
   dirty: boolean | null
   /** Untracked entries there, counted as `git status` counts them. */
   untracked: number | null
+  /** The repository's own checkout rather than a linked worktree. */
+  isMain: boolean
+  /** Locked with `git worktree lock`; git will not remove it. */
+  locked: boolean
+  /** Its folder has been deleted; only git's record of it is left. */
+  prunable: boolean
 }
 
-/** Every branch in one repository, measured against one base. */
+/** Every worktree of one repository, and the branches none of them hold. */
 export interface GitTree {
   /** The repository itself, never a linked worktree. */
   root: string
   /** main, master, or whatever origin/HEAD points at. */
   base: string
-  rows: GitBranchRow[]
+  /** The remote fetched from and pushed to. Null when the repository has none. */
+  remote: string | null
+  /** When anything last fetched here, ISO 8601. Null if nothing ever has. */
+  lastFetch: string | null
+  /** The repository's own checkout first, then linked worktrees, newest first. */
+  worktrees: GitWorktreeRow[]
+  /** Local branches no worktree has checked out, newest first. */
+  branches: GitBranchRow[]
   /**
    * A merge is half-finished somewhere in the repository's own checkout.
    *
@@ -213,6 +249,12 @@ export interface GitTree {
 export type WorktreeAddResult =
   | { ok: true; path: string; branch: string }
   | { ok: false; error: string }
+
+export interface FetchResult {
+  ok: boolean
+  /** git's own sentence: offline, authentication refused, remote not found. */
+  error?: string
+}
 
 export interface BranchDeleteResult {
   ok: boolean
@@ -330,8 +372,12 @@ export interface LightClaudeApi {
     pruneWorktrees(cwd: string): Promise<void>
     /** `git branch -d`: refuses anything holding commits of its own. */
     deleteBranch(cwd: string, branch: string): Promise<BranchDeleteResult>
-    /** Every branch measured against the base. Read-only; no diff, no merge. */
+    /** Every worktree and branch, against the base and the remote. Read-only. */
     tree(cwd: string): Promise<GitTree | null>
+    /** `git worktree add` for a branch that already exists. */
+    checkoutWorktree(cwd: string, branch: string): Promise<WorktreeAddResult>
+    /** `git fetch --all --prune`, never prompting for credentials. */
+    fetch(cwd: string): Promise<FetchResult>
     /** Make the folder a squad shares, beside the repo. Null if not in one. */
     prepareSquad(cwd: string, task: string): Promise<string | null>
   }

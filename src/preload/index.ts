@@ -75,6 +75,9 @@ const api: LightClaudeApi = {
     deleteBranch: (cwd: string, branch: string) =>
       ipcRenderer.invoke(IPC.GitBranchDelete, cwd, branch),
     tree: (cwd: string) => ipcRenderer.invoke(IPC.GitTree, cwd),
+    checkoutWorktree: (cwd: string, branch: string) =>
+      ipcRenderer.invoke(IPC.GitWorktreeCheckout, cwd, branch),
+    fetch: (cwd: string) => ipcRenderer.invoke(IPC.GitFetch, cwd),
     prepareSquad: (cwd: string, task: string) =>
       ipcRenderer.invoke(IPC.GitSquadPrepare, cwd, task)
   },

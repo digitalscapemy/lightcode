@@ -9,7 +9,9 @@ import type { PersistedState, ShortcutsConfig } from '../shared/types'
 import { HookWatcher, installHookAssets, sweepDeadHookDirs } from './agentHooks'
 import {
   addWorktree,
+  checkoutWorktree,
   deleteBranch,
+  fetchRemotes,
   gitInfo,
   gitTree,
   prepareSquad,
@@ -106,6 +108,12 @@ function registerIpc(): void {
   // The git tree panel: read-only, and refreshed on the same shell-prompt
   // signal the pane header uses rather than on a timer of its own.
   ipcMain.handle(IPC.GitTree, (_e, cwd: string) => gitTree(cwd))
+  ipcMain.handle(IPC.GitWorktreeCheckout, (_e, cwd: string, branch: string) =>
+    checkoutWorktree(cwd, branch)
+  )
+  // The only network call the app makes itself. Fetching changes no branch and
+  // no file; pull and push are typed into a pane instead.
+  ipcMain.handle(IPC.GitFetch, (_e, cwd: string) => fetchRemotes(cwd))
   ipcMain.handle(IPC.GitSquadPrepare, (_e, cwd: string, task: string) =>
     prepareSquad(cwd, task)
   )

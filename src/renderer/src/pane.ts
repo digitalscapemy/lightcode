@@ -2,14 +2,15 @@ import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { WebglAddon } from '@xterm/addon-webgl'
 import { isBabysitterOn, toggleBabysitter } from './babysitter'
-import { alertDialog, confirmDialog, promptDialog } from './confirmDialog'
+import { alertDialog, promptDialog } from './confirmDialog'
 import { dismissCoexist, isCoexistDismissed } from './coexist'
 import { MOD_LABEL, isAppShortcut } from './keys'
 import { shellArgs } from './paths'
 import { state } from './store'
 import { xtermTheme } from './theme'
+import { removeWorktreeAsking } from './worktrees'
 
-import { branchNameError, pendingWorkWarning } from '../../shared/git'
+import { branchNameError } from '../../shared/git'
 import type { GitInfo, PaneRole, PaneStatus } from '../../shared/ipc'
 import { roleById, rolePrompt } from '../../shared/roles'
 import type { PaneNodeRole } from '../../shared/types'
@@ -447,17 +448,8 @@ export class TerminalPane {
   }
 
   /**
-   * Remove the worktree this pane sits in.
-   *
-   * The first attempt never forces, so nothing is deleted before the removal has
-   * been described. What comes back is the list of files at stake, and that list
-   * is the question: "uncommitted changes" was too vague to survive contact with
-   * a header saying clean, and the one case where being vague costs something
-   * irreplaceable — an untracked file, on no branch and in no commit — is
-   * exactly the case the old wording described worst.
-   *
-   * The branch survives either way: removing a worktree is not abandoning it.
-   * That is worth saying, and worth not saying alone.
+   * Remove the worktree this pane sits in, and close the pane once it is gone.
+   * The asking — and the list of files at stake — lives in removeWorktreeAsking.
    */
   private async removeWorktree(): Promise<void> {
     // Inside a linked worktree, git's toplevel IS that worktree's directory —
@@ -465,35 +457,9 @@ export class TerminalPane {
     // to remove it while we are standing in it (verified: `worktree remove .`).
     const worktreePath = this.git?.root
     if (!worktreePath) return
-    const first = await window.lightclaude.git.removeWorktree(this.liveCwd, worktreePath, false)
-    if (first.ok) {
+    if (await removeWorktreeAsking(this.liveCwd, worktreePath)) {
       this.callbacks.onCloseRequest(this.id)
-      return
     }
-    if (!first.needsForce) {
-      await alertDialog(first.error ?? 'Could not remove the worktree.')
-      return
-    }
-    const pending = first.pending
-    const doomed = pending ? pending.modified.length + pending.untracked.length : 0
-    // The button carries the count too. "Delete anyway" invites the reading that
-    // the app is being over-careful and can be waved past; a button that says
-    // how many files it deletes cannot be pressed by someone who believes there
-    // are none. Only reached without a list when git refused over something the
-    // status read could not see, and then git's own sentence is all there is.
-    const forced = await confirmDialog(
-      (pending && pendingWorkWarning(pending)) ??
-        'Removing this worktree deletes the folder and everything in it. ' +
-          `git says: ${first.error ?? 'it still holds work'}`,
-      doomed > 0 ? `Delete ${doomed} file${doomed === 1 ? '' : 's'}` : 'Delete anyway'
-    )
-    if (!forced) return
-    const second = await window.lightclaude.git.removeWorktree(this.liveCwd, worktreePath, true)
-    if (!second.ok) {
-      await alertDialog(second.error ?? 'Could not remove the worktree.')
-      return
-    }
-    this.callbacks.onCloseRequest(this.id)
   }
 
   /** Account/project quick-picker, built from the saved shortcuts. */

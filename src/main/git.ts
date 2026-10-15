@@ -1,13 +1,15 @@
 import { execFile } from 'child_process'
-import { mkdir } from 'fs/promises'
+import { mkdir, stat } from 'fs/promises'
 import { basename, dirname, join } from 'path'
 import { promisify } from 'util'
 import { branchNameError } from '../shared/git'
 import type {
   BranchDeleteResult,
+  FetchResult,
   GitBranchRow,
   GitInfo,
   GitTree,
+  GitWorktreeRow,
   PendingWork,
   WorktreeAddResult,
   WorktreeRemoveResult
@@ -24,9 +26,16 @@ import type {
  * There is deliberately no diff view, no merge UI and no "pick the winner"
  * button. Those belong to an editor, and this is a terminal: `git` is already
  * installed, already better at it, and already what the user knows.
+ *
+ * The one network operation it runs itself is `fetch`, because fetching only
+ * updates what the app can *see* of the remote and changes no branch and no
+ * file. Pull and push do change things, so those are typed into a pane where
+ * their output, their prompts and their refusals stay in front of the user.
  */
 
 const exec = promisify(execFile)
+/** The field separator the -z and %00 formats below emit. */
+const NUL = String.fromCharCode(0)
 /** Long enough for a cold index on a large repository, short enough to fail. */
 const TIMEOUT_MS = 10_000
 
@@ -53,9 +62,34 @@ export function gitErrorMessage(stderr: string, fallback: string): string {
   return (reason ?? fallback).replace(/^(fatal|error):\s*/i, '').trim() || fallback
 }
 
-async function git(cwd: string, args: string[]): Promise<{ out: string; error: string | null }> {
+/** Long enough for a slow remote over a bad connection, short enough to give up. */
+const NETWORK_TIMEOUT_MS = 60_000
+
+interface GitOptions {
+  /**
+   * The command talks to a remote. It gets the longer timeout, and it is told
+   * never to ask for credentials: a fetch runs in the background every few
+   * minutes with no terminal attached, and a prompt nobody can see would sit
+   * there until the timeout — or, with Git Credential Manager, pop a login
+   * window over whatever the user was doing. Failing and saying so is better.
+   */
+  network?: boolean
+}
+
+async function git(
+  cwd: string,
+  args: string[],
+  opts: GitOptions = {}
+): Promise<{ out: string; error: string | null }> {
   try {
-    const { stdout } = await exec('git', args, { cwd, timeout: TIMEOUT_MS, windowsHide: true })
+    const { stdout } = await exec('git', args, {
+      cwd,
+      timeout: opts.network ? NETWORK_TIMEOUT_MS : TIMEOUT_MS,
+      windowsHide: true,
+      ...(opts.network
+        ? { env: { ...process.env, GIT_TERMINAL_PROMPT: '0', GCM_INTERACTIVE: 'never' } }
+        : {})
+    })
     return { out: stdout, error: null }
   } catch (err) {
     const stderr = (err as { stderr?: string }).stderr ?? ''
@@ -237,6 +271,37 @@ export async function addWorktree(cwd: string, name: string): Promise<WorktreeAd
 }
 
 /**
+ * Give a branch that already exists a worktree of its own.
+ *
+ * The other half of addWorktree: that one makes a new branch, this one checks
+ * out a branch nobody is sitting in — the "Open worktree" on a row of the
+ * panel's branch list. Beside the repository, in the same folder, for the same
+ * reasons. git refuses a branch already checked out elsewhere, and says where.
+ */
+export async function checkoutWorktree(cwd: string, branch: string): Promise<WorktreeAddResult> {
+  const nameError = branchNameError(branch)
+  if (nameError !== null) return { ok: false, error: nameError }
+
+  const info = await gitInfo(cwd)
+  if (!info.repo || info.mainRoot === null) {
+    return { ok: false, error: 'This pane is not inside a git repository.' }
+  }
+
+  const exists = await git(info.mainRoot, [
+    'rev-parse',
+    '--verify',
+    '--quiet',
+    `refs/heads/${branch}`
+  ])
+  if (exists.error !== null) return { ok: false, error: `There is no branch named ${branch}.` }
+
+  const path = worktreeDirFor(info.mainRoot, branch)
+  const { error } = await git(info.mainRoot, ['worktree', 'add', path, branch])
+  if (error !== null) return { ok: false, error }
+  return { ok: true, path, branch }
+}
+
+/**
  * Remove a worktree. Without `force`, anything still in it stops the removal and
  * comes back named, for the caller to put in front of the user. The branch is
  * left alone either way: removing a worktree is not abandoning it.
@@ -333,8 +398,14 @@ export async function deleteBranch(cwd: string, branch: string): Promise<BranchD
 /** One linked worktree, as `git worktree list --porcelain` describes it. */
 export interface WorktreeRecord {
   path: string
+  /** Commit checked out there. Empty only for a bare repository's entry. */
+  head: string
   /** Branch checked out there, or null when the checkout is detached. */
   branch: string | null
+  /** `git worktree lock`ed: git refuses to remove or prune it. */
+  locked: boolean
+  /** Its folder is gone; the record is only waiting for `worktree prune`. */
+  prunable: boolean
 }
 
 /**
@@ -348,12 +419,10 @@ export async function listWorktrees(cwd: string): Promise<WorktreeRecord[]> {
   const { out, error } = await git(cwd, ['worktree', 'list', '--porcelain'])
   if (error !== null) return []
   const records: WorktreeRecord[] = []
-  let path: string | null = null
-  let branch: string | null = null
+  let current: WorktreeRecord | null = null
   const flush = (): void => {
-    if (path !== null) records.push({ path, branch })
-    path = null
-    branch = null
+    if (current !== null) records.push(current)
+    current = null
   }
   for (const line of out.split('\n')) {
     const text = line.trimEnd()
@@ -363,14 +432,55 @@ export async function listWorktrees(cwd: string): Promise<WorktreeRecord[]> {
     }
     if (text.startsWith('worktree ')) {
       flush()
-      path = text.slice('worktree '.length)
-    } else if (text.startsWith('branch ')) {
-      // Printed as a full ref; the panel and the pane header both speak short names.
-      branch = text.slice('branch '.length).replace(/^refs\/heads\//, '')
+      current = {
+        path: text.slice('worktree '.length),
+        head: '',
+        branch: null,
+        locked: false,
+        prunable: false
+      }
+      continue
     }
+    if (current === null) continue
+    // `locked` and `prunable` may carry a reason after a space, or stand alone.
+    const [key] = text.split(' ', 1)
+    if (key === 'HEAD') current.head = text.slice('HEAD '.length)
+    else if (key === 'branch') {
+      // Printed as a full ref; the panel and the pane header both speak short names.
+      current.branch = text.slice('branch '.length).replace(/^refs\/heads\//, '')
+    } else if (key === 'locked') current.locked = true
+    else if (key === 'prunable') current.prunable = true
   }
   flush()
   return records
+}
+
+/** Where a branch stands against the remote branch it tracks. */
+export interface TrackState {
+  ahead: number
+  behind: number
+  /** It tracks a remote branch that no longer exists — deleted after a merge, usually. */
+  gone: boolean
+}
+
+/**
+ * Read `%(upstream:track,nobracket)`.
+ *
+ * git prints `ahead 2, behind 1`, either half alone, `gone`, or nothing at all
+ * when the two are level. Read from the same for-each-ref that lists the
+ * branches, so thirty branches cost no extra processes — and measured against
+ * the last fetch, which is exactly as current as the remote is ever known to be.
+ */
+export function parseTrack(text: string): TrackState {
+  const trimmed = text.trim()
+  if (trimmed === 'gone') return { ahead: 0, behind: 0, gone: true }
+  const ahead = /ahead (\d+)/.exec(trimmed)
+  const behind = /behind (\d+)/.exec(trimmed)
+  return {
+    ahead: ahead ? Number(ahead[1]) : 0,
+    behind: behind ? Number(behind[1]) : 0,
+    gone: false
+  }
 }
 
 /** One local branch and its tip, before it is measured against anything. */
@@ -379,6 +489,9 @@ export interface BranchRecord {
   head: string
   subject: string
   when: string
+  /** The remote branch it tracks, `origin/feat`, or null when it tracks none. */
+  upstream: string | null
+  track: TrackState
 }
 
 /**
@@ -392,16 +505,23 @@ export async function listBranches(cwd: string): Promise<BranchRecord[]> {
   const { out, error } = await git(cwd, [
     'for-each-ref',
     '--sort=-committerdate',
-    '--format=%(refname:short)%00%(objectname)%00%(committerdate:iso-strict)%00%(contents:subject)%00%0a',
+    '--format=%(refname:short)%00%(objectname)%00%(committerdate:iso-strict)%00%(upstream:short)%00%(upstream:track,nobracket)%00%(contents:subject)%00%0a',
     'refs/heads'
   ])
   if (error !== null) return []
   const rows: BranchRecord[] = []
-  for (const record of out.split('\u0000\n')) {
+  for (const record of out.split(NUL + '\n')) {
     if (record.trim() === '') continue
-    const [branch, head, when, subject] = record.replace(/^\n/, '').split('\u0000')
+    const [branch, head, when, upstream, track, subject] = record.replace(/^\n/, '').split(NUL)
     if (!branch || !head) continue
-    rows.push({ branch, head, subject: subject ?? '', when: when ?? '' })
+    rows.push({
+      branch,
+      head,
+      subject: subject ?? '',
+      when: when ?? '',
+      upstream: upstream ? upstream : null,
+      track: parseTrack(track ?? '')
+    })
   }
   return rows
 }
@@ -409,10 +529,11 @@ export async function listBranches(cwd: string): Promise<BranchRecord[]> {
 /**
  * How far apart two branches are: commits each has that the other has not.
  *
- * Measured against the base branch rather than an upstream. This app is local
- * git only, and "ahead of main" is the question a fan-out raises — "ahead of
- * origin/main" is a question about a remote nobody has been asked about, and
- * would read as zero on a repository that has never been pushed.
+ * This is the local half of the picture — "has this worktree's work reached
+ * main yet" — and it stays local on purpose. The remote half, "has it reached
+ * GitHub", comes from the upstream tracking on each branch instead, because a
+ * repository that has never been pushed has no origin/main to measure against
+ * and would read as zero.
  */
 export async function divergence(
   cwd: string,
@@ -471,8 +592,74 @@ export async function mergeInProgress(cwd: string): Promise<boolean> {
 }
 
 /**
- * The whole picture: every branch, where it is checked out, and how far it has
- * moved from the base.
+ * The remote the panel fetches from and pushes to: origin when there is one,
+ * otherwise whichever remote exists, and null for a repository never connected
+ * to anything — which the panel shows by not offering to sync at all.
+ */
+export async function primaryRemote(cwd: string): Promise<string | null> {
+  const { out, error } = await git(cwd, ['remote'])
+  if (error !== null) return null
+  const names = out
+    .split('\n')
+    .map((l) => l.trim())
+    .filter(Boolean)
+  if (names.includes('origin')) return 'origin'
+  return names[0] ?? null
+}
+
+/**
+ * When this repository last fetched, from FETCH_HEAD's modification time.
+ *
+ * git keeps no other record of it, and FETCH_HEAD is rewritten by every fetch
+ * whoever ran it — this app, a `git pull` in a pane, an IDE — so it answers the
+ * question actually being asked: how stale is what we know about the remote.
+ */
+export async function lastFetchTime(cwd: string): Promise<string | null> {
+  const { out, error } = await git(cwd, [
+    'rev-parse',
+    '--path-format=absolute',
+    '--git-path',
+    'FETCH_HEAD'
+  ])
+  if (error !== null) return null
+  try {
+    return (await stat(out.trim())).mtime.toISOString()
+  } catch {
+    return null // never fetched
+  }
+}
+
+/**
+ * Bring the app's picture of every remote up to date.
+ *
+ * `--prune` so a branch deleted on GitHub after its PR merged stops being
+ * tracked here too, which is what lets the panel say "upstream gone" rather
+ * than go on counting commits against a ref that no longer exists anywhere.
+ * Changes no local branch and no file.
+ */
+export async function fetchRemotes(cwd: string): Promise<FetchResult> {
+  const info = await gitInfo(cwd)
+  if (!info.repo || info.mainRoot === null) {
+    return { ok: false, error: 'This pane is not inside a git repository.' }
+  }
+  const { error } = await git(info.mainRoot, ['fetch', '--all', '--prune', '--quiet'], {
+    network: true
+  })
+  return error === null ? { ok: true } : { ok: false, error }
+}
+
+/** Subject and date of whatever a detached checkout is sitting on. */
+async function commitSummary(cwd: string): Promise<{ subject: string; when: string }> {
+  const { out, error } = await git(cwd, ['log', '-1', '--format=%s%x00%cI'])
+  if (error !== null) return { subject: '', when: '' }
+  const [subject, when] = out.trim().split(NUL)
+  return { subject: subject ?? '', when: when ?? '' }
+}
+
+/**
+ * The whole picture: every worktree of the repository, what it holds, how far
+ * its branch has moved from the base and from GitHub — and every branch that no
+ * worktree holds, below them.
  *
  * Returns null when the directory is not in a repository, which the panel shows
  * as nothing rather than as an error — a terminal sitting in a plain folder has
@@ -486,37 +673,88 @@ export async function gitTree(cwd: string): Promise<GitTree | null> {
   const base = await defaultBranch(root)
   if (base === null) return null
 
-  const [branches, worktrees] = await Promise.all([listBranches(root), listWorktrees(root)])
-  const byBranch = new Map<string, string>()
-  for (const w of worktrees) if (w.branch !== null) byBranch.set(w.branch, w.path)
+  const [branches, records, remote, lastFetch, merging] = await Promise.all([
+    listBranches(root),
+    listWorktrees(root),
+    primaryRemote(root),
+    lastFetchTime(root),
+    mergeInProgress(root)
+  ])
+  const byName = new Map(branches.map((b) => [b.branch, b]))
+  const held = new Set<string>()
 
   // In parallel, and that is not premature. This runs whenever a shell prompt
   // renders; a repository with thirty branches would otherwise spawn sixty git
   // processes one after another while the panel sat there empty.
-  const rows: GitBranchRow[] = await Promise.all(
-    branches.map(async (b): Promise<GitBranchRow> => {
-      const worktreePath = byBranch.get(b.branch) ?? null
-      const [counts, pending] = await Promise.all([
-        divergence(root, base, b.branch),
-        // Only asked of a checkout that exists: a branch nobody has checked out
-        // has no working tree to be dirty, and saying "clean" would imply one.
-        worktreePath === null ? Promise.resolve(null) : pendingWork(worktreePath)
+  const worktrees: GitWorktreeRow[] = await Promise.all(
+    records.map(async (w, index): Promise<GitWorktreeRow> => {
+      const b = w.branch === null ? undefined : byName.get(w.branch)
+      if (w.branch !== null) held.add(w.branch)
+      const [counts, pending, summary] = await Promise.all([
+        w.branch === null ? { ahead: 0, behind: 0 } : divergence(root, base, w.branch),
+        // A folder that is gone has no status to read, and asking git to run in
+        // it would fail anyway; saying "clean" would imply the folder exists.
+        w.prunable ? Promise.resolve(null) : pendingWork(w.path),
+        b !== undefined || w.prunable
+          ? Promise.resolve({ subject: b?.subject ?? '', when: b?.when ?? '' })
+          : commitSummary(w.path)
       ])
       return {
-        branch: b.branch,
-        head: b.head,
-        subject: b.subject,
-        when: b.when,
+        path: w.path,
+        branch: w.branch,
+        head: w.head,
+        subject: summary.subject,
+        when: summary.when,
         ahead: counts.ahead,
         behind: counts.behind,
-        worktreePath,
+        upstream: b?.upstream ?? null,
+        upstreamAhead: b?.track.ahead ?? 0,
+        upstreamBehind: b?.track.behind ?? 0,
+        upstreamGone: b?.track.gone ?? false,
         dirty: pending === null ? null : pending.modified.length > 0,
-        untracked: pending === null ? null : pending.untracked.length
+        untracked: pending === null ? null : pending.untracked.length,
+        // git always lists the repository's own checkout first.
+        isMain: index === 0,
+        locked: w.locked,
+        prunable: w.prunable
       }
     })
   )
 
-  return { root, base, rows, mergeInProgress: await mergeInProgress(root) }
+  // The repository's own checkout stays on top — it is the anchor everything is
+  // merged into — and the rest follow the branches' newest-commit-first order.
+  const [main, ...linked] = worktrees
+  linked.sort((a, b) => (b.when > a.when ? 1 : b.when < a.when ? -1 : 0))
+
+  const loose: GitBranchRow[] = await Promise.all(
+    branches
+      .filter((b) => !held.has(b.branch))
+      .map(async (b): Promise<GitBranchRow> => {
+        const counts = await divergence(root, base, b.branch)
+        return {
+          branch: b.branch,
+          head: b.head,
+          subject: b.subject,
+          when: b.when,
+          ahead: counts.ahead,
+          behind: counts.behind,
+          upstream: b.upstream,
+          upstreamAhead: b.track.ahead,
+          upstreamBehind: b.track.behind,
+          upstreamGone: b.track.gone
+        }
+      })
+  )
+
+  return {
+    root,
+    base,
+    remote,
+    lastFetch,
+    worktrees: main === undefined ? [] : [main, ...linked],
+    branches: loose,
+    mergeInProgress: merging
+  }
 }
 
 /**
