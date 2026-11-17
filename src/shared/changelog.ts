@@ -9,6 +9,13 @@ export const DEVELOPER = 'Digital Scape MY'
 /** Newest first. Add an entry on every release (see release procedure). */
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '1.0.3',
+    date: '2026-11-17',
+    notes: [
+      'Safer status line. Light Code now runs only the status line from your account’s own settings, never one from the .claude folder of the project a pane is in. A repo you clone can no longer get a command run this way. A status line set only for one project does not show in a Light Code pane.'
+    ]
+  },
+  {
     version: '1.0.2',
     date: '2026-11-17',
     notes: [
