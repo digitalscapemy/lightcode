@@ -7,6 +7,19 @@
       http-equiv="Content-Security-Policy"
       content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; font-src 'self' data:"
     />
+    <!-- Paint nothing until styles.css has loaded: it sets #app visible. In
+         dev the stylesheet arrives by script, after the first paint, and the
+         window used to show raw unstyled buttons for a moment. -->
+    <style>
+      html,
+      body {
+        margin: 0;
+        background: #0b0b0d;
+      }
+      #app {
+        visibility: hidden;
+      }
+    </style>
   </head>
   <body>
     <div id="app">

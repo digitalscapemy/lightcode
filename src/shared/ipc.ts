@@ -34,6 +34,7 @@ export const IPC = {
   PermissionsCheck: 'permissions:check',
   OpenSystemPage: 'app:open-system-page',
   AppVersion: 'app:version',
+  RendererReady: 'app:renderer-ready',
   UpdateCheck: 'update:check',
   UpdateDownload: 'update:download',
   UpdateAvailable: 'update:available',
@@ -498,6 +499,8 @@ export interface LightClaudeApi {
   /** Open one of a fixed set of OS settings pages, for a guide step. */
   openSystemPage(page: SystemPage): void
   appVersion(): Promise<string>
+  /** The first real screen is painted: the window may be shown. */
+  rendererReady(): void
   updates: {
     check(): Promise<UpdateCheckStatus>
     /** win32/linux: starts background download; darwin: opens the releases page. */

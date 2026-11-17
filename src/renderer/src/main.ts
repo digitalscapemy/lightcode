@@ -154,6 +154,9 @@ async function boot(): Promise<void> {
     await app.restore(persisted)
   }
   app.updateEmptyState()
+  // Two frames: one to lay the screen out, one to paint it. Then the window
+  // may be shown, with nothing half-drawn in it.
+  requestAnimationFrame(() => requestAnimationFrame(() => window.lightclaude.rendererReady()))
 
   // After restore, not before: whether the panel is docked open is part of the
   // persisted state, and initialising it earlier would read the default every

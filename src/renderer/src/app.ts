@@ -132,6 +132,8 @@ export interface CreateTabOptions {
    * callers that need to talk to the panes straight afterwards.
    */
   awaitSpawn?: boolean
+  /** Build the panes later: when the tab is first shown, or by the launch warm-up. */
+  defer?: boolean
 }
 
 export async function createTab(opts: CreateTabOptions): Promise<void> {
@@ -153,14 +155,16 @@ export async function createTab(opts: CreateTabOptions): Promise<void> {
   contentEl().appendChild(view)
   tabViews.set(tab.id, view)
 
-  for (const node of paneNodes(tab.layout)) {
-    const pane = createPane(node.id, node.cwd ?? tab.projectPath, node)
-    if (node.name) pane.setCustomName(node.name)
+  // Deferred: the tab is real (strip, state, persistence) but its terminals
+  // and shells are built when it is first shown, or by the launch warm-up.
+  if (opts.defer) {
+    deferredTabs.add(tab.id)
+    renderTabs()
+    updateEmptyState()
+    persist()
+    return
   }
-  rerender(tab)
-  // A restored orchestra needs its strip docked; a tab without one skips this.
-  if (paneNodes(tab.layout).some((n) => n.crew)) renderCrews()
-
+  buildPanes(tab)
   renderTabs()
   updateEmptyState()
   if (opts.activate !== false) activateTab(tab.id)
@@ -168,6 +172,59 @@ export async function createTab(opts: CreateTabOptions): Promise<void> {
   const spawns = paneIds(tab.layout).map((pid) => panes.get(pid)!.spawn())
   if (opts.awaitSpawn) await Promise.all(spawns)
   persist()
+}
+
+/**
+ * Tabs whose panes are not built yet. Restoring sixty terminals at launch used
+ * to build every xterm and start every shell in the same instant: the window
+ * sat black and unresponsive while sixty PowerShells loaded their profiles.
+ * Now only the visible tab is built straight away; the rest follow one at a
+ * time (warmUpDeferredTabs), or the moment one is clicked.
+ */
+const deferredTabs = new Set<string>()
+
+/** Build a deferred tab's panes and start its shells. Safe to call twice. */
+function materializeTab(tabId: string): void {
+  if (!deferredTabs.delete(tabId)) return
+  const tab = state.tabs.find((t) => t.id === tabId)
+  if (!tab) return
+  buildPanes(tab)
+  spawnStaggered(paneIds(tab.layout))
+}
+
+/**
+ * Start shells a few dozen milliseconds apart rather than all at once. On
+ * Windows each spawn is synchronous work in the main process (a ConPTY and a
+ * PowerShell); six back to back held it for a third of a second at a time
+ * during launch, so the window could not be dragged and the header felt dead.
+ */
+function spawnStaggered(ids: string[], gapMs = 45): void {
+  ids.forEach((pid, i) => {
+    window.setTimeout(() => void panes.get(pid)?.spawn(), i * gapMs)
+  })
+}
+
+/** Build the remaining deferred tabs one at a time, a beat apart. */
+function warmUpDeferredTabs(): void {
+  const next = (): void => {
+    const id = state.tabs.find((t) => deferredTabs.has(t.id))?.id
+    if (!id) return
+    materializeTab(id)
+    // A beat between tabs keeps the window responsive and spreads the shell
+    // start-ups instead of launching them all at once.
+    window.setTimeout(next, 350)
+  }
+  window.setTimeout(next, 600)
+}
+
+function buildPanes(tab: TabState): void {
+  for (const node of paneNodes(tab.layout)) {
+    const pane = createPane(node.id, node.cwd ?? tab.projectPath, node)
+    if (node.name) pane.setCustomName(node.name)
+  }
+  rerender(tab)
+  // A restored orchestra needs its strip docked; a tab without one skips this.
+  if (paneNodes(tab.layout).some((n) => n.crew)) renderCrews()
 }
 
 let defaultCwd = ''
@@ -206,6 +263,7 @@ export async function addTabViaPicker(): Promise<void> {
 }
 
 export function activateTab(tabId: string): void {
+  materializeTab(tabId)
   state.activeTabId = tabId
   for (const [id, view] of tabViews) view.style.display = id === tabId ? '' : 'none'
   renderTabs()
@@ -259,6 +317,7 @@ export function closeTab(tabId: string): void {
   }
   tabViews.get(tabId)?.remove()
   tabViews.delete(tabId)
+  deferredTabs.delete(tabId) // closed before it was ever built: nothing to start
   lastFocusedInTab.delete(tabId)
   maximizedPane.delete(tabId)
   state.tabs.splice(idx, 1)
@@ -610,7 +669,7 @@ export function closePane(paneId: string): void {
  */
 function rerender(tab: TabState): void {
   const view = tabViews.get(tab.id)
-  if (!view) return
+  if (!view || deferredTabs.has(tab.id)) return
   renderLayout(view, tab.layout, (id) => panes.get(id)!.el)
   refreshCrewLinks()
 }
@@ -1383,18 +1442,21 @@ export async function restore(persisted: PersistedState): Promise<void> {
   // Fresh shells, and no agent started in any of them: the cards say so until
   // something reports. Only crew members — a plain pane has no card.
   for (const node of nodes) if (node.crew) restoredQuiet.add(node.id)
+  const shown =
+    persisted.activeTabId && persisted.tabs.some((t) => t.id === persisted.activeTabId)
+      ? persisted.activeTabId
+      : persisted.tabs[0]?.id
   for (const [i, tab] of persisted.tabs.entries()) {
     await createTab({
       id: tab.id,
       projectPath: tab.projectPath,
       name: tab.name,
       layout: layouts[i]!,
-      activate: false
+      activate: false,
+      // Built when shown (the one on screen, just below) or by the warm-up.
+      defer: true
     })
   }
-  const target =
-    persisted.activeTabId && state.tabs.some((t) => t.id === persisted.activeTabId)
-      ? persisted.activeTabId
-      : state.tabs[0]?.id
-  if (target) activateTab(target)
+  if (shown) activateTab(shown)
+  warmUpDeferredTabs()
 }

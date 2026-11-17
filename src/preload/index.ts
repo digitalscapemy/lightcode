@@ -118,6 +118,7 @@ const api: LightClaudeApi = {
   checkPermissions: () => ipcRenderer.invoke(IPC.PermissionsCheck),
   openSystemPage: (page) => ipcRenderer.send(IPC.OpenSystemPage, page),
   appVersion: () => ipcRenderer.invoke(IPC.AppVersion),
+  rendererReady: () => ipcRenderer.send(IPC.RendererReady),
   updates: {
     check: () => ipcRenderer.invoke(IPC.UpdateCheck),
     download: () => ipcRenderer.send(IPC.UpdateDownload),

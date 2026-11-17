@@ -102,7 +102,8 @@ export class PtyManager {
     this.kill(paneId)
     const shell = detectShell()
     // A tool installed since Light Code started must be found in this pane.
-    refreshProcessPath()
+    // Not awaited: the refresh runs in the background (see toolCheck).
+    void refreshProcessPath()
 
     let realCwd = cwd
     let cwdFallback = false

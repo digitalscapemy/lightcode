@@ -110,6 +110,8 @@ body {
   display: flex;
   flex-direction: column;
   height: 100vh;
+  /* Revealed by this stylesheet itself: see the inline style in index.html. */
+  visibility: visible;
 }
 
 /* ---------- Primitives ----------

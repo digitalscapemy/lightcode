@@ -1,8 +1,8 @@
 import { app, BrowserWindow, clipboard, dialog, ipcMain, nativeTheme, shell } from 'electron'
 import { isSafeExternalUrl } from '../shared/externalUrl'
-import { existsSync } from 'fs'
+import { existsSync, rmSync } from 'fs'
 import { mkdir, readdir, unlink, writeFile } from 'fs/promises'
-import { homedir } from 'os'
+import { homedir, tmpdir } from 'os'
 import { join } from 'path'
 import { IPC } from '../shared/ipc'
 import type { ClipboardPasteResult } from '../shared/ipc'
@@ -49,6 +49,27 @@ import { checkPermissions } from './permissionCheck'
 // Keep the pre-rename app name so userData stays %APPDATA%\lightclaude —
 // renaming it would silently abandon existing state.json and shortcuts.json.
 app.setName('lightclaude')
+
+/*
+ * Chromium's disk caches, kept out of the shared profile folder.
+ *
+ * Light Code loads nothing but its own local files, so the HTTP and GPU-shader
+ * caches buy nothing. Left in userData they are also shared by every running
+ * copy (two windows, or the installed app beside `npm run dev`), and the
+ * second one cannot take them over: "Unable to move the cache: Access is
+ * denied", "Gpu Cache Creation failed". So the GPU shader cache is off, and the
+ * HTTP cache lives in a folder of this process's own, removed on exit.
+ */
+const cacheDir = join(tmpdir(), `lightcode-cache-${process.pid}`)
+app.commandLine.appendSwitch('disk-cache-dir', cacheDir)
+app.commandLine.appendSwitch('disable-gpu-shader-disk-cache')
+app.on('will-quit', () => {
+  try {
+    rmSync(cacheDir, { recursive: true, force: true })
+  } catch {
+    // a locked file is cleaned up by the OS's temp clean-up instead
+  }
+})
 
 const usageWatcher = new UsageWatcher()
 const ptyManager = new PtyManager(usageWatcher)
@@ -317,7 +338,8 @@ function createWindow(): void {
     ...(process.platform === 'darwin'
       ? { titleBarStyle: 'hiddenInset' as const, trafficLightPosition: { x: 12, y: 12 } }
       : { frame: false }),
-    backgroundColor: '#050505',
+    // The --bg token, so the first frame matches the page that paints into it.
+    backgroundColor: '#0b0b0d',
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       contextIsolation: true,
@@ -358,9 +380,22 @@ function createWindow(): void {
     return { action: 'deny' }
   })
 
-  if (win?.maximized) mainWindow.maximize()
+  // Maximize only once there is something to show. On Windows, maximize() on a
+  // hidden window also SHOWS it, before the page has painted: the window came
+  // up black, with the old small frame drawn in its top-left corner.
+  // Shown when the renderer says its first real screen is painted (welcome
+  // page or the restored tab), not on Chromium's first paint, which can be an
+  // empty or half-built page. A safety net shows it anyway after 3 s.
+  let shown = false
+  const reveal = (): void => {
+    if (shown || !mainWindow || mainWindow.isDestroyed()) return
+    shown = true
+    if (win?.maximized) mainWindow.maximize()
+    mainWindow.show()
+  }
+  ipcMain.once(IPC.RendererReady, reveal)
+  setTimeout(reveal, 3000)
   mainWindow.on('ready-to-show', () => {
-    mainWindow?.show()
     scheduleUpdateCheck()
   })
 

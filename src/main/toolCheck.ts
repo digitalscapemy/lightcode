@@ -1,4 +1,4 @@
-import { execFile, execFileSync } from 'child_process'
+import { execFile } from 'child_process'
 import { existsSync, statSync } from 'fs'
 import { homedir } from 'os'
 import { delimiter, join } from 'path'
@@ -26,20 +26,19 @@ function expandWinVars(s: string): string {
   })
 }
 
-/** One PATH value from the registry, or '' when it cannot be read. */
-function regPath(hive: string): string {
-  try {
-    const out = execFileSync('reg.exe', ['query', hive, '/v', 'Path'], {
-      encoding: 'utf8',
-      windowsHide: true,
-      timeout: 3000,
-      stdio: ['ignore', 'pipe', 'ignore']
-    })
-    const m = /^\s*Path\s+REG(?:_EXPAND)?_SZ\s+(.*)$/im.exec(out)
-    return m ? expandWinVars(m[1]!.trim()) : ''
-  } catch {
-    return ''
-  }
+/** Pull the Path value out of `reg query` output. */
+function parseRegPath(out: string): string {
+  const m = /^\s*Path\s+REG(?:_EXPAND)?_SZ\s+(.*)$/im.exec(out)
+  return m ? expandWinVars(m[1]!.trim()) : ''
+}
+
+/** One PATH value from the registry, or '' when it cannot be read. Never blocks. */
+function regPath(hive: string): Promise<string> {
+  return new Promise((resolve) => {
+    execFile('reg.exe', ['query', hive, '/v', 'Path'], { encoding: 'utf8', windowsHide: true, timeout: 3000 }, (err, out) =>
+      resolve(err ? '' : parseRegPath(String(out)))
+    )
+  })
 }
 
 /** Merge PATH lists, keeping order and dropping duplicates and blanks. */
@@ -66,19 +65,36 @@ function knownInstallDirs(): string[] {
 }
 
 let lastRefresh = 0
+let inFlight: Promise<void> | null = null
 
 /**
  * Bring this process's PATH up to date (throttled: at most every 10 s unless
  * forced). Existing entries keep their order; new ones are appended.
+ *
+ * Asynchronous on purpose: it runs on the way to spawning a pane, and two
+ * synchronous `reg query` calls there held the main process for ~300 ms at
+ * launch. A pane spawned while a refresh is in flight gets the PATH as it was;
+ * the next one gets the new one.
  */
-export function refreshProcessPath(force = false): void {
+export function refreshProcessPath(force = false): Promise<void> {
+  if (inFlight) return inFlight
   const now = Date.now()
-  if (!force && now - lastRefresh < 10_000) return
+  if (!force && now - lastRefresh < 10_000) return Promise.resolve()
   lastRefresh = now
+  inFlight = doRefresh().finally(() => {
+    inFlight = null
+  })
+  return inFlight
+}
+
+async function doRefresh(): Promise<void> {
   const current = process.env[PATH_KEY] ?? ''
   const fresh =
     process.platform === 'win32'
-      ? [regPath('HKCU\\Environment'), regPath('HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment')]
+      ? await Promise.all([
+          regPath('HKCU\\Environment'),
+          regPath('HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment')
+        ])
       : []
   const existing = knownInstallDirs().filter((d) => {
     try {
@@ -132,7 +148,7 @@ function versionOf(file: string): Promise<string | undefined> {
 
 /** Installed or not, where, and which version — for every known tool. */
 export async function checkTools(): Promise<ToolStatus[]> {
-  refreshProcessPath(true)
+  await refreshProcessPath(true)
   const path = process.env[PATH_KEY] ?? ''
   return Promise.all(
     TOOLS.map(async (t): Promise<ToolStatus> => {
