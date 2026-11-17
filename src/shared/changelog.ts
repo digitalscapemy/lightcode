@@ -9,6 +9,21 @@ export const DEVELOPER = 'Digital Scape MY'
 /** Newest first. Add an entry on every release (see release procedure). */
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.7.0',
+    date: '2026-11-17',
+    notes: [
+      'A new look, calmer and easier to find your way around. One consistent dark design with a single accent colour, rounded and grouped toolbar buttons with labels for Fan-out, Squad and Orchestra, tooltips that name each button, say what it does and show its shortcut, and menus with icons and keys. No gradients or effects: it is meant to stay out of your way.',
+      'Command palette. Press Ctrl+Shift+P (⌘K on macOS) or click the search box in the toolbar, and type a few letters to run any command, jump to any tab, or open a saved project. Press Ctrl+Shift+/ to see every keyboard shortcut in one place. New shortcuts: Fan-out Ctrl+Shift+F, layouts Ctrl+Shift+L, maximize pane Ctrl+Shift+Enter.',
+      'A welcome page. When no tab is open, including the very first launch, Light Code greets you with its logo, New terminal (just press Enter), Open project, your recent and saved projects, which agent CLIs are installed, and a short introduction to Fan-out, Orchestra and Mission Control.',
+      'Setup and tools. Light Code checks whether Claude Code, Codex and the Antigravity CLI are installed and shows their versions. A missing one installs with one click: the vendor’s official command runs in a new tab you can watch, and Light Code tells you when it is ready. New panes find a freshly installed tool without restarting.',
+      'Permission checks and guides. Setup and tools also checks everything Light Code needs, such as whether it may write your shortcuts to $PROFILE, whether PowerShell will load it, and whether git is installed. When the fix is yours to make, a guide walks you through it step by step, with the command to copy or a button that opens the right Windows Security page. No admin rights needed.',
+      'Token usage per account. A new toolbar button shows, for each Claude account, the tokens used today and over the last 7 days, with a day by day chart and when it was last active. It updates live while open. The numbers are counted from the session transcripts on this computer; they are not your plan limits.',
+      'Faster with many panes. A saved workspace of 10 tabs with 6 panes each used to open as a black window with the old frame in a corner, an unstyled flash, and a header that did not respond. Now a splash with the animated logo shows at once, the tab on screen is ready first, and the others follow in the background without freezing the window.',
+      'No more "Unable to move the cache" or "Gpu Cache Creation failed" errors when two copies of Light Code run at the same time.',
+      'Notifications look like the rest of the app, stack neatly in one corner, and errors stay until you dismiss them instead of disappearing before you can read them. No more long dashes in any text.'
+    ]
+  },
+  {
     version: '0.6.2',
     date: '2026-11-17',
     notes: [

@@ -1,945 +1,183 @@
 <div align="center">
 
-<img src="src/renderer/public/logo.png" alt="Light Code" width="96" />
+<img src="src/renderer/public/logo.png" alt="Light Code" width="88" />
 
 # Light Code
 
-**A lightweight multi-terminal manager built for Claude Code power users.**
+**The calm cockpit for running many AI coding agents at once.**
 
-Run many Claude Code sessions side by side — with real-time token usage on every pane,
-multi-account switching, project shortcuts, and a terminal that stays out of your way.
+Run Claude Code, Codex and plain shells side by side in tabs and split panes,
+see which one needs you, and give each its own git worktree. Free and open source.
 
 [![Latest release](https://img.shields.io/github/v/release/digitalscapemy/lightcode?label=release)](https://github.com/digitalscapemy/lightcode/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/digitalscapemy/lightcode/total?label=downloads)](https://github.com/digitalscapemy/lightcode/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS-lightgrey)
+![Platforms](https://img.shields.io/badge/platform-Windows%20%7C%20macOS-lightgrey)
+[![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
-[Download](https://github.com/digitalscapemy/lightcode/releases/latest) ·
-[Features](#features) ·
-[Installation](#installation) ·
-[Using it](#using-it) ·
-[Keyboard shortcuts](#keyboard-shortcuts) ·
-[Build from source](#build-from-source)
+[Download](#install) · [Features](#features) · [Shortcuts](#keyboard-shortcuts) · [Contributing](#contributing) · [Discussions](https://github.com/digitalscapemy/lightcode/discussions)
+
+<img src="docs/images/workspace.png" alt="Light Code with four terminal panes" width="900" />
 
 </div>
 
----
+## Why Light Code
 
-## Why Light Code?
+One agent in one terminal is easy. Six agents across four projects and two accounts is not:
+you lose track of which pane is which, which one is waiting on a permission prompt, and which
+two are quietly editing the same files.
 
-Running one Claude Code session is easy. Running **six of them across four projects with two
-accounts** is where normal terminals fall apart — you lose track of which pane is which project,
-which account is burning quota, and how close each session is to filling its context window.
-
-Light Code is a purpose-built cockpit for that workflow: every pane knows its project, its
-Claude session, and its token usage — live.
+Light Code is a terminal built for that. Every pane knows its project, its branch, its agent
+and its status, and the app stays fast with sixty terminals open. It never takes over: every
+pane is a real shell, and everything Light Code adds is optional.
 
 ## Features
 
-### 🔢 Real-time token usage, per pane
-The headline feature. Each pane shows a live badge with the **actual token usage** of the Claude
-Code session running in it — read directly from Claude Code's own session transcripts, not
-estimated:
+### A workspace that scales
 
-- **Session total** — cumulative input/output/cache tokens (hover for the full breakdown)
-- **Context fill** — how full the model's context window is (e.g. `87k/1M`), with the window
-  size detected from the model the session is actually using
-- **Per-pane attribution** — six panes, six sessions, six independent badges; sessions started
-  outside the app never pollute your numbers, because each session says which pane it belongs
-  to rather than being matched by guesswork
-- Updates live while Claude streams, with negligible overhead (incremental transcript tailing)
+- **Tabs and split panes**, with layout presets from 1 to 16 panes and full tab names that never
+  get cut off. Tabs that do not fit are one click away in the overflow list.
+- **Command palette** (`Ctrl+Shift+P`, `⌘K` on macOS): find any command, tab or saved project by
+  typing a few letters.
+- **Fast with many panes**: background tabs do not repaint, and a saved workspace of 60 terminals
+  opens with the visible tab first and the rest following in the background.
 
-### 🔴 Knows when Claude is stuck waiting on you
-Alongside the numbers, each pane shows what its session is *doing*: working (with the tool it
-is running), waiting for your next prompt, or **needs approval** — blocked on a permission
-prompt. That last one matters most in a grid of sixteen: it is the state where nothing happens
-until you look, and the tab dot turns red so you can see it without opening the pane. A desktop
-notification fires too, if you are in another window.
+<img src="docs/images/palette.png" alt="Command palette" width="720" />
 
-Status comes from Claude Code itself, through its hooks, rather than being inferred — a
-permission prompt and a ten-minute build look identical in a transcript, so guessing was never
-honest. Two things follow from that:
+### Built for agents
 
-- **Nothing is written to your Claude Code configuration.** Light Code generates its own
-  settings file and launches `claude --settings <that file>`, which Claude Code merges on top
-  of yours. The hooks exist only inside Light Code's panes; a plain terminal is untouched, and
-  there is nothing to uninstall.
-- A shell Light Code cannot hook into (fish, nu) still gets full token badges — that part only
-  ever needed the transcript.
+- **Live status on every pane and tab**: working, waiting for you, or waiting for a permission
+  prompt. `Ctrl+Shift+J` jumps to the pane that needs you.
+- **Fan-out**: give one task to several agents at once, each on its own branch in its own
+  worktree, and keep the best answer.
+- **Orchestra**: one lead pane directs worker panes, and you see every worker's state, last line
+  and reports from one place. Start one from preset roles (developer, UI/UX, devops, security).
+- **`lc`, the agent CLI**: lets an agent drive other panes (send, ask, wait, spawn), with
+  guards against answering a permission prompt by accident.
+- **Runs Claude Code and Codex in any pane**, plus plain shells; Gemini support is experimental.
 
-### 🌿 A worktree per agent
-Six panes on one repository share one set of files, which is a footgun rather than
-a feature: two agents editing at once will tread on each other. A pane's `⋮` menu
-opens a **worktree** — a second checkout of the same repository, on its own branch,
-in its own folder — and puts it in a pane beside the first. Two agents, two working
-copies, side by side, which is where comparing their work actually happens.
+### Know what is happening
 
-Every pane's header shows the branch it is on, with a dot when there are
-uncommitted changes. It refreshes when your shell draws a prompt — the moment a
-command has just finished — so the dot clears the instant you commit.
+- **Token usage per pane**, and per Claude account for today and the last 7 days.
+- **Mission Control**: every session in the window at a glance; send one message to many.
+- **Worktrees panel**: every branch and worktree, how far it is from main, and which pane is in it.
+- **Shared-folder warning** when two agents run unattended in the same working tree.
 
-Worktrees are gathered in one folder **beside** the repository
-(`myproject-worktrees/auth-fix`), never inside it. Inside would be quietly
-destructive: a test runner scanning from the repository root finds the nested
-copy's tests and runs them too, and an agent searching the code finds every file
-twice and can edit the wrong one — the exact problem worktrees exist to prevent.
+<img src="docs/images/usage.png" alt="Token usage per account" width="720" />
 
-Removing one asks first if it still holds uncommitted work. Branches that hold
-commits are always kept; empty ones are cleaned up, because a branch with nothing
-in it is not work being protected, it is a name you can never reuse.
+### Setup that helps instead of failing
 
-Closing a pane or a tab that is using worktrees asks whether they should go too,
-with keeping them as a plain choice rather than something you have to know about.
-One tab's × tidies a whole fan-out at once and leaves behind anything that still
-has work in it.
+- **Setup and tools** checks whether Claude Code, Codex and the Antigravity CLI are installed, and
+  installs a missing one with the vendor's official command in a new tab you can watch.
+- **Permission checks** for everything Light Code needs, such as writing your shortcuts to
+  `$PROFILE`, with step-by-step guides for the fixes only you can make (execution policy,
+  Controlled folder access, PATH after an install).
+- **Project shortcuts and multiple Claude accounts**, written to your shell profile so they work in
+  any terminal.
 
-There is no diff viewer and no "pick the winner" screen. You have `git`, it is
-already better at both, and it is already what you know. There is now one merge
-button — see the git tree below — and it does not merge anything itself.
+<img src="docs/images/setup.png" alt="Setup and tools" width="720" />
 
-### ⚠️ It tells you when two agents share a folder
+### And the details
 
-Worktrees only help if you remember to use one, and auto mode is exactly when
-nobody is watching. So when two panes sit in the same working tree and at least
-one of them is running unattended, both headers show an amber chip saying so and
-naming the fix.
+Ctrl+click links to open them in your browser, paste screenshots straight into Claude, drag files
+in to type their paths, and automatic updates.
 
-It **warns and nothing more**. No dialog, no confirmation, no refusal. Working
-four panes in one folder by hand is a perfectly good way to work — often the
-right one, when the agents are reading rather than writing — and a tool that
-argues about it has decided it knows your job better than you do. Click the chip
-and it stays gone for the life of that pane.
+## Install
 
-### 🌲 Every worktree, docked beside the panes
-
-`Mod+Shift+G` opens a panel listing every worktree of the repository — its own
-checkout first, then each linked one: the branch it holds, whether it has
-uncommitted work, how far it has moved from `main`, whether it has reached
-GitHub, and **which pane is sitting in it**. That last column is the point — it
-is what turns "four worktrees" into "these four terminals". Click a row to jump
-to its pane, or to open one there if nothing is. Branches no worktree holds are
-folded away underneath, each with **Open worktree**.
-
-- `↑2 ↓1` is against `main`. `⇡2 ⇣1` is against the remote branch it tracks,
-  `local` means it was never pushed, and `gone` means the remote branch was
-  deleted — merged and cleaned up, usually.
-- **⟳** fetches (`git fetch --all --prune`). While the panel is open it also
-  fetches on its own every five minutes; the **auto** chip switches that off. A
-  fetch that fails — offline, or credentials needed — says so in a note and
-  nothing else stops working. It never asks for a password.
-- **Pull** and **Push** type `git pull --ff-only` / `git push` (or
-  `git push -u origin HEAD` for a branch never pushed) into that worktree's own
-  pane, so a conflict or a login prompt lands where you can deal with it. A pane
-  with Claude running in it is not typed into; a fresh one opens beside it.
-- **+** makes a new worktree, **Remove** takes one away (the branch stays, and it
-  lists any file that would be lost first), and **Prune** clears the record of a
-  worktree whose folder was deleted by hand.
-
-It refreshes when a shell draws its prompt, the same signal the pane headers use,
-so it is current the moment a command finishes rather than a second later.
-
-A worktree that is ahead of `main` offers **Integrate**. It types
-`git merge --no-ff <branch>` into the pane that is on `main`, and then leaves it
-alone. The app does not run the merge, and that is deliberate: the command, the
-output, the conflict and the resolution were always git's, and what was missing
-was only remembering which branch, in which pane, in which order. So the app
-supplies that and your terminal supplies the rest — which means you can watch it,
-interrupt it, and find it in your shell history afterwards.
-
-It refuses rather than guesses: no pane on `main`, uncommitted work in that pane,
-or a half-finished merge already sitting there, and it says which and stops.
-
-### 🔀 Fan one task out to several agents
-The button that follows from the last one. Give it a task name, a number, and a
-prompt: Light Code creates that many worktrees, opens them as a grid of panes, and
-starts an agent in each with the same prompt already sent.
-
-Leave, come back, and you have three independent attempts at the same problem on
-three branches that cannot have overwritten one another. Read them, keep the one
-you like, merge it with `git`.
-
-The prompt travels as an argument to `claude` rather than being typed in after it
-opens, so nothing has to guess when the agent is ready to hear it.
-
-### 🎼 A squad: one orchestrator, several specialists
-
-Fan-out gives you several agents *competing* on one task. A squad gives you
-several agents doing *different jobs* on one task: an orchestrator directing a
-developer, a UI/UX reviewer, a devops engineer and a security reviewer, each in
-its own pane, each told what it is for.
-
-The orchestrator edits nothing. It delegates through `lc`, waits for each agent
-to finish its turn, and reads what came back.
-
-**Only the roles that write code get a branch**, and that is the decision the
-whole thing rests on. Five roles with five branches would be five diverging
-branches nobody asked for. So the developer and the devops engineer each get a
-worktree; the reviewers read the code and write their findings as files, which
-means they cannot conflict with anything, and there is nothing of theirs to merge.
-
-**Results come back as files, not as terminal output.** This is not a detail:
-`lc read` returns what is *drawn on a pane's screen*, and for a Claude session
-that is its interface, not its answer. An orchestrator that scrapes screens is
-unreliable by construction. Every role writes its result into a shared squad
-folder beside the repository, and the orchestrator reads that.
-
-A role's brief rides in its pane's environment rather than on the command line,
-so it survives the agent restarting `claude`, running `/clear`, or resuming a
-session. A pane still wearing its role badge while having forgotten the job would
-be the worst of both.
-
-The five are built in, and any repository can replace them with its own
-`.lightcode/roles.json`:
-
-```json
-[
-  { "id": "developer", "label": "Developer", "emoji": "⌨️",
-    "writes": true, "prompt": "You own the implementation on this branch." },
-  { "id": "dba", "label": "DBA", "emoji": "🗄",
-    "writes": false, "prompt": "Review schema and query changes only." }
-]
-```
-
-`writes` is the field that matters: `true` earns a worktree and a branch, `false`
-means read and report. It lives in the repository rather than in app settings
-because a Rails app and an embedded firmware tree do not want the same five
-terminals — and there it is versioned, reviewed, and shared with everyone who
-clones it. A file that cannot be used is reported rather than ignored.
-
-### 🔌 `lc` — let an agent drive the cockpit
-The buttons above are things you press. `lc` is the same actions available to an
-agent, so Claude can open panes, send work to them, wait for it, and read what
-came back — without your hands.
-
-```
-lc ls                      every pane, with its role; * marks the one you are in
-lc send <pane> "<text>"    type into a pane
-lc read <pane> --tail 50   what is on its screen
-lc wait <pane...> --for idle | exit
-lc fan <task> <n> "<prompt>" [--plan]
-lc close <pane>
-```
-
-Ask Claude to *"fan this out three ways, wait for all of them, and tell me when
-they're done"* and it will — it is told the command exists, in one sentence
-pointing at `lc --help`, so you never have to explain it. Every command takes
-`--json`, because its main reader is an agent parsing output rather than a
-person.
-
-**It is off until you switch it on**, in Mission Control. While it is off the
-socket does not exist at all — there is nothing listening to refuse. And a pane
-something drove through `lc` wears an `LC` badge for the rest of its life, so you
-can always see it happened.
-
-That last part is the whole safety story, and it is worth being straight about
-why. A socket with owner-only permissions keeps other *users* out. It cannot keep
-out other programs running as you — and it never could, because letting a program
-running as you type into a pane is precisely the feature. So the protection is
-not prevention. It is that nothing listens until you say so, and that nothing it
-does is invisible.
-
-`lc` needs nothing installed: it runs under the app's own runtime, and exists as
-a command only inside Light Code's panes, which is the only place it means
-anything. It gets there as a real file on the pane's `PATH`, not as a shell
-function — so everything the pane starts inherits it. That distinction is the
-whole feature: an agent runs its commands in a child shell, and a function never
-reaches one.
-
-### 🎼 Orchestra: one lead pane conducting the rest
-
-A squad used to be five panes that happened to know about each other through
-`lc ls`. An orchestra makes the relationship real: one pane is the **lead**, the
-panes it directs are its **workers**, and the app knows which is which — so it
-can show you, at a glance, what every worker is doing without you visiting each
-one.
-
-The lead wears a `♪ orchestra` chip and an outline in its crew's colour. Each
-worker wears `@handle →` and a stripe in the same colour, and when you focus a
-crew member, faint lines run from the lead to each worker — animated while that
-worker is busy. Inside the lead pane, a **strip** of cards shows each worker's
-state, the last meaningful line it printed, who last sent it something and what,
-and whether it has a new report. A worker asking for permission lights a badge on
-the lead; the card has Approve and Deny, Stop for a runaway turn, the babysitter
-toggle, and a box to type into it — all without leaving the lead.
-
-There are three ways to start one, and all three end in the same place:
-
-- **Squad** — the squad dialog now creates an orchestra, with the orchestrator as
-  its lead. Squads saved by an older version are adopted the first time they load.
-- **Conduct from Here** — in any pane's `⋮` menu. That pane becomes a lead; add
-  workers with **Add Worker…** or link panes you already have.
-- **`lc spawn`** — an agent that spawns a worker from a pane in no orchestra
-  becomes that orchestra's lead, and the reply says so. It is never silent.
-
-Workers have names, so the lead addresses them as `@developer` rather than as
-`p_7f3a`, and it can **ask** a worker something and get back the answer, not the
-screen: `lc ask @developer -` sends, waits for the turn to end, and prints the
-last thing the agent actually said, read from its Claude transcript. `lc events`
-gives the lead a stream of what happened in its crew, so it can wait for news
-instead of polling every pane in turn.
-
-**The rule everywhere is warn, never block.** A lead driving a pane outside its
-crew, a worker driving its own lead, a send to a pane mid-turn — all allowed, all
-answered with a warning, and the driven pane's `LC` badge turns amber. A crew can
-opt into **Strict**, which turns those warnings into refusals. Two things are
-refused by default, because they protect *you* from an agent rather than limiting
-you: typing into a pane showing a permission prompt (keystrokes would answer it —
-`--force` overrides that on a plain pane, but on a crew worker it is held to the
-same rule as `lc approve`), and `lc approve`, which does nothing until you tick
-**Lead may approve** for that crew. A Strict crew also refuses `lc` run without the
-token the app puts in each pane. A permission question is yours unless you say
-otherwise.
-
-Workers do not have to be Claude. **Codex** is supported: Codex reports no status
-of its own, so its state is estimated from the terminal going quiet, and an
-estimate is always marked — `≈ working` on the pane, `~working` in `lc ls`. The
-babysitter never acts on an estimate, and Approve and Deny are hidden for one.
-A **Gemini** adapter is included too, written from Gemini CLI's documentation —
-it has not been run against the real thing yet, and the agent picker says so. A
-worker can also be a plain shell.
-
-None of this appears until you use it. A plain pane running `claude` gets no
-chips, no strip, and no new `lc ls` columns.
-
-### 👥 Multi-account Claude switching
-Run different Claude accounts in different panes. Define account shortcuts (e.g. `claude1`,
-`claude2`) that launch Claude Code with a dedicated `CLAUDE_CONFIG_DIR` — and the token badges
-track every account's sessions correctly.
-
-### ⚡ Shortcuts Manager
-Manage project and account shortcuts from the UI instead of hand-editing your shell profile:
-
-- **Project shortcuts** — type `myproject` in any terminal to jump straight to its folder
-- **Account shortcuts** — type `claude2` to run Claude Code under another account
-- Written to your shell profile (PowerShell on Windows, zsh/bash on macOS) inside a clearly
-  marked managed block — your existing profile content is never touched
-- One-click **import** of shortcuts you already have in your profile
-- Works in *any* terminal, not just Light Code
-
-### 🗂 Tabs & split panes
-- Each tab is a project; split panes right/down (`Ctrl/Cmd+Shift+E` / `D`), drag dividers,
-  maximize a pane, drag-reorder tabs
-- **Layout picker** (grid button in the tab bar) — pick a pane arrangement from a visual
-  grid instead of splitting one pane at a time: 2 columns, 2×2, 3×2, 4×4 and more, up to 16
-  panes. Switching layouts **keeps every running session alive** — panes are rearranged, not
-  restarted. Shrinking to a smaller layout closes the extra panes, so it asks first.
-- **Open several tabs at once** — right-click the `+` button to add 3, 8 or 16 tabs in one go
-- **Adjustable text size** (`Ctrl/Cmd` `+` / `-` / `0`) — shrink the terminal font to fit a dense
-  layout on screen, or grow it back. Applies to every pane and survives restarts.
-- Rename tabs (double-click) and panes (⋮ menu) — names survive restarts
-- **Working-directory memory**: shell integration tracks every `cd` live, and each pane reopens
-  in its last folder after a restart. New splits open in the source pane's current folder.
-
-### 📸 Paste screenshots into Claude
-Snip something (`Win+Shift+S` / `Cmd+Shift+4`), press `Ctrl/Cmd+V` in the terminal — the image
-is saved to a temp file and its path is pasted, ready for Claude Code to read. Plain text pastes
-normally.
-
-### 🖱 Drag files in from Finder / Explorer
-Drop a file or folder on a pane and its full path is typed at the prompt, exactly as a native
-terminal does it — type `cd `, drop the folder, press Enter. Drop a file into a Claude Code
-prompt and Claude can read it right away.
-
-- **Several at once** — a multi-file drop lands as separate arguments
-- **Quoted only when it has to be** — a plain path is typed plain; spaces and shell
-  metacharacters get quoted (`'…'` on macOS, `"…"` on Windows) so nothing is ever executed
-- The pane under the pointer lights up, so in a 4×4 grid you always know where the path is going
-- Text and links dragged in from other apps are typed as text
-
-> On Windows, drag-and-drop into an app **running as Administrator** is blocked by Windows
-> itself (UIPI), not by Light Code — Explorer runs unelevated and Windows refuses to hand data
-> across. Run Light Code normally and it works; paste (`Ctrl+V`) is the way in when it can't.
-
-### 🚀 Fast and light
-- Vanilla TypeScript renderer — no framework, instant tab switching
-- GPU-accelerated terminal rendering (WebGL), scoped to the visible tab only
-- Near-black frameless dark UI
-
-### 🔄 Auto-update
-The notification says what the update *contains* — the release notes travel with the update, so
-you can see what changes before agreeing to it. "Later" defers for 30 minutes rather than
-hiding it until the next launch, and if Claude is mid-turn in any pane, updating asks first and
-says how many sessions it is about to end (on Windows the installer closes the app as soon as
-the download lands).
-
-The app quietly checks GitHub Releases shortly after each launch (never blocking startup) and
-every four hours it keeps running, so a window left open for days still finds releases
-published while it was open. When an update exists you get a small toast — update now with
-live download progress and an automatic restart, or defer it. If you are working in some other
-window at the time, a desktop notification says so as well, once per version rather than at
-every check; clicking it brings Light Code forward. The About dialog (version button in the tab
-bar) shows the full changelog.
-
-## Installation
-
-Click the row that matches your machine — each link always serves the newest release:
+Each link always serves the newest release.
 
 | Your machine | Download |
 | --- | --- |
-| Windows 10 or 11 | **[LightCode-Setup.exe](https://github.com/digitalscapemy/lightcode/releases/latest/download/LightCode-Setup.exe)** |
-| Mac — Apple Silicon (M1/M2/M3/M4, bought 2021 or later) | **[LightCode-arm64.dmg](https://github.com/digitalscapemy/lightcode/releases/latest/download/LightCode-arm64.dmg)** |
-| Mac — Intel (bought 2019 or earlier) | **[LightCode-x64.dmg](https://github.com/digitalscapemy/lightcode/releases/latest/download/LightCode-x64.dmg)** |
+| Windows 10 or 11 | [LightCode-Setup.exe](https://github.com/digitalscapemy/lightcode/releases/latest/download/LightCode-Setup.exe) |
+| Mac with Apple Silicon (M1 or newer) | [LightCode-arm64.dmg](https://github.com/digitalscapemy/lightcode/releases/latest/download/LightCode-arm64.dmg) |
+| Mac with Intel | [LightCode-x64.dmg](https://github.com/digitalscapemy/lightcode/releases/latest/download/LightCode-x64.dmg) |
 
-Not sure which Mac you have? [Settle that first](#macos--first-which-dmg) — the wrong file won't
-run.
+Not sure which Mac you have? Apple menu, **About This Mac**: "Chip: Apple M..." means Apple
+Silicon, "Processor: Intel" means Intel. macOS 12 Monterey or newer is required.
 
-Would rather browse? The [Releases page](https://github.com/digitalscapemy/lightcode/releases/latest)
-lists every version with its notes. The `.zip`, `.blockmap` and `.yml` assets you'll see there
-belong to the auto-updater, not to you.
+Light Code is not code-signed yet, so both systems warn you the first time:
 
-Light Code is not code-signed: there is no Apple Developer or Windows publisher certificate
-behind it. Both operating systems will therefore warn you the first time you open it. That is
-expected, and the steps below walk you past it. You only ever do it once.
+- **Windows**: on the blue "Windows protected your PC" screen, click **More info**, then
+  **Run anyway**.
+- **macOS**: drag Light Code to Applications, then **right-click** it and choose **Open**. If macOS
+  still refuses, use **System Settings, Privacy & Security, Open Anyway**, or run once in Terminal:
 
-### macOS — first, which DMG?
+  ```sh
+  xattr -cr "/Applications/Light Code.app"
+  ```
 
-There are two Mac builds because there are two kinds of Mac processor. Pick the wrong one and
-the app may not start at all, so settle this before downloading anything.
+After that Light Code updates itself. On Windows updates install in place; on macOS you are
+notified and the right `.dmg` opens for you.
 
-Open the Apple menu  → **About This Mac**. One line in that window answers it:
-
-#### Apple Silicon → [`LightCode-arm64.dmg`](https://github.com/digitalscapemy/lightcode/releases/latest/download/LightCode-arm64.dmg)
-
-About This Mac shows **Chip: Apple M1**, or M2, M3, M4 — including the Pro, Max and Ultra
-versions of each.
-
-"Apple Silicon" means the processors Apple designs itself. They arrived in **November 2020**
-with the M1 and have been in every new Mac since. **A Mac bought new in 2021 or later is Apple
-Silicon** — no exceptions.
-
-#### Intel → [`LightCode-x64.dmg`](https://github.com/digitalscapemy/lightcode/releases/latest/download/LightCode-x64.dmg)
-
-About This Mac shows **Processor: Intel Core i5**, or i7, i9, or Xeon.
-
-Apple used Intel processors from 2006 until the M1 replaced them. **A Mac bought new in 2019 or
-earlier is Intel.** For this app the range that matters is roughly 2015–2020, since older Macs
-can't run the required macOS version anyway (see below).
-
-#### Bought your Mac in 2020?
-
-That single year is the overlap — Apple sold Intel and M1 models side by side, sometimes the
-same model name in both. Don't go by the year; open About This Mac and read the chip line. Same
-advice for any second-hand Mac whose age you're unsure of.
-
-#### Why it matters
-
-The two mistakes are not equally bad:
-
-| Mistake | What happens |
-| --- | --- |
-| arm64 build on an **Intel** Mac | **Won't launch at all.** Nothing you can do but download the other file. |
-| x64 build on an **Apple Silicon** Mac | Runs, just slower — macOS translates it through Rosetta, and may ask to install Rosetta first. |
-
-**One more thing to check in that same window: macOS 12 Monterey or newer is required.** That
-means MacBook Air and MacBook Pro from Early 2015, iMac from Late 2015, Mac mini from Late 2014,
-Mac Pro from Late 2013 — and anything newer. An older Mac can't run Light Code regardless of
-which file you pick.
-
-### macOS — installing
-
-From here on the steps are identical on both Apple Silicon and Intel.
-
-**Step 1 — Open the DMG.**
-Double-click the file you downloaded. A window opens showing the Light Code icon next to a
-shortcut to your Applications folder.
-
-**Step 2 — Install it.**
-Drag the **Light Code** icon onto the **Applications** folder. Then close that window and eject
-the disk image — click ⏏ next to its name in the Finder sidebar.
-
-**Step 3 — First launch.**
-Do **not** double-click the app. Doing so gives you a dead-end dialog — *"Light Code cannot be
-opened because the developer cannot be verified"* — whose only buttons are **Move to Bin** and
-**Cancel**. If you're looking at it right now, press **Cancel**. Never press Move to Bin; that
-deletes the app you just installed.
-
-The way in is the right-click menu, which offers an **Open** button the double-click dialog
-doesn't:
-
-1. Open your **Applications** folder
-2. **Right-click** (or Control-click) Light Code → **Open**
-3. Confirm with **Open** in the dialog that appears
-
-**If that still doesn't work**, recent macOS versions hide the override in Settings instead.
-Right after being blocked, go to **System Settings → Privacy & Security**, scroll down to the
-Security section, and click **Open Anyway** next to the message about Light Code. On macOS 12
-and 13 the same button lives in **System Preferences → Security & Privacy → General**.
-
-**Last resort**, and the one that always works — open **Terminal**, run this once, then launch
-the app normally:
-
-```sh
-xattr -cr "/Applications/Light Code.app"
-```
-
-That command strips the "downloaded from the internet" quarantine flag macOS attached to the
-file. Whichever route you take, it's a one-time thing: from then on Light Code opens like any
-other app.
-
-### Windows
-
-**Step 1 — Download the installer.**
-Grab **[`LightCode-Setup.exe`](https://github.com/digitalscapemy/lightcode/releases/latest/download/LightCode-Setup.exe)**.
-Windows 10 and 11 are both supported, and there is only one file — unlike the Mac, there is no
-architecture to choose here.
-
-**Step 2 — Get past SmartScreen.**
-Double-click the installer. Because it is unsigned, Windows shows a blue *"Windows protected
-your PC"* screen. Click **More info**, then **Run anyway**. Your browser may flag the download
-itself as well — choose **Keep** if it does.
-
-**Step 3 — Let it run.**
-There is nothing to configure: the installer completes on its own and opens Light Code when it
-finishes, leaving a Start-menu entry and a desktop shortcut behind.
-
-### After installing
-
-Light Code works as a plain terminal with any CLI. The token-usage, session and account
-features need [Claude Code](https://claude.com/claude-code) installed — set that up first if you
-want them.
-
-You won't have to repeat any of this for future versions: Light Code checks GitHub Releases
-shortly after each launch — and every few hours while it stays open — then updates itself in
-place.
-
-## Using it
-
-Below, `Mod` means `⌘` on macOS and `Ctrl` on Windows — the same rule every shortcut
-in the app follows, with one deliberate exception noted under *Moving between panes*.
-
-### Tabs and panes are different things
-
-A **tab** is a project: one folder, its own name, its own slot in the tab bar.
-A **pane** is a terminal *inside* a tab. One tab holds up to 16 panes — that is what
-"many Claude sessions side by side" means in practice.
-
-### Pick a layout
-
-Click the grid button (**⊞**) in the tab bar and choose an arrangement: 2 columns,
-2×2, 3×2, 4×4, and more. Each thumbnail is drawn from the same description that builds
-the real layout, so what you see is exactly what you get.
-
-Switching layouts **keeps every running session alive** — panes are rearranged, never
-restarted, so a Claude session mid-task survives the change. Choosing a *smaller*
-layout closes the extra panes, which ends their shells, so it asks first.
-
-To build a layout by hand instead: `Mod+Shift+E` splits the focused pane to the right,
-`Mod+Shift+D` splits it downward, and the dividers drag.
-
-### Moving between panes without the mouse
-
-| | |
-| --- | --- |
-| `Ctrl+Tab` | next pane, wrapping at the end |
-| `Ctrl+Shift+Tab` | previous pane |
-| `Mod+Alt+←→↑↓` | the pane lying that way on screen |
-
-`Ctrl+Tab` is the exception to the `Mod` rule: it is `Ctrl` on macOS too, because
-`⌘+Tab` belongs to the operating system. Browsers and editors do the same.
-
-Cycling follows reading order. The arrows follow the screen — in a 4×4 grid, reaching
-the far corner takes two keystrokes instead of ten.
-
-**Plain `Tab` and plain arrows are deliberately untouched**, so shell completion and
-command history keep working. The same goes for `Alt+B` / `Alt+F` word motions and, on
-Windows, `Ctrl+_` (undo in zsh and bash).
-
-### Fitting more on screen
-
-`Mod+=` and `Mod+-` resize the terminal text between 8 and 32px; `Mod+0` returns it to
-14. It applies to every pane at once, new panes open at the size you chose, and the
-setting survives a restart. This is what makes a 16-pane grid readable on a laptop.
-
-### Opening several tabs at once
-
-Right-click the **+** button to add 3, 8 or 16 tabs in one go rather than clicking it
-repeatedly. Closing is unchanged — a tab's `×`, or `Mod+Shift+W` for the focused pane.
-
-### Watching your sessions
-
-Run `claude` in any pane and its header badge starts showing live token usage, read
-from Claude Code's own session transcript rather than estimated. Hover for the full
-breakdown; the headline number is context fill, because that is the one that runs out.
-
-Next to it sits a coloured dot for what the session is doing — the tool it is running,
-`waiting` for your next prompt, or `needs approval` when Claude is blocked on a
-permission question. The tab shows the same dot, so a pane that needs you is visible
-without opening it.
-
-`Mod+Shift+J` takes you straight to the pane that needs you — the ones blocked on a
-permission prompt first, then the ones that finished a turn, switching tabs on the way
-if it has to. Press it again for the next one. In a 4×4 grid that is the difference
-between working through a queue and hunting for a dot.
-
-`Mod+Shift+M` opens **Mission Control** — every running Claude session in one list with
-its status, model, context fill and idle time. Click a row to jump to that pane, or
-tick several and send one command to all of them.
-
-Each row also has a 🤖 that turns on the **babysitter** for that pane: when Claude
-finishes a turn and sits idle for twelve seconds, Light Code types `continue` so a long
-autonomous run does not stall while you are away. It stands down after five consecutive
-nudges until you type in the pane yourself, and it never answers a permission question —
-those are yours.
-
-### Giving each agent its own copy of the code
-
-Two panes on the same project share one set of files, so two agents working at once
-overwrite each other. A **worktree** is the fix: a second checkout of the same
-repository, on its own branch, in its own folder.
-
-Open a pane's `⋮` menu → **Open Worktree…**, type a branch name (`auth-fix`), and a new
-pane opens beside it already in that folder. The branch is named exactly what you typed;
-nothing is prefixed or generated for you. The folder lands in `myproject-worktrees/auth-fix`,
-**beside** the repository rather than inside it — inside, your test runner would find
-every suite twice and an agent would find every file twice.
-
-The menu row only appears when the pane is inside a git repository, since there is
-nothing to branch from otherwise.
-
-Every pane header shows its branch, with a dot when there are uncommitted changes. It
-refreshes when your shell draws a prompt, so the dot clears the moment you commit.
-
-When you're done, `⋮` → **Remove This Worktree…** from inside that pane. It lists the
-files at stake before deleting anything, and the branch survives either way — removing a
-worktree is not abandoning the work. Closing a pane or a tab that uses worktrees asks the
-same question, so one tab's `×` tidies a whole fan-out at once.
-
-Merging is `git`, as usual. There is no diff viewer and no merge button here.
-
-### Fanning one task out to several agents
-
-The fan-out button in the tab bar — one line branching into three dots, sitting between
-the layout grid and Mission Control — does all of the above in one go. It asks for four
-things:
-
-| | |
-| --- | --- |
-| **Task name** | each agent's branch is named from it — `auth-refactor` |
-| **Agents** | 2, 3, 4, 6, 8 or 16 (3 by default) |
-| **Prompt** | sent to every agent, identically |
-| **Mode** | **Build** changes files · **Plan first** proposes an approach instead |
-
-Light Code creates that many worktrees, opens them as a grid in a new tab named after the
-task, and starts an agent in each with the prompt already sent — as an argument to
-`claude`, so nothing has to guess when the agent is ready to hear it.
-
-Leave, come back, and you have several independent attempts on branches that cannot have
-overwritten one another. Read them, keep the one you like, merge it with `git`.
-
-**Try Plan first before Build.** Agents that propose an approach touch no files, cost
-less, finish sooner, and are far easier to read side by side — which is the whole point of
-running several.
-
-### Running a squad
-
-The button after fan-out — a conductor and three players. It asks for three
-things, plus which agent plays each role (Claude unless you pick otherwise):
-
-| | |
-| --- | --- |
-| **Task name** | names the branches and the squad folder — `rate-limiting` |
-| **Roles** | all ticked by default; the orchestrator cannot be unticked |
-| **Brief** | goes to the orchestrator, which decides who does what |
-
-You get one tab: the orchestrator in the large pane, the specialists beside it.
-Only the roles that write code have a worktree of their own — the reviewers sit
-in the repository, read it, and write findings into
-`<project>-worktrees/<task>-squad/reports/`.
-
-Then talk to the orchestrator pane. It can see the others (`lc ls` shows each
-pane's role), give them work, wait for them, and read their reports. **The agent
-CLI must be on** for any of that — `Mod+Shift+M`, then **Agent CLI** — because
-without it the orchestrator has no way to reach the panes it is meant to direct.
-
-A squad is an orchestra with the orchestrator as its lead, so everything in
-[Conducting an orchestra](#conducting-an-orchestra) applies to it — the strip of
-worker cards, `@handle` names, `lc ask`, and the Orchestra panel, where each
-role's report shows up the moment it is written.
-
-To use your own roles, put a `.lightcode/roles.json` in the repository. See the
-[squad feature section](#-a-squad-one-orchestrator-several-specialists) for the
-shape; `writes: true` is what earns a role a branch.
-
-### Watching the branches
-
-`Mod+Shift+G` docks the git tree on the right: every branch, how far ahead of
-`main` it is, whether its worktree is dirty, and which pane is in it. Click a row
-to jump to that pane. The panel stays where you left it between restarts.
-
-Hovering a branch that is ahead of `main` reveals **Integrate**, which types the
-merge into the pane sitting on `main`. It does not press Enter on your behalf for
-anything else, and it will tell you why it cannot rather than doing something
-approximate — merging into a dirty tree is how work disappears.
-
-### Letting Claude drive the panes
-
-Everything above is a button you press. `lc` hands the same actions to the agent.
-
-**Switch it on first:** `Mod+Shift+M` for Mission Control, then the **Agent CLI** button.
-It is off by default, and while it is off there is no socket at all — nothing is listening
-to refuse. Any pane something drove through `lc` then wears an `LC` badge for the rest of
-its life.
-
-Then just ask, in words — *"fan this out three ways, wait for all of them, and tell me when
-they're done"*. Claude is told the command exists in one sentence pointing at `lc --help`,
-so you never have to explain it. What it has:
-
-```
-lc ls                                  every pane, with status, role and branch
-lc read <pane> [--tail N] [--clean]    recent output, oldest line first
-lc send <pane> <text|-> [--no-enter] [--force]   type into a pane; - reads stdin
-lc close <pane>                        close a pane (worktrees are kept)
-lc wait <pane...> [--for idle|exit|approval|working|any] [--timeout-ms N]
-lc fan <task> <count> <prompt> [--plan]   worktrees + agents in one call
-```
-
-`lc send` refuses a pane that is showing a permission prompt — the keystrokes would
-answer it — unless you add `--force`, and it refuses the pane it is sent from. Several
-lines arrive as one paste, not as a line per Enter. The verbs for directing other
-agents (`spawn`, `ask`, `events` and the rest) are in
-[Conducting an orchestra](#conducting-an-orchestra).
-
-Every command takes `--json`, because its usual reader is an agent parsing output rather
-than a person. Nothing needs installing: `lc` runs under the app's own runtime and exists
-only inside Light Code's panes.
-
-One thing to know: `lc read` returns what is drawn on a pane's screen, which for an agent
-pane is its interface rather than its answer. If you want the result of a fan-out read
-back, tell the agents to write it to a file and have the reader open that.
-
-### Conducting an orchestra
-
-`Mod+Shift+O`, or the note button in the tab bar, opens the **Orchestra panel**:
-every orchestra in the window, its workers as cards, the reports its squad has
-written, and a timeline of what happened. With none open it offers to start one.
-The panel stays where you left it between restarts.
-
-**Start one** with the squad button, with `⋮` → **Conduct from Here** on any
-pane, or by asking an agent to `lc spawn` a worker. From a lead's `⋮` menu:
-
-| | |
-| --- | --- |
-| **Add Worker…** | asks for a handle and an agent, then opens it beside the lead, in the lead's folder |
-| **Agent ▸** | starts a different agent in a crew member's pane — Claude, Codex, Gemini, or a shell |
-| **Stop Conducting** | dissolves the orchestra; every pane and shell keeps running |
-
-Any other pane gets **Link to Orchestra…** once a lead exists, and a worker gets
-**Unlink from Orchestra**. An agent whose command is not on your `PATH` is dimmed
-in every picker, but can still be chosen — your pane's shell may find what the
-app could not.
-
-**The lead talks to workers by handle.** Inside an orchestra, a pane can be named
-as `@<handle>`, `@lead`, or `@*` (the rest of the crew — for `wait` only, so
-every send is checked on its own). In PowerShell, quote them: a bare `@name` is
-splatting. The verbs an orchestrator uses:
-
-```
-lc ls --crew                           just your orchestra, with handles and agents
-lc spawn [--agent claude|codex|gemini|shell] [--role R] [--handle H] [--plan]
-         [--cwd DIR | --worktree [--branch B]] [--split right|down] [prompt|-]
-lc ask @developer -                    send, wait for the turn to end, print the answer
-lc result @developer                   its last answer (transcript, else its screen)
-lc read @developer --clean             the screen's words without the interface around them
-lc events [--since N]                  what happened in your crew; --since waits for the next thing
-lc wait @* --for idle|exit|approval|working|any
-lc interrupt @developer                stop the turn; the session keeps running
-lc approve @developer yes|no           only if you ticked "Lead may approve"
-```
-
-A `-` reads the text from stdin, which is how several lines get through a shell
-without a fight over quoting — `lc ask @developer - <<'EOF'` and a heredoc.
-Several lines arrive as one paste followed by Enter, not as a line per Enter.
-`lc spawn` opens at most 12 workers per orchestra and 3 per ten seconds, and
-never moves your focus.
-
-Exit codes are `0` ok, `1` app not reachable, `2` bad usage, `3` refused,
-`4` timed out. A warning goes to stderr and leaves the exit code alone, so a
-script that only checks success keeps working.
-
-**Each crew has three switches** in the panel:
-
-| | |
-| --- | --- |
-| **Lead may approve** | lets the lead answer its own workers' permission prompts with `lc approve`. Off by default, and it asks before turning on |
-| **Strict** | refuses, instead of warning about, `lc` commands that reach outside the crew, and a worker driving its lead |
-| **Paused** | holds the lead's `lc` commands to the crew. Workers finish what they are doing, and the cards still work for you |
-
-`Mod+Shift+Y` approves whichever pane in the focused orchestra is asking — the
-focused one first, then the first worker in reading order. It asks to be sure the
-first time in a session, and it only answers Claude's prompts; an estimated
-status is never approved.
-
-**About `≈`:** Codex and Gemini report no status of their own, so Light Code
-guesses from the terminal — busy while it prints, finished once it goes quiet at a
-prompt. The guess is marked `≈` in the app and `~` in `lc ls`, it never claims a
-pane is waiting for approval, and nothing automatic acts on it. Gemini's adapter
-is written from its documentation and **has not been tested** against a real
-`gemini`; if its plan mode or its launch line is wrong, that is the place to
-look. Codex and Gemini give their role in their first message rather than in
-their environment, so `/clear` makes them forget it — the card says so.
+Light Code works as a plain terminal on its own. Agent features need an agent CLI:
+open **Setup and tools** from the command palette to check and install them.
 
 ## Keyboard shortcuts
 
-| Windows / Linux | macOS | Action |
-| --- | --- | --- |
-| `Ctrl+Shift+E` | `⌘+Shift+E` | Split pane right |
-| `Ctrl+Shift+D` (or `S`) | `⌘+Shift+D` | Split pane down |
-| `Ctrl+Shift+T` | `⌘+Shift+T` | New terminal tab |
-| `Ctrl+Shift+W` | `⌘+Shift+W` | Close focused pane |
-| `Ctrl+Shift+M` | `⌘+Shift+M` | Mission Control |
-| `Ctrl+Shift+G` | `⌘+Shift+G` | Git tree panel |
-| `Ctrl+Shift+J` | `⌘+Shift+J` | Jump to the pane that needs you |
-| `Ctrl+Shift+O` | `⌘+Shift+O` | Orchestra panel |
-| `Ctrl+Shift+Y` | `⌘+Shift+Y` | Approve the orchestra worker that is asking (Claude only) |
-| `Ctrl+C` (or `Ctrl+Shift+C`) | `⌘+C` | Copy the selection — sends `^C` when nothing is selected |
-| `Ctrl+V` | `⌘+V` | Paste text — or clipboard image as a file path |
-| *(drag & drop)* | *(drag & drop)* | Drop a file or folder on a pane to type its path |
-| `Ctrl+=` / `Ctrl+-` | `⌘+=` / `⌘+-` | Terminal text bigger / smaller (8–32px) |
-| `Ctrl+0` | `⌘+0` | Reset text size to 14px |
-| `Ctrl+Tab` | `Ctrl+Tab` | Focus next pane (wraps) |
-| `Ctrl+Shift+Tab` | `Ctrl+Shift+Tab` | Focus previous pane |
-| `Ctrl+Alt+←→↑↓` | `⌘+⌥+←→↑↓` | Focus the pane in that direction |
+`Mod` is `Ctrl` on Windows and `⌘` on macOS. Press `Mod+Shift+/` in the app for the full list.
 
-`Ctrl+Tab` is `Ctrl` on **both** platforms — `⌘+Tab` belongs to macOS itself, which is
-why browsers and editors use `Ctrl+Tab` there too. Plain `Tab` and plain arrows are
-deliberately left alone so shell completion and history keep working.
+| Action | Shortcut |
+| --- | --- |
+| Command palette | `Mod+Shift+P` (also `⌘K` on macOS) |
+| New tab | `Mod+Shift+T` |
+| Split right / split down | `Mod+Shift+E` / `Mod+Shift+D` |
+| Maximize or restore pane | `Mod+Shift+Enter` |
+| Close pane | `Mod+Shift+W` |
+| Next / previous pane | `Ctrl+Tab` / `Ctrl+Shift+Tab` |
+| Move focus between panes | `Mod+Alt+Arrow` |
+| Jump to the pane that needs you | `Mod+Shift+J` |
+| Choose a layout | `Mod+Shift+L` |
+| Fan-out | `Mod+Shift+F` |
+| Orchestra panel | `Mod+Shift+O` |
+| Approve the waiting worker | `Mod+Shift+Y` |
+| Worktrees panel | `Mod+Shift+G` |
+| Mission Control | `Mod+Shift+M` |
+| Text size | `Mod+=` / `Mod+-` / `Mod+0` |
 
-Copy only takes `Ctrl+C` when text is actually selected, and the selection is dropped
-once copied — so the next `Ctrl+C` interrupts Claude as usual. Nothing selected, nothing
-taken: the key goes straight through as `^C`. Use `Ctrl+Shift+C` if you would rather
-never think about which one you are about to get.
+Every shortcut uses `Mod+Shift` or `Mod+Alt`, so the keys your shell and agent need (such as
+`Ctrl+C`, `Ctrl+K` and `Ctrl+R`) always reach the terminal.
 
 ## Build from source
 
-### Prerequisites
-
-| | Windows | macOS |
-| --- | --- | --- |
-| Node.js | **22.12 or newer** | **22.12 or newer** |
-| Git | [git-scm.com](https://git-scm.com/download/win) | `xcode-select --install` (ships with it) |
-| OS | Windows 10/11 | macOS 12 Monterey or newer |
-
-Node 22.12 is a hard floor — `electron` and `electron-vite` both declare it. On Node 20
-`npm install` still appears to succeed, but prints `EBADENGINE` warnings and the build
-tooling can fail later in ways that do not point back here. Check with `node -v`.
-
-`node-pty` ships prebuilt binaries for `win32-x64`, `win32-arm64`, `darwin-x64` and
-`darwin-arm64`, so a compiler is normally **not** needed. If npm falls back to building
-it from source you will also need Visual Studio Build Tools with the *Desktop
-development with C++* workload on Windows, or Xcode Command Line Tools on macOS.
-
-### Setup
-
-Identical on both platforms:
+You need Node.js 22.12 or newer and Git.
 
 ```sh
 git clone https://github.com/digitalscapemy/lightcode.git
 cd lightcode
 npm install
+npm run dev
 ```
 
-That is all — but if you are wondering why `package.json` carries a `postinstall`
-that just runs `install-electron`, it is load-bearing:
+| Command | What it does |
+| --- | --- |
+| `npm run dev` | Run the app with hot reload |
+| `npm run typecheck` | TypeScript check |
+| `npm test` | Unit tests (Vitest) |
+| `npm run dist` | Build an installer for the platform you are on |
 
-> Electron 43 dropped the `postinstall` hook that used to fetch its binary — 30, 35
-> and 40 all still had it — and now downloads lazily, on the first
-> `require('electron')`.
->
-> That is enough for `npm run dist`: its bytecode step requires Electron and triggers
-> the download, which is why CI stayed green on a bare `npm ci`. But `electron-vite`
-> resolves the binary path *itself* rather than going through `require`, and throws
-> `Error: Electron uninstall` when it is missing — so `npm run dev` used to fail on a
-> fresh clone while `npm run dist` succeeded, with `npm install` exiting **0** and
-> nothing looking wrong.
->
-> Our own `postinstall` restores what Electron removed. Do not delete it.
+Built with [Electron](https://electronjs.org), [electron-vite](https://electron-vite.org),
+[xterm.js](https://xtermjs.org) and [node-pty](https://github.com/microsoft/node-pty).
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the project layout, the house rules and the release
+process.
 
-### Everyday commands
+## Contributing
 
-```sh
-npm run dev        # dev mode with HMR
-npm run typecheck  # TypeScript check
-npm test           # unit tests (vitest)
-npm run dist       # build an installer for the platform you are on
-```
+Light Code is open source and contributions are very welcome, from a typo fix to a new feature.
 
-`npm run dist` builds only for the machine it runs on, and that is deliberate:
-`npm run dist` compiles the main process to V8 bytecode, which is architecture-specific,
-so a Mac cannot produce a working Windows or Intel build and vice versa. Cross-platform
-installers come from CI, which runs one job per target — see
-[`.github/workflows/build.yml`](.github/workflows/build.yml).
+- **Found a bug?** [Open an issue](https://github.com/digitalscapemy/lightcode/issues/new/choose)
+  with what you did, what you expected and what happened.
+- **Have an idea or a question?** Start a thread in
+  [Discussions](https://github.com/digitalscapemy/lightcode/discussions).
+- **Want to code?** Read [CONTRIBUTING.md](CONTRIBUTING.md), then look for issues labelled
+  [`good first issue`](https://github.com/digitalscapemy/lightcode/labels/good%20first%20issue)
+  or [`help wanted`](https://github.com/digitalscapemy/lightcode/labels/help%20wanted).
+- **Using Light Code in your work?** Tell us in Discussions; it helps decide what to build next.
 
-To build a specific macOS architecture on a Mac: `npm run dist -- --mac --arm64`
-(or `--x64`). Do not pin both at once.
+Please follow our [Code of Conduct](CODE_OF_CONDUCT.md). To report a security problem, see
+[SECURITY.md](SECURITY.md) instead of opening a public issue.
 
-**Tech stack:** [Electron](https://electronjs.org) · [electron-vite](https://electron-vite.org) ·
-[xterm.js](https://xtermjs.org) · [node-pty](https://github.com/microsoft/node-pty) ·
-[electron-updater](https://www.electron.build/auto-update)
-
-**Shell support:** PowerShell 7 / Windows PowerShell 5.1 on Windows; zsh / bash on macOS
-(with automatic shell integration for cwd tracking and the Claude Code hooks — your rc files
-are sourced untouched, and a `claude` function of your own is left alone).
-
-### Project structure
-
-```
-src/shared    types + IPC contract (shared by all three layers)
-src/main      main process: PTY manager, usage watcher, agent hooks, git, lc server, updater
-src/preload   contextBridge boundary (window.lightclaude)
-src/renderer  UI: tab bar, split tree, terminal panes, modals, toast
-```
-
-The orchestra is spread across all four, mostly in pure modules with their tests
-beside them:
-
-```
-src/shared/crew.ts               crews: handles, @target resolution, scope warnings, link geometry
-src/shared/agents.ts             agent adapters — claude, codex, gemini (untested), shell
-src/main/agentResult.ts          an agent's last answer, read from its Claude transcript
-src/main/quietStatus.ts          the ≈ status for agents that report none of their own
-src/main/agentBins.ts            which agent commands are on PATH
-src/main/squadReports.ts         watches a squad's reports folder, behind a path guard
-src/renderer/src/lcPolicy.ts     what lc may do: send, spawn and approve gates, clean reads
-src/renderer/src/steer.ts        the one path for sending, approving and interrupting
-src/renderer/src/crewEvents.ts   the event log behind lc events and the panel timeline
-src/renderer/src/crewStrip.ts    the worker cards inside a lead pane
-src/renderer/src/crewOverlay.ts  the lead-to-worker link lines
-src/renderer/src/orchPanel.ts    the Orchestra panel
-src/renderer/src/agentPicker.ts  the agent choices, with missing ones dimmed
-```
-
-### Releases
-
-Releases are built and published automatically by GitHub Actions: pushing a `vX.Y.Z` tag builds
-Windows + macOS installers and publishes them (with `latest.yml` update feeds) to GitHub
-Releases, which installed apps pick up automatically.
-
-To cut one:
-
-```sh
-# 1. Describe the release to users first — src/shared/changelog.ts, newest entry
-#    at the top, naming the version you are about to cut. One source, three
-#    readers: the in-app About dialog, the GitHub release body, and the update
-#    notification other people see (scripts/release-notes.cjs writes them into
-#    build/release-notes.md at dist time, which electron-builder embeds in
-#    latest.yml). No entry means no notes anywhere — CI warns, but still builds.
-# 2. Bump + tag in one step, so the two can never disagree:
-npm version patch -m "release v%s: what changed"   # patch | minor | major
-git push && git push --tags
-```
-
-Use `npm version` rather than editing `package.json` by hand. A tag that disagrees with
-`package.json` is the one release mistake nothing surfaces: electron-builder stamps the update
-feed from `package.json`, so the feed advertises the *old* version, every installed app decides
-it is already up to date, and the release is silently never delivered. CI now refuses to build
-such a tag, and warns when the changelog has no entry for the version.
-
-**What "auto-update" means per platform** — Windows downloads and installs the update in place,
-with a progress bar and an automatic restart. macOS cannot: Squirrel.Mac refuses to install an
-update that is not signed with the same Apple Developer ID as the app, and these builds are
-unsigned. So macOS notifies, then opens the correct `.dmg` for that machine (Apple Silicon vs
-Intel, Rosetta included) and the user drags it over. Paying for a Developer ID certificate and
-notarising the build is the only thing that changes this.
+If Light Code saves you time, a star on GitHub helps other people find it.
 
 ## License
 
-[MIT](LICENSE) © 2026 **Digital Scape MY**
+[MIT](LICENSE) © 2026 Digital Scape MY
