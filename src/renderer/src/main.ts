@@ -189,7 +189,7 @@ function buildCommands(): Command[] {
     { id: 'palette', title: 'Command palette', group: 'General', icon: 'search', shortcut: 'command-palette', run: () => void openPalette() },
     { id: 'shortcuts', title: 'Keyboard shortcuts', group: 'General', icon: 'keyboard', keywords: 'help keys cheat sheet', shortcut: 'shortcut-help', run: openShortcutHelp },
     { id: 'setup', title: 'Setup & tools: install Claude, Codex, Antigravity CLI', group: 'General', icon: 'sparkle', keywords: 'install agent cli check codex agy antigravity claude help guide', run: openSetup },
-    { id: 'usage', title: 'Token usage per account (today, last 7 days)', group: 'General', icon: 'usage', keywords: 'tokens daily weekly usage account limit cost', run: openUsage },
+    { id: 'usage', title: 'Usage limits per account (session and week)', group: 'General', icon: 'usage', keywords: 'usage limits plan weekly session reset percent account', run: openUsage },
     { id: 'projects', title: 'Project shortcuts', group: 'General', icon: 'projects', keywords: 'folders paths profile', run: click('projects-btn') },
     { id: 'accounts', title: 'Accounts: Claude, Codex, Antigravity', group: 'General', icon: 'accounts', keywords: 'config dir login profile codex agy antigravity claude', run: click('accounts-btn') },
     { id: 'settings', title: 'Settings', group: 'General', icon: 'settings', keywords: 'preferences options font size install wsl docker', run: () => openSettings() },

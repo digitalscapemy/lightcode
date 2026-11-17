@@ -47,7 +47,7 @@ import { systemPageUri } from '../shared/guides'
 import { checkPermissions } from './permissionCheck'
 import { providerOf } from '../shared/accountProviders'
 import type { AccountShortcut } from '../shared/types'
-import { accountUsage } from './accountUsage'
+import { planLimits } from './planLimits'
 
 /** The config folders whose Claude usage is watched: Claude accounts only. */
 function claudeDirs(accounts: AccountShortcut[]): string[] {
@@ -125,7 +125,7 @@ function registerIpc(): void {
     if (isSafeExternalUrl(url)) void shell.openExternal(url)
   })
   ipcMain.handle(IPC.PermissionsCheck, () => checkPermissions())
-  ipcMain.handle(IPC.AccountUsage, () => accountUsage())
+  ipcMain.handle(IPC.PlanLimits, () => planLimits())
   ipcMain.handle(IPC.ToolsCheck, async () => {
     const result = await checkTools()
     resetAgentAvailability() // the pickers should see a fresh install too

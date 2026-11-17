@@ -9,6 +9,14 @@ export const DEVELOPER = 'Digital Scape MY'
 /** Newest first. Add an entry on every release (see release procedure). */
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '1.0.2',
+    date: '2026-11-17',
+    notes: [
+      'Live usage limits. The usage button now shows each Claude account’s plan limits exactly as Claude Code reports them: how much of the current session and of this week you have used, and when each resets. Nothing is counted or estimated. The numbers update while Claude runs in a Light Code pane, and your own status line keeps working as before.',
+      'Transcripts are saved again when Light Code is opened from inside a Claude Code session. Panes no longer inherit that session’s markers, so claude in a pane no longer says "Transcript saving is off".'
+    ]
+  },
+  {
     version: '1.0.1',
     date: '2026-11-17',
     notes: [

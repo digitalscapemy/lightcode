@@ -4,6 +4,7 @@ import type { FSWatcher } from 'fs'
 import { readdir, readFile, stat, unlink } from 'fs/promises'
 import { join } from 'path'
 import { atomicWrite, isPidAlive, ownerPid } from './instance'
+import { installStatusLine } from './planLimits'
 
 /**
  * Claude Code lifecycle events, straight from the CLI rather than inferred.
@@ -287,7 +288,11 @@ export function windowsScript(): string {
  * blocked every turn boundary would be felt on Windows, where each run is a
  * PowerShell start-up.
  */
-export function renderHookSettings(command: string, args: string[]): object {
+export function renderHookSettings(
+  command: string,
+  args: string[],
+  statusLine?: { type: 'command'; command: string } | null
+): object {
   const handler = {
     type: 'command',
     command,
@@ -297,7 +302,8 @@ export function renderHookSettings(command: string, args: string[]): object {
   }
   const hooks: Record<string, unknown> = {}
   for (const event of HOOK_EVENTS) hooks[event] = [{ hooks: [{ ...handler }] }]
-  return { hooks }
+  // The plan-limits status line (planLimits.ts), which also runs the person's own.
+  return statusLine ? { hooks, statusLine } : { hooks }
 }
 
 /** How Claude Code should invoke the reporter on this platform. */
@@ -335,7 +341,7 @@ export function installHookAssets(): HookPaths | null {
       }
     }
     const { command, args } = reporterCommand(paths.script)
-    const settings = JSON.stringify(renderHookSettings(command, args), null, 2)
+    const settings = JSON.stringify(renderHookSettings(command, args, installStatusLine(paths.dir)), null, 2)
     if (!atomicWrite(paths.settings, settings)) return null
     return paths
   } catch {

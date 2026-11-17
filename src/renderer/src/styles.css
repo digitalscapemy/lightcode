@@ -4134,7 +4134,7 @@ body.page-hidden .lc-logo-animated {
   font-size: var(--fs-xs);
 }
 
-/* ---------- Token usage (usageView.ts) ---------- */
+/* ---------- Usage limits (usageView.ts) ---------- */
 
 .usage-modal {
   width: 680px;
@@ -4193,74 +4193,63 @@ body.page-hidden .lc-logo-animated {
   font-size: var(--fs-sm);
 }
 
-.usage-stats {
+.limit-row {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: var(--space-3);
+  grid-template-columns: minmax(150px, 220px) minmax(0, 1fr) 84px;
+  align-items: center;
+  gap: var(--space-4);
 }
 
-.usage-stat-label {
-  color: var(--fg-subtle);
-  font-size: var(--fs-xs);
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-
-.usage-stat-value {
-  margin-top: 2px;
+.limit-title {
   color: var(--fg);
-  font-size: 22px;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
+  font-size: var(--fs-md);
 }
 
-.usage-stat-sub {
+.limit-sub {
+  margin-top: 2px;
   color: var(--fg-muted);
   font-size: var(--fs-sm);
 }
 
-.usage-chart {
-  display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
-  gap: var(--space-2);
-  height: 92px;
-}
-
-.usage-col {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  min-width: 0;
-}
-
-.usage-track {
-  flex: 1 1 auto;
-  display: flex;
-  align-items: flex-end;
-  border-radius: var(--radius-sm);
-  background: var(--bg-raised);
+.limit-track {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--bg-active);
   overflow: hidden;
 }
 
-.usage-bar {
-  width: 100%;
-  background: var(--border-strong);
-  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
-}
-
-.usage-col.today .usage-bar {
+.limit-bar {
+  width: 0;
+  height: 100%;
+  border-radius: 3px;
   background: var(--accent);
+  transition: width var(--dur) var(--ease);
 }
 
-.usage-col-label {
-  text-align: center;
-  color: var(--fg-subtle);
-  font-size: var(--fs-xs);
+.limit-bar.mid {
+  background: var(--warning);
 }
 
-.usage-col.today .usage-col-label {
-  color: var(--fg);
+.limit-bar.high {
+  background: var(--danger);
+}
+
+.limit-pct {
+  color: var(--fg-muted);
+  font-size: var(--fs-sm);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.limit-row.empty .limit-track {
+  opacity: 0.5;
+}
+
+.limit-hint {
+  color: var(--fg-muted);
+  font-size: var(--fs-sm);
+  line-height: 1.5;
 }
 
 .usage-note {

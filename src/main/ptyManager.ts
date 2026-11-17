@@ -11,6 +11,7 @@ import { QuietWatcher } from './quietStatus'
 import { detectShell, hookEnv, lcEnv } from './shell'
 import { psNativeArgSafe } from '../shared/psQuote'
 import { loadShortcuts, psStartupShortcuts } from './shortcuts'
+import { withoutClaudeSession } from './inheritedEnv'
 import type { UsageWatcher } from './usageWatcher'
 import { refreshProcessPath } from './toolCheck'
 
@@ -120,7 +121,9 @@ export class PtyManager {
     // inherits that pane's token and socket. Left in place they would reach the
     // outer app and pass as the outer pane, so only what this instance issues
     // may stand.
-    const inherited = { ...(process.env as Record<string, string>) }
+    // And a Light Code started from inside a Claude Code session must not make
+    // every pane's claude a child of it (see inheritedEnv.ts).
+    const inherited = withoutClaudeSession(process.env as Record<string, string>)
     delete inherited.LIGHTCODE_LC_TOKEN
     delete inherited.LIGHTCODE_LC_SOCKET
     // Likewise who the outer pane was: an inner pane in no crew must not say

@@ -58,7 +58,8 @@ pane is a real shell, and everything Light Code adds is optional.
 
 ### Know what is happening
 
-- **Token usage per pane**, and per Claude account for today and the last 7 days.
+- **Token usage per pane**, and **live plan limits per Claude account**: how much of the current
+  session and of the week is used, and when each resets, the same numbers as `/usage`.
 - **Mission Control**: every session in the window at a glance; send one message to many.
 - **Worktrees panel**: every branch and worktree, how far it is from main, and which pane is in it.
 - **Shared-folder warning** when two agents run unattended in the same working tree.

@@ -1,125 +1,114 @@
-import { billable, fmtTokens, type AccountUsage } from '../../shared/accountUsage'
+import type { AccountLimits, LimitWindow } from '../../shared/planLimits'
 import { openModal } from './ui/modal'
 
 /**
- * Token usage per Claude account: today, the last 7 days as bars, and when it
- * was last active. Live while open (every 15 s; main caches for 10 s, so this
- * stays cheap). Counted from the transcripts on this computer: these are not
- * Anthropic's plan limits, and the dialog says so.
+ * Plan limits per Claude account: the 5-hour session and the week, as used
+ * percentages with their reset times. The same numbers as Claude Code's
+ * /usage, saved by Light Code's status line on every refresh (see
+ * shared/planLimits.ts), and re-read every few seconds while this is open.
  */
 
-function ago(ms: number | null): string {
-  if (ms === null) return 'no activity this week'
+const POLL_MS = 5000
+
+function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls?: string, text?: string): HTMLElementTagNameMap[K] {
+  const e = document.createElement(tag)
+  if (cls) e.className = cls
+  if (text !== undefined) e.textContent = text
+  return e
+}
+
+/** "3:00 PM" today, "Saturday 10:00 AM" within the week, a date beyond. */
+function resetLabel(ms: number): string {
+  const d = new Date(ms)
+  const now = new Date()
+  const time = d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
+  if (d.toDateString() === now.toDateString()) return `Resets ${time}`
+  if (ms - now.getTime() < 6.5 * 86_400_000) return `Resets ${d.toLocaleDateString(undefined, { weekday: 'long' })} ${time}`
+  return `Resets ${d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} ${time}`
+}
+
+function ago(ms: number): string {
   const s = Math.max(0, Math.round((Date.now() - ms) / 1000))
-  if (s < 60) return 'active just now'
-  if (s < 3600) return `active ${Math.round(s / 60)} min ago`
-  if (s < 86400) return `active ${Math.round(s / 3600)} h ago`
-  return `active ${Math.round(s / 86400)} d ago`
+  if (s < 60) return 'updated just now'
+  if (s < 3600) return `updated ${Math.round(s / 60)} min ago`
+  if (s < 86400) return `updated ${Math.round(s / 3600)} h ago`
+  return `updated ${Math.round(s / 86400)} d ago`
 }
 
-function weekday(day: string): string {
-  const [y, m, d] = day.split('-').map(Number)
-  return new Date(y!, m! - 1, d!, 12).toLocaleDateString(undefined, { weekday: 'short' })
+function limitRow(title: string, w: LimitWindow | null): HTMLElement {
+  const row = el('div', 'limit-row')
+  const text = el('div', 'limit-text')
+  text.appendChild(el('div', 'limit-title', title))
+  const track = el('div', 'limit-track')
+  const bar = el('div', 'limit-bar')
+  track.appendChild(bar)
+  const pct = el('div', 'limit-pct')
+
+  if (!w) {
+    text.appendChild(el('div', 'limit-sub', 'Not reported yet'))
+    pct.textContent = ''
+    row.classList.add('empty')
+  } else if (w.resetsAt <= Date.now()) {
+    // Seen before its reset; the new window shows after the next reply.
+    text.appendChild(el('div', 'limit-sub', 'Reset since, updates after the next reply'))
+    pct.textContent = '0% used'
+  } else {
+    const used = Math.min(100, Math.round(w.usedPercent))
+    text.appendChild(el('div', 'limit-sub', resetLabel(w.resetsAt)))
+    bar.style.width = `${used}%`
+    if (used >= 90) bar.classList.add('high')
+    else if (used >= 75) bar.classList.add('mid')
+    pct.textContent = `${used}% used`
+  }
+  row.append(text, track, pct)
+  return row
 }
 
-function stat(label: string, value: string, sub: string): HTMLElement {
-  const s = document.createElement('div')
-  s.className = 'usage-stat'
-  const l = document.createElement('div')
-  l.className = 'usage-stat-label'
-  l.textContent = label
-  const v = document.createElement('div')
-  v.className = 'usage-stat-value'
-  v.textContent = value
-  const b = document.createElement('div')
-  b.className = 'usage-stat-sub'
-  b.textContent = sub
-  s.append(l, v, b)
-  return s
-}
-
-function card(a: AccountUsage): HTMLElement {
-  const el = document.createElement('div')
-  el.className = 'usage-card'
-
-  const head = document.createElement('div')
-  head.className = 'usage-head'
-  const left = document.createElement('div')
-  const name = document.createElement('div')
-  name.className = 'usage-name'
-  name.textContent = a.label
-  const dir = document.createElement('div')
-  dir.className = 'usage-dir'
-  dir.textContent = a.configDir
+function card(a: AccountLimits): HTMLElement {
+  const c = el('div', 'usage-card')
+  const head = el('div', 'usage-head')
+  const left = el('div')
+  const dir = el('div', 'usage-dir', a.configDir)
   dir.title = a.configDir
-  left.append(name, dir)
-  const when = document.createElement('div')
-  when.className = 'usage-when'
-  when.textContent = ago(a.lastActivity)
-  head.append(left, when)
+  left.append(el('div', 'usage-name', a.label), dir)
+  head.append(left, el('div', 'usage-when', a.updatedAt ? ago(a.updatedAt) : 'not seen yet'))
+  c.appendChild(head)
 
-  const stats = document.createElement('div')
-  stats.className = 'usage-stats'
-  stats.append(
-    stat('Today', fmtTokens(billable(a.today)), `${fmtTokens(a.today.output)} output`),
-    stat('Last 7 days', fmtTokens(billable(a.last7)), `${fmtTokens(a.last7.output)} output`),
-    stat('Cache reads, 7 days', fmtTokens(a.last7.cacheRead), 'cheaper, counted apart')
-  )
-
-  // Seven bars, oldest first; today is the last one and stands out.
-  const chart = document.createElement('div')
-  chart.className = 'usage-chart'
-  const max = Math.max(1, ...a.days.map((d) => billable(d.totals)))
-  a.days.forEach((d, i) => {
-    const isToday = i === a.days.length - 1
-    const v = billable(d.totals)
-    const col = document.createElement('div')
-    col.className = 'usage-col' + (isToday ? ' today' : '')
-    col.title = `${d.day}: ${fmtTokens(v)} tokens (${fmtTokens(d.totals.output)} output)`
-    const track = document.createElement('div')
-    track.className = 'usage-track'
-    const bar = document.createElement('div')
-    bar.className = 'usage-bar'
-    bar.style.height = `${v > 0 ? Math.max(4, Math.round((v / max) * 100)) : 1}%`
-    track.appendChild(bar)
-    const lab = document.createElement('div')
-    lab.className = 'usage-col-label'
-    lab.textContent = isToday ? 'Today' : weekday(d.day)
-    col.append(track, lab)
-    chart.appendChild(col)
-  })
-
-  el.append(head, stats, chart)
-  return el
+  if (a.updatedAt === null) {
+    c.appendChild(
+      el(
+        'div',
+        'limit-hint',
+        'Start Claude with this account in a Light Code pane. Its limits show here after the first reply.'
+      )
+    )
+    return c
+  }
+  c.append(limitRow('Current session', a.fiveHour), limitRow('This week', a.sevenDay))
+  return c
 }
 
 export function openUsage(): void {
   const m = openModal({
-    title: 'Token usage',
-    subtitle: 'Per Claude account, from the session transcripts on this computer.',
+    title: 'Usage limits',
+    subtitle: 'Your Claude plan limits per account, live from Claude Code.',
     icon: 'usage',
     className: 'usage-modal'
   })
-  const list = document.createElement('div')
-  list.className = 'usage-list'
-  const loading = document.createElement('div')
-  loading.className = 'usage-empty'
-  loading.textContent = 'Reading transcripts…'
-  list.appendChild(loading)
-  const note = document.createElement('p')
-  note.className = 'usage-note'
-  note.textContent =
-    'Tokens = input + output + cache writes. These are counts, not your plan limits: Anthropic does not ' +
-    'write those into transcripts, and usage from other computers is not included. Add accounts under Claude accounts.'
+  const list = el('div', 'usage-list')
+  list.appendChild(el('div', 'usage-empty', 'Loading…'))
+  const note = el(
+    'p',
+    'usage-note',
+    'The same numbers as /usage in Claude Code. They refresh with every reply in a Light Code pane, so an account ' +
+      'that has not been used here for a while shows when it was last seen. Add accounts under Accounts.'
+  )
   m.body.append(list, note)
 
-  const updated = document.createElement('span')
-  updated.className = 'usage-updated'
-  const spacer = document.createElement('div')
+  const updated = el('span', 'usage-updated')
+  const spacer = el('div')
   spacer.style.flex = '1'
-  const done = document.createElement('button')
-  done.className = 'shortcuts-primary'
-  done.textContent = 'Done'
+  const done = el('button', 'shortcuts-primary', 'Done')
   m.footer.append(updated, spacer, done)
 
   let timer: number | null = null
@@ -133,17 +122,17 @@ export function openUsage(): void {
   })
   const load = async (): Promise<void> => {
     try {
-      const data = await window.lightclaude.accountUsage()
+      const data = await window.lightclaude.planLimits()
       if (!m.overlay.isConnected) return stop()
       list.replaceChildren(...data.map(card))
-      updated.textContent = `Live · updated ${new Date().toLocaleTimeString()}`
+      updated.textContent = `Live · checked ${new Date().toLocaleTimeString()}`
     } catch {
-      updated.textContent = 'Could not read usage'
+      updated.textContent = 'Could not read limits'
     }
   }
   void load()
   timer = window.setInterval(() => {
     if (!m.overlay.isConnected) return stop()
     void load()
-  }, 15_000)
+  }, POLL_MS)
 }

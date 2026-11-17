@@ -151,7 +151,7 @@ function shortcutsSection(close: () => void): HTMLElement {
     settingRow('Projects', 'Folders you open with one click, or by typing their name in any pane.', withValue(projects, open('projects-btn', 'Manage'))),
     settingRow('Main projects folder', 'New projects are created under it, sorted by category.', root),
     settingRow('Accounts', 'Claude, Codex and Antigravity logins, one folder each. Type the name in a pane to start it.', withValue(accounts, open('accounts-btn', 'Manage'))),
-    settingRow('Token usage', 'Tokens per Claude account, today and the last 7 days.', open('usage-btn', 'Open'))
+    settingRow('Usage limits', 'Plan limits per Claude account, live: this session and this week, with reset times.',open('usage-btn', 'Open'))
   )
   return box
 }
