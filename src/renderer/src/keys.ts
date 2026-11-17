@@ -17,6 +17,11 @@ export type ShortcutAction =
   | 'pane-down'
   | 'crew-approve'
   | 'orch-panel'
+  | 'command-palette'
+  | 'shortcut-help'
+  | 'fan-out'
+  | 'layout-picker'
+  | 'pane-maximize'
 
 const isMac = window.lightclaude.platform === 'darwin'
 
@@ -42,6 +47,11 @@ export function matchShortcut(e: KeyboardEvent): ShortcutAction | null {
   // Cmd+<key> on macOS, Ctrl+<key> elsewhere.
   const mod = isMac ? e.metaKey && !e.ctrlKey : e.ctrlKey && !e.metaKey
   if (!mod) return null
+
+  // ⌘K opens the command palette on macOS, as it does in most Mac apps. Cmd
+  // never reaches the terminal there, so nothing is taken from the shell. Not
+  // on Windows/Linux: Ctrl+K is readline's kill-to-end-of-line.
+  if (isMac && e.code === 'KeyK' && !e.shiftKey && !e.altKey) return 'command-palette'
 
   // Directional pane focus is the only thing allowed to hold Alt. Everything
   // else still bails on it, because Alt-modified keys are real terminal input
@@ -109,9 +119,79 @@ export function matchShortcut(e: KeyboardEvent): ShortcutAction | null {
     // O for orchestra: the panel of every crew in the window.
     case 'KeyO':
       return 'orch-panel'
+    // P for palette — the same key VS Code and Windows Terminal use.
+    case 'KeyP':
+      return 'command-palette'
+    // "?" — the key everyone tries first for help.
+    case 'Slash':
+      return 'shortcut-help'
+    case 'KeyF':
+      return 'fan-out'
+    case 'KeyL':
+      return 'layout-picker'
+    case 'Enter':
+      return 'pane-maximize'
     default:
       return null
   }
+}
+
+/**
+ * How each shortcut is written for people: menus, tooltips, the palette and the
+ * cheat-sheet all read it from here. "Mod" is Ctrl, or ⌘ on macOS. A test checks
+ * every entry against matchShortcut, so the text cannot promise a key that does
+ * nothing.
+ */
+export const SHORTCUT_KEYS: Record<ShortcutAction, string> = {
+  'command-palette': 'Mod+Shift+P',
+  'shortcut-help': 'Mod+Shift+/',
+  'new-tab': 'Mod+Shift+T',
+  'split-right': 'Mod+Shift+E',
+  'split-down': 'Mod+Shift+D',
+  'close-pane': 'Mod+Shift+W',
+  'pane-maximize': 'Mod+Shift+Enter',
+  'pane-next': 'Ctrl+Tab',
+  'pane-prev': 'Ctrl+Shift+Tab',
+  'pane-left': 'Mod+Alt+Left',
+  'pane-right': 'Mod+Alt+Right',
+  'pane-up': 'Mod+Alt+Up',
+  'pane-down': 'Mod+Alt+Down',
+  'pane-attention': 'Mod+Shift+J',
+  'layout-picker': 'Mod+Shift+L',
+  'fan-out': 'Mod+Shift+F',
+  'orch-panel': 'Mod+Shift+O',
+  'crew-approve': 'Mod+Shift+Y',
+  'git-tree': 'Mod+Shift+G',
+  'mission-control': 'Mod+Shift+M',
+  'font-larger': 'Mod+=',
+  'font-smaller': 'Mod+-',
+  'font-reset': 'Mod+0'
+}
+
+const MAC_SYMBOLS: Record<string, string> = {
+  Mod: '⌘',
+  Ctrl: '⌃',
+  Shift: '⇧',
+  Alt: '⌥',
+  Enter: '↩',
+  Left: '←',
+  Right: '→',
+  Up: '↑',
+  Down: '↓',
+  Tab: '⇥'
+}
+
+/** "Mod+Shift+P" → "Ctrl+Shift+P" (Windows/Linux) or "⌘⇧P" (macOS). */
+export function formatKeys(spec: string, mac = isMac): string {
+  const parts = spec.split('+').filter(Boolean)
+  // A literal "+" key would split into an empty part; none of ours use it.
+  if (mac) return parts.map((p) => MAC_SYMBOLS[p] ?? p).join('')
+  return parts.map((p) => (p === 'Mod' ? 'Ctrl' : p)).join('+')
+}
+
+/** The shortcut for an action, written for this platform. */
+export function shortcutLabel(action: ShortcutAction): string {
+  return formatKeys(SHORTCUT_KEYS[action])
 }
 
 /** Used by xterm's attachCustomKeyEventHandler so app shortcuts bubble out. */

@@ -216,3 +216,57 @@ describe('matchShortcut — orchestra panel', () => {
     expect(matchShortcut(key('KeyO', ctrl))).toBeNull()
   })
 })
+
+
+describe('SHORTCUT_KEYS — every label is a key that works', () => {
+  // Turns "Mod+Shift+P" into the KeyboardEvent that pressing it produces.
+  const CODES: Record<string, string> = {
+    '/': 'Slash', '=': 'Equal', '-': 'Minus', '0': 'Digit0', Enter: 'Enter', Tab: 'Tab',
+    Left: 'ArrowLeft', Right: 'ArrowRight', Up: 'ArrowUp', Down: 'ArrowDown'
+  }
+  function press(spec: string, mac: boolean): KeyboardEvent {
+    const parts = spec.split('+')
+    const k = parts.pop()!
+    const mods = { ctrlKey: false, metaKey: false, shiftKey: false, altKey: false }
+    for (const m of parts) {
+      if (m === 'Mod') mods[mac ? 'metaKey' : 'ctrlKey'] = true
+      if (m === 'Ctrl') mods.ctrlKey = true
+      if (m === 'Shift') mods.shiftKey = true
+      if (m === 'Alt') mods.altKey = true
+    }
+    return { code: CODES[k] ?? `Key${k}`, ...mods } as unknown as KeyboardEvent
+  }
+
+  it.each(['win32', 'darwin'])('on %s', async (platform) => {
+    vi.resetModules()
+    vi.stubGlobal('window', { lightclaude: { platform } })
+    const keys = await import('./keys')
+    for (const [action, spec] of Object.entries(keys.SHORTCUT_KEYS)) {
+      expect([action, keys.matchShortcut(press(spec, platform === 'darwin'))]).toEqual([action, action])
+    }
+  })
+
+  it('writes keys the platform way', async () => {
+    vi.resetModules()
+    vi.stubGlobal('window', { lightclaude: { platform: 'win32' } })
+    const keys = await import('./keys')
+    expect(keys.formatKeys('Mod+Shift+P', false)).toBe('Ctrl+Shift+P')
+    expect(keys.formatKeys('Mod+Shift+P', true)).toBe('⌘⇧P')
+    expect(keys.formatKeys('Mod+Alt+Left', true)).toBe('⌘⌥←')
+  })
+})
+
+describe('new shortcuts keep clear of terminal keys', () => {
+  it('needs Shift for P, /, F, L and Enter on Windows', () => {
+    for (const code of ['KeyP', 'Slash', 'KeyF', 'KeyL', 'Enter']) {
+      expect(matchShortcut(key(code, ctrl))).toBeNull()
+    }
+  })
+
+  // Ctrl+K is readline's kill-line; only Cmd+K on macOS opens the palette.
+  it('leaves Ctrl+K to the shell, takes Cmd+K on macOS', () => {
+    expect(matchShortcut(key('KeyK', ctrl))).toBeNull()
+    expect(onMac(key('KeyK', { metaKey: true }))).toBe('command-palette')
+    expect(onMac(key('KeyK', { ctrlKey: true }))).toBeNull()
+  })
+})

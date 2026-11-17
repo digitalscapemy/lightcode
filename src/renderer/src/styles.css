@@ -3330,3 +3330,145 @@ body.tab-dragging * {
   color: var(--fg-muted);
   line-height: 1.4;
 }
+
+/* ---------- Command palette (palette.ts) ---------- */
+
+.palette-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-modal);
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding-top: 12vh;
+  background: var(--backdrop);
+  animation: fade-in var(--dur) var(--ease);
+  -webkit-app-region: no-drag;
+}
+
+.palette {
+  width: 600px;
+  max-width: calc(100vw - 32px);
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  background: var(--bg-panel);
+  box-shadow: var(--shadow-3);
+  overflow: hidden;
+  animation: appear var(--dur) var(--ease);
+}
+
+.palette-field {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-4);
+  border-bottom: 1px solid var(--border);
+  color: var(--fg-muted);
+}
+
+.palette-input {
+  flex: 1 1 auto;
+  height: 48px;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--fg);
+  font: inherit;
+  font-size: var(--fs-lg);
+}
+
+.palette-input::placeholder {
+  color: var(--fg-subtle);
+}
+
+.palette-list {
+  max-height: min(420px, 55vh);
+  overflow-y: auto;
+  padding: var(--space-1);
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar) transparent;
+}
+
+.palette-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  height: 36px;
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-md);
+  color: var(--fg);
+  cursor: pointer;
+}
+
+.palette-row.active {
+  background: var(--bg-active);
+}
+
+.palette-row-icon {
+  display: inline-flex;
+  color: var(--fg-muted);
+}
+
+.palette-row.active .palette-row-icon {
+  color: var(--accent-hover);
+}
+
+.palette-row-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.palette-row-hint {
+  color: var(--fg-subtle);
+  font-size: var(--fs-sm);
+  white-space: nowrap;
+}
+
+.palette-empty {
+  padding: var(--space-5);
+  text-align: center;
+  color: var(--fg-muted);
+}
+
+.palette-foot {
+  padding: 6px var(--space-4);
+  border-top: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--fg-subtle);
+  font-size: var(--fs-xs);
+}
+
+/* ---------- Keyboard shortcuts sheet ---------- */
+
+.shortcut-help-modal {
+  width: 720px;
+}
+
+.shortcut-help {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-5) var(--space-6);
+}
+
+.shortcut-help h3 {
+  margin-bottom: var(--space-2);
+  color: var(--fg-subtle);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.shortcut-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-height: 28px;
+  color: var(--fg);
+}
