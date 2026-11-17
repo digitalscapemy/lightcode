@@ -2251,25 +2251,27 @@ body.tab-dragging * {
 
 /* ---------- Update toast ---------- */
 
+/* The update offer: the same look as every other toast (ui/toast.ts), with
+   the accent stripe because it is information, not a problem. It lives in the
+   shared toast column (.toast-stack), so it never covers another notice. */
 #update-toast {
-  position: fixed;
-  right: 16px;
-  bottom: 16px;
-  z-index: var(--z-toast);
+  pointer-events: auto;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  min-width: 260px;
-  max-width: 340px;
-  padding: 12px 14px;
-  background: var(--bg-panel);
-  border: 1px solid var(--border);
-  border-radius: 8px;
+  gap: var(--space-2);
+  width: 360px;
+  max-width: calc(100vw - 32px);
+  padding: var(--space-3);
+  background: var(--bg-raised);
+  border: 1px solid var(--border-strong);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius-md);
   box-shadow: var(--shadow-2);
+  animation: appear var(--dur) var(--ease);
 }
 
 .toast-text {
-  font-size: 12px;
+  font-size: var(--fs-md);
   color: var(--fg);
 }
 
@@ -2286,7 +2288,7 @@ body.tab-dragging * {
   display: flex;
   flex-direction: column;
   gap: 5px;
-  font-size: 11.5px;
+  font-size: var(--fs-sm);
   line-height: 1.45;
   color: var(--fg-muted);
   max-height: 168px;
@@ -2317,8 +2319,8 @@ body.tab-dragging * {
   background: transparent;
   padding: 0;
   font: inherit;
-  font-size: 11.5px;
-  color: var(--accent);
+  font-size: var(--fs-sm);
+  color: var(--accent-hover);
   cursor: pointer;
 }
 
@@ -2329,7 +2331,7 @@ body.tab-dragging * {
 .toast-progress {
   height: 4px;
   border-radius: 2px;
-  background: var(--border);
+  background: var(--bg-active);
   overflow: hidden;
 }
 

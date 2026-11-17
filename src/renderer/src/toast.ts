@@ -1,6 +1,7 @@
 import { paneStatus } from './store'
 
 import type { UpdateAvailableInfo } from '../../shared/ipc'
+import { toastHost } from './ui/toast'
 
 /**
  * What "Later" actually buys. The offer is deliberately NOT dismissible for
@@ -46,7 +47,8 @@ function ensureToast(): HTMLElement {
   }
   toast = document.createElement('div')
   toast.id = 'update-toast'
-  document.body.appendChild(toast)
+  // Same corner and column as every other notice, so they stack, not overlap.
+  toastHost().appendChild(toast)
   return toast
 }
 

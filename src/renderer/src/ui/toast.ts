@@ -35,6 +35,14 @@ const MAX_VISIBLE = 4
 
 let stack: HTMLElement | null = null
 
+/**
+ * The corner every notice lives in. Exported so the update offer (src/toast.ts)
+ * stacks in the same column instead of sitting on top of a toast.
+ */
+export function toastHost(): HTMLElement {
+  return host()
+}
+
 function host(): HTMLElement {
   if (stack && stack.isConnected) return stack
   stack = document.createElement('div')
@@ -103,7 +111,10 @@ export function toast(opts: ToastOptions): () => void {
 
   const box = host()
   box.appendChild(el)
-  while (box.children.length > MAX_VISIBLE) box.firstElementChild?.remove()
+  // Oldest notice goes first, but never the update offer: it has its own life
+  // (offer, download, restart) and is not ours to drop.
+  const notices = (): Element[] => [...box.children].filter((c) => c.id !== 'update-toast')
+  while (notices().length > MAX_VISIBLE) notices()[0]?.remove()
 
   const life = toastLifetime(opts)
   if (life !== null) {
