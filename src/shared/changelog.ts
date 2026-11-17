@@ -9,7 +9,7 @@ export const DEVELOPER = 'Digital Scape MY'
 /** Newest first. Add an entry on every release (see release procedure). */
 export const CHANGELOG: ChangelogEntry[] = [
   {
-    version: '1.1.0',
+    version: '1.0.1',
     date: '2026-11-17',
     notes: [
       'Projects as cards. The Projects button now shows every project as a card, grouped by category, like a profile picker. Click a card to open the project in a new tab. Search, add, edit and delete right in the grid, and the grid scrolls when you have many. Every change is saved as you make it.',
