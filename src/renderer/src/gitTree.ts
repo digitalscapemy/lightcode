@@ -5,6 +5,7 @@ import { newId, pendingCommand, persist, state } from './store'
 import { removeWorktreeAsking } from './worktrees'
 import { branchNameError } from '../../shared/git'
 import type { GitBranchRow, GitBranchState, GitTree, GitWorktreeRow } from '../../shared/ipc'
+import { toast } from './ui/toast'
 
 /**
  * Every worktree of one repository, docked beside the panes — and where each
@@ -684,7 +685,7 @@ async function newWorktree(): Promise<void> {
   if (name === null) return
   const result = await window.lightclaude.git.addWorktree(tree.root, name)
   if (!result.ok) {
-    await alertDialog(result.error)
+    toast({ tone: 'error', title: 'Could not create the worktree', detail: result.error })
     return
   }
   await openAt(result.path)
@@ -694,7 +695,7 @@ async function newWorktree(): Promise<void> {
 async function checkout(tree: GitTree, branch: string): Promise<void> {
   const result = await window.lightclaude.git.checkoutWorktree(tree.root, branch)
   if (!result.ok) {
-    await alertDialog(result.error)
+    toast({ tone: 'error', title: `Could not open ${branch}`, detail: result.error })
     return
   }
   await openAt(result.path)

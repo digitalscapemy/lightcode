@@ -12,6 +12,7 @@ import { crewIdFor } from '../../shared/crew'
 import { branchForRole, taskNameError } from '../../shared/roles'
 import type { Role } from '../../shared/roles'
 import type { LayoutNode } from '../../shared/types'
+import { toast } from './ui/toast'
 
 /**
  * Opening a squad: one orchestrator and a set of specialists, each in its own
@@ -268,7 +269,7 @@ export async function openSquad(): Promise<void> {
   // Said before the dialog, not instead of it: the built-in squad still works,
   // and burying the reason would leave someone wondering why their roles.json
   // had no effect.
-  if (error !== null) await alertDialog(`Using the built-in roles — ${error}`)
+  if (error !== null) toast({ tone: 'warning', title: 'Using the built-in roles', detail: error })
 
   const req = await askSquad(roles, await window.lightclaude.agent.available())
   if (req === null) return

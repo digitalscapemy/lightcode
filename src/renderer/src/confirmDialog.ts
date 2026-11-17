@@ -13,7 +13,27 @@
  *
  * Staying inside the page avoids both. The full-screen overlay is also what
  * stops a second layout being picked while this one is still asking.
+ *
+ * All four share the one modal shell in ui/modal.ts (Escape, click-outside,
+ * focus trap, focus restored afterwards); only what they ask differs.
  */
+import { modalButton, openModal } from './ui/modal'
+
+/** A text-only dialog body, the shape every dialog here starts from. */
+function textBody(body: HTMLElement, message: string): void {
+  body.className = 'shortcuts-body confirm-text'
+  body.textContent = message
+}
+
+/**
+ * Listen for one key while a dialog is open, in the capture phase so it is
+ * answered here rather than by the app behind the overlay. Returns the remover.
+ */
+function onKey(handler: (e: KeyboardEvent) => void): () => void {
+  document.addEventListener('keydown', handler, { capture: true })
+  return () => document.removeEventListener('keydown', handler, { capture: true })
+}
+
 /**
  * The same overlay with several answers, returning which was chosen or null when
  * dismissed. Two buttons cannot express "yes, but not that part" — closing a tab
@@ -31,57 +51,30 @@ export function choiceDialog(
   notes?: (string | null)[]
 ): Promise<number | null> {
   return new Promise((resolve) => {
-    const overlay = document.createElement('div')
-    overlay.id = 'shortcuts-overlay'
-    const modal = document.createElement('div')
-    modal.className = 'shortcuts-modal confirm-modal'
-    const body = document.createElement('div')
-    body.className = 'shortcuts-body confirm-text'
-    body.textContent = message
-    const footer = document.createElement('div')
-    footer.className = 'shortcuts-footer confirm-actions'
-
     let settled = false
     const finish = (answer: number | null): void => {
       if (settled) return
       settled = true
-      document.removeEventListener('keydown', onKeydown, { capture: true })
-      overlay.remove()
+      m.close()
       resolve(answer)
     }
-    const onKeydown = (e: KeyboardEvent): void => {
-      if (e.key !== 'Escape') return
-      e.stopPropagation()
-      finish(null)
-    }
+    const m = openModal({ className: 'confirm-modal', onDismiss: () => finish(null) })
+    textBody(m.body, message)
 
-    const cancel = document.createElement('button')
-    cancel.className = 'shortcuts-secondary'
-    cancel.textContent = 'Cancel'
+    const cancel = modalButton('Cancel')
     cancel.addEventListener('click', () => finish(null))
-    footer.appendChild(cancel)
-
+    m.footer.appendChild(cancel)
     labels.forEach((label, i) => {
-      const btn = document.createElement('button')
-      btn.className = i === labels.length - 1 ? 'shortcuts-primary' : 'shortcuts-secondary'
-      btn.textContent = label
+      const btn = modalButton(label, i === labels.length - 1 ? 'primary' : 'secondary')
       const note = notes?.[i]
       if (note) {
         btn.title = note
         btn.classList.add('choice-caveat')
       }
       btn.addEventListener('click', () => finish(i))
-      footer.appendChild(btn)
+      m.footer.appendChild(btn)
     })
-
-    modal.append(body, footer)
-    overlay.appendChild(modal)
-    overlay.addEventListener('pointerdown', (e) => {
-      if (e.target === overlay) finish(null)
-    })
-    document.addEventListener('keydown', onKeydown, { capture: true })
-    document.body.appendChild(overlay)
-    ;(footer.lastElementChild as HTMLElement | null)?.focus()
+    ;(m.footer.lastElementChild as HTMLElement | null)?.focus()
   })
 }
 
@@ -95,41 +88,24 @@ export function choiceDialog(
  */
 export function alertDialog(message: string, label = 'OK'): Promise<void> {
   return new Promise((resolve) => {
-    const overlay = document.createElement('div')
-    overlay.id = 'shortcuts-overlay'
-    const modal = document.createElement('div')
-    modal.className = 'shortcuts-modal confirm-modal'
-    const body = document.createElement('div')
-    body.className = 'shortcuts-body confirm-text'
-    body.textContent = message
-    const footer = document.createElement('div')
-    footer.className = 'shortcuts-footer confirm-actions'
-    const accept = document.createElement('button')
-    accept.className = 'shortcuts-primary'
-    accept.textContent = label
-    footer.appendChild(accept)
-    modal.append(body, footer)
-    overlay.appendChild(modal)
-
     let settled = false
     const finish = (): void => {
       if (settled) return
       settled = true
-      document.removeEventListener('keydown', onKeydown, { capture: true })
-      overlay.remove()
+      removeKey()
+      m.close()
       resolve()
     }
-    const onKeydown = (e: KeyboardEvent): void => {
-      if (e.key !== 'Escape' && e.key !== 'Enter') return
+    const m = openModal({ className: 'confirm-modal', onDismiss: finish })
+    textBody(m.body, message)
+    const accept = modalButton(label, 'primary')
+    accept.addEventListener('click', finish)
+    m.footer.appendChild(accept)
+    const removeKey = onKey((e) => {
+      if (e.key !== 'Enter') return
       e.stopPropagation()
       finish()
-    }
-    accept.addEventListener('click', finish)
-    overlay.addEventListener('pointerdown', (e) => {
-      if (e.target === overlay) finish()
     })
-    document.addEventListener('keydown', onKeydown, { capture: true })
-    document.body.appendChild(overlay)
     accept.focus()
   })
 }
@@ -151,14 +127,17 @@ export function promptDialog(opts: {
   initial?: string
 }): Promise<string | null> {
   return new Promise((resolve) => {
-    const overlay = document.createElement('div')
-    overlay.id = 'shortcuts-overlay'
+    let settled = false
+    const finish = (answer: string | null): void => {
+      if (settled) return
+      settled = true
+      removeKey()
+      m.close()
+      resolve(answer)
+    }
+    const m = openModal({ className: 'confirm-modal', onDismiss: () => finish(null) })
+    m.body.className = 'shortcuts-body confirm-text'
 
-    const modal = document.createElement('div')
-    modal.className = 'shortcuts-modal confirm-modal'
-
-    const body = document.createElement('div')
-    body.className = 'shortcuts-body confirm-text'
     const label = document.createElement('div')
     label.textContent = opts.message
     const input = document.createElement('input')
@@ -168,29 +147,11 @@ export function promptDialog(opts: {
     input.spellcheck = false
     const hint = document.createElement('div')
     hint.className = 'prompt-hint'
-    body.append(label, input, hint)
+    m.body.append(label, input, hint)
 
-    const footer = document.createElement('div')
-    footer.className = 'shortcuts-footer confirm-actions'
-    const cancel = document.createElement('button')
-    cancel.className = 'shortcuts-secondary'
-    cancel.textContent = 'Cancel'
-    const accept = document.createElement('button')
-    accept.className = 'shortcuts-primary'
-    accept.textContent = opts.confirmLabel ?? 'Create'
-    footer.append(cancel, accept)
-
-    modal.append(body, footer)
-    overlay.appendChild(modal)
-
-    let settled = false
-    const finish = (answer: string | null): void => {
-      if (settled) return
-      settled = true
-      document.removeEventListener('keydown', onKeydown, { capture: true })
-      overlay.remove()
-      resolve(answer)
-    }
+    const cancel = modalButton('Cancel')
+    const accept = modalButton(opts.confirmLabel ?? 'Create', 'primary')
+    m.footer.append(cancel, accept)
 
     const problem = (): string | null => {
       const value = input.value.trim()
@@ -203,28 +164,17 @@ export function promptDialog(opts: {
       accept.disabled = input.value.trim() === '' || issue !== null
     }
 
-    // Enter and Escape are handled here rather than by the app behind the
-    // overlay; keys.ts already stands aside while an input has focus.
-    const onKeydown = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') {
-        e.stopPropagation()
-        finish(null)
-        return
-      }
-      if (e.key === 'Enter') {
-        e.stopPropagation()
-        if (!accept.disabled) finish(input.value.trim())
-      }
-    }
+    // Enter is handled here rather than by the app behind the overlay;
+    // keys.ts already stands aside while an input has focus.
+    const removeKey = onKey((e) => {
+      if (e.key !== 'Enter') return
+      e.stopPropagation()
+      if (!accept.disabled) finish(input.value.trim())
+    })
 
     input.addEventListener('input', revalidate)
     cancel.addEventListener('click', () => finish(null))
     accept.addEventListener('click', () => finish(input.value.trim()))
-    overlay.addEventListener('pointerdown', (e) => {
-      if (e.target === overlay) finish(null)
-    })
-    document.addEventListener('keydown', onKeydown, { capture: true })
-    document.body.appendChild(overlay)
     revalidate()
     input.focus()
     if (opts.initial) input.select()
@@ -233,54 +183,28 @@ export function promptDialog(opts: {
 
 export function confirmDialog(message: string, confirmLabel = 'Continue'): Promise<boolean> {
   return new Promise((resolve) => {
-    const overlay = document.createElement('div')
-    overlay.id = 'shortcuts-overlay'
-
-    const modal = document.createElement('div')
-    modal.className = 'shortcuts-modal confirm-modal'
-
-    const body = document.createElement('div')
-    body.className = 'shortcuts-body confirm-text'
-    body.textContent = message
-
-    const footer = document.createElement('div')
-    footer.className = 'shortcuts-footer confirm-actions'
-    const cancel = document.createElement('button')
-    cancel.className = 'shortcuts-secondary'
-    cancel.textContent = 'Cancel'
-    const accept = document.createElement('button')
-    accept.className = 'shortcuts-primary'
-    accept.textContent = confirmLabel
-    footer.append(cancel, accept)
-
-    modal.append(body, footer)
-    overlay.appendChild(modal)
-
     let settled = false
     const finish = (answer: boolean): void => {
       if (settled) return // Enter fires both the key handler and the button
       settled = true
-      document.removeEventListener('keydown', onKeydown, { capture: true })
-      overlay.remove()
+      removeKey()
+      m.close()
       resolve(answer)
     }
-    // Capture phase, like the other modals: Escape must settle this dialog
-    // rather than reach the app's own key handling behind it.
-    const onKeydown = (e: KeyboardEvent): void => {
-      if (e.key !== 'Escape' && e.key !== 'Enter') return
-      e.stopPropagation()
-      finish(e.key === 'Enter')
-    }
-
-    cancel.addEventListener('click', () => finish(false))
-    accept.addEventListener('click', () => finish(true))
     // Clicking off the dialog is a "no" — the destructive answer is never the
     // one you get by dismissing something.
-    overlay.addEventListener('pointerdown', (e) => {
-      if (e.target === overlay) finish(false)
+    const m = openModal({ className: 'confirm-modal', onDismiss: () => finish(false) })
+    textBody(m.body, message)
+    const cancel = modalButton('Cancel')
+    const accept = modalButton(confirmLabel, 'primary')
+    m.footer.append(cancel, accept)
+    cancel.addEventListener('click', () => finish(false))
+    accept.addEventListener('click', () => finish(true))
+    const removeKey = onKey((e) => {
+      if (e.key !== 'Enter') return
+      e.stopPropagation()
+      finish(true)
     })
-    document.addEventListener('keydown', onKeydown, { capture: true })
-    document.body.appendChild(overlay)
     accept.focus()
   })
 }

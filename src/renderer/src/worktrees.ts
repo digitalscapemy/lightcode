@@ -1,7 +1,8 @@
-import { alertDialog, choiceDialog, confirmDialog } from './confirmDialog'
+import { choiceDialog, confirmDialog } from './confirmDialog'
 import { paneNodes } from './splitTree'
 import { state } from './store'
 import { pendingWorkWarning } from '../../shared/git'
+import { toast } from './ui/toast'
 
 /**
  * Deciding what to do with a worktree when its window onto the repository is
@@ -86,7 +87,7 @@ export async function removeWorktreeAsking(cwd: string, worktreePath: string): P
   const first = await window.lightclaude.git.removeWorktree(cwd, worktreePath, false)
   if (first.ok) return true
   if (!first.needsForce) {
-    await alertDialog(first.error ?? 'Could not remove the worktree.')
+    toast({ tone: 'error', title: 'Could not remove the worktree', detail: first.error })
     return false
   }
   const pending = first.pending
@@ -105,7 +106,7 @@ export async function removeWorktreeAsking(cwd: string, worktreePath: string): P
   if (!forced) return false
   const second = await window.lightclaude.git.removeWorktree(cwd, worktreePath, true)
   if (!second.ok) {
-    await alertDialog(second.error ?? 'Could not remove the worktree.')
+    toast({ tone: 'error', title: 'Could not remove the worktree', detail: second.error })
     return false
   }
   return true

@@ -15,6 +15,7 @@ import { clearDropTarget, hasDropTarget } from './pane'
 import { initShortcutsUi } from './shortcuts'
 import { openSquad } from './squadUi'
 import { initUpdateToast } from './toast'
+import { initTooltips } from './ui/tooltip'
 import { flushPersist, notifyStatus, persist, state } from './store'
 import { initTabBar } from './tabbar'
 
@@ -55,6 +56,7 @@ async function boot(): Promise<void> {
   initAboutUi()
   initLayoutPicker()
   initUpdateToast()
+  initTooltips()
   initLc()
 
   document

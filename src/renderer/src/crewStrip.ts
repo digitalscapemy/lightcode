@@ -5,7 +5,7 @@ import {
   onBabysitterChange,
   toggleBabysitter
 } from './babysitter'
-import { alertDialog, confirmDialog } from './confirmDialog'
+import { confirmDialog } from './confirmDialog'
 import { fmtElapsed } from './missionControl'
 import { steer } from './steer'
 import type { SteerAction } from './steer'
@@ -13,6 +13,7 @@ import { lastOutputAt, lastSent, paneLastLine, paneStatus, reportLanded, restore
 import { AGENTS } from '../../shared/agents'
 import { crewStatus } from '../../shared/crew'
 import type { PaneStatus } from '../../shared/ipc'
+import { toast } from './ui/toast'
 
 /**
  * The worker strip: an orchestra lead's view of the panes it drives, docked
@@ -663,5 +664,5 @@ export async function approveFromKey(candidates: StripWorker[]): Promise<void> {
     approveKeyConfirmed = true
   }
   const res = await steer(target.pane, { kind: 'approve' }, { via: 'human' })
-  if (!res.ok) await alertDialog(res.error)
+  if (!res.ok) toast({ tone: 'error', title: 'Could not approve', detail: res.error })
 }

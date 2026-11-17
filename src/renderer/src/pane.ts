@@ -4,7 +4,7 @@ import { WebglAddon } from '@xterm/addon-webgl'
 import { guardPausedSelectionRedraw } from './xtermPauseGuard'
 import { openTerminalLink, webLinkProvider } from './terminalLinks'
 import { isBabysitterOn, toggleBabysitter } from './babysitter'
-import { alertDialog, promptDialog } from './confirmDialog'
+import { promptDialog } from './confirmDialog'
 import { dismissCoexist, isCoexistDismissed } from './coexist'
 import { MOD_LABEL, isAppShortcut } from './keys'
 import { lastMeaningfulLine } from './lcPolicy'
@@ -19,6 +19,7 @@ import type { GitInfo, PaneRole, PaneStatus } from '../../shared/ipc'
 import { roleById, rolePrompt } from '../../shared/roles'
 import type { PaneNodeCrew, PaneNodeRole } from '../../shared/types'
 import type { Orientation } from '../../shared/types'
+import { toast } from './ui/toast'
 
 const STATUS_LABEL: Record<PaneStatus, string> = {
   working: 'Claude working',
@@ -511,7 +512,7 @@ export class TerminalPane {
 
     const result = await window.lightclaude.git.addWorktree(cwd, name)
     if (!result.ok) {
-      await alertDialog(result.error)
+      toast({ tone: 'error', title: 'Could not create the worktree', detail: result.error })
       return
     }
     // No success message: the new pane appears with the branch on its header,
