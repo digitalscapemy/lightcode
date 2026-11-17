@@ -3,6 +3,7 @@ import { execFileSync } from 'child_process'
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'fs'
 import { homedir } from 'os'
 import { dirname, join } from 'path'
+import { psSingleQuote } from '../shared/psQuote'
 import { isInside, isValidCategory } from '../shared/shortcutPaths'
 import type {
   ShortcutsConfig,
@@ -126,9 +127,8 @@ function encode(text: string, enc: Enc): Buffer {
 
 // ---------- Managed block ----------
 
-function psQuote(value: string): string {
-  return `'${value.replace(/'/g, "''")}'`
-}
+/** Also escapes the curly quotes PowerShell treats as ' (see psSingleQuote). */
+const psQuote = psSingleQuote
 
 function shQuote(value: string): string {
   return `'${value.replace(/'/g, "'\\''")}'`

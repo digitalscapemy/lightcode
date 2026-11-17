@@ -9,6 +9,14 @@ export const DEVELOPER = 'Digital Scape MY'
 /** Newest first. Add an entry on every release (see release procedure). */
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.6.1',
+    date: '2026-11-17',
+    notes: [
+      'A security fix, and the reason for this release. A prompt containing a curly apostrophe — the ’ in “don’t”, which AI-written text is full of — could end the quoting around a fan-out, squad or `lc spawn` prompt early on Windows, because PowerShell treats ‘ and ’ exactly like a straight quote. At best the command broke; at worst the rest of the prompt ran as PowerShell. Every kind of single quote PowerShell recognises is now escaped, and the prompt arrives exactly as written. Shortcut paths are quoted the same way.',
+      'An agent can no longer answer a permission prompt it cannot see by accident. In a pane whose state is only estimated (Codex, a plain shell), Light Code cannot tell when a permission menu is up, so `lc send` from an agent now refuses a reply-sized message — y, n, 1, yes, a bare Enter — unless given `--force`. Ordinary instructions go through as before, and nothing you type yourself is affected.'
+    ]
+  },
+  {
     version: '0.6.0',
     date: '2026-11-17',
     notes: [

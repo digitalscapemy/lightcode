@@ -18,6 +18,12 @@ import type { LcWaitFor } from '../../shared/lc'
 
 export type Gate = { allow: true; warning?: string } | { allow: false; error: string }
 
+/** A send short enough to be a menu choice rather than an instruction. */
+export function looksLikePromptAnswer(text: string): boolean {
+  const t = text.trim()
+  return t === '' || /^[a-z0-9]{1,2}$/i.test(t) || /^(yes|no|ok|allow|deny|always|approve|accept|reject)$/i.test(t)
+}
+
 /**
  * Whether `lc send` may type into a pane, and what to say about it if so.
  *
@@ -30,12 +36,24 @@ export type Gate = { allow: true; warning?: string } | { allow: false; error: st
  *   meant as an instruction becomes a yes or a no to some tool call.
  * - A pane mid-turn: sent, with a warning. The agent will read it when it gets
  *   to it; whoever sent it should know it was not read straight away.
+ * - A pane whose status is only estimated (Codex, a shell, …), from an agent:
+ *   a reply-sized send — y, n, 1, yes, a bare Enter — is refused unless
+ *   forced. The app cannot see a permission prompt in such a pane, so the
+ *   check above never fires there, and those are exactly the keys that would
+ *   answer one. Real instructions still go through; the person at the
+ *   keyboard (`byAgent` false) is never stopped.
  */
 export function sendGate(o: {
   target: string
   from: string | undefined
   status: PaneStatus | undefined
   force: boolean
+  /** Where the status came from; 'heuristic' means a prompt may be invisible. */
+  source?: StatusUpdate['source']
+  /** The text being sent, to recognise a prompt-sized answer. */
+  text?: string
+  /** True when an agent (`lc`) is sending rather than the person. */
+  byAgent?: boolean
 }): Gate {
   if (o.from !== undefined && o.from === o.target) {
     return {
@@ -56,6 +74,15 @@ export function sendGate(o: {
       }
     }
     return { allow: true, warning: `${o.target} was showing a permission prompt; --force sent the text into it.` }
+  }
+  if (o.byAgent && o.source === 'heuristic' && !o.force && looksLikePromptAnswer(o.text ?? '')) {
+    return {
+      allow: false,
+      error:
+        `${o.target}'s status is only estimated, so a permission prompt there would be invisible ` +
+        `to Light Code — and "${(o.text ?? '').trim() || 'Enter'}" is the kind of reply that ` +
+        'would answer one. Send a full instruction, or add --force if answering is what you mean.'
+    }
   }
   if (o.status === 'working') {
     return {

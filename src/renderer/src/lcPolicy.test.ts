@@ -48,6 +48,34 @@ describe('sendGate', () => {
     if (forced.allow) expect(forced.warning).toBeDefined()
   })
 
+  // An estimated status cannot show a prompt, so the check above never fires
+  // there; a reply-sized send from an agent is what would answer one unseen.
+  describe('a pane whose status is only estimated', () => {
+    const est = (text: string, o: Partial<Parameters<typeof sendGate>[0]> = {}) =>
+      gate({ source: 'heuristic', status: 'idle', byAgent: true, text, ...o })
+
+    it('refuses prompt-sized replies from an agent unless forced', () => {
+      for (const t of ['y', 'n', '1', '2', 'yes', 'No', ' ok ', '', 'always']) {
+        expect(est(t).allow).toBe(false)
+      }
+      expect(est('y', { force: true }).allow).toBe(true)
+    })
+
+    it('lets real instructions through', () => {
+      expect(est('run the tests and report back').allow).toBe(true)
+      expect(est('fix it').allow).toBe(true)
+    })
+
+    it('never stops the person at the keyboard', () => {
+      expect(est('y', { byAgent: false }).allow).toBe(true)
+    })
+
+    it('leaves panes with a known status alone', () => {
+      expect(est('y', { source: 'hook' }).allow).toBe(true)
+      expect(est('y', { source: undefined }).allow).toBe(true)
+    })
+  })
+
   it('sends to a working pane, and says it was mid-turn', () => {
     const out = gate({ status: 'working' })
     expect(out.allow).toBe(true)

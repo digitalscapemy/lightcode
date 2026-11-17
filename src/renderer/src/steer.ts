@@ -78,7 +78,10 @@ export async function steer(paneId: string, action: SteerAction, by: SteerBy): P
       target: paneId,
       from: by.from,
       status: paneStatus.get(paneId)?.status,
-      force: action.force === true
+      force: action.force === true,
+      source: paneStatus.get(paneId)?.source,
+      text: action.text,
+      byAgent: by.via === 'lc'
     })
     if (!gate.allow) return { ok: false, error: gate.error, kind: 'refused' }
     // Exactly the path a keystroke takes. The terminal cannot tell the
