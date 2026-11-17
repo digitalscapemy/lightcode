@@ -27,6 +27,7 @@ export const IPC = {
   FlushDone: 'app:flush-done',
   PickFolder: 'dialog:pickFolder',
   Homedir: 'app:homedir',
+  OpenExternal: 'app:open-external',
   AppVersion: 'app:version',
   UpdateCheck: 'update:check',
   UpdateDownload: 'update:download',
@@ -483,6 +484,8 @@ export interface LightClaudeApi {
   filePath(file: File): string
   pickFolder(): Promise<string | null>
   homedir(): Promise<string>
+  /** Open a terminal link in the default browser (http/https/mailto only). */
+  openExternal(url: string): void
   appVersion(): Promise<string>
   updates: {
     check(): Promise<UpdateCheckStatus>

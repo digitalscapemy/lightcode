@@ -1,4 +1,5 @@
-import { app, BrowserWindow, clipboard, dialog, ipcMain, nativeTheme } from 'electron'
+import { app, BrowserWindow, clipboard, dialog, ipcMain, nativeTheme, shell } from 'electron'
+import { isSafeExternalUrl } from '../shared/externalUrl'
 import { existsSync } from 'fs'
 import { mkdir, readdir, unlink, writeFile } from 'fs/promises'
 import { homedir } from 'os'
@@ -86,6 +87,11 @@ function registerIpc(): void {
   })
 
   ipcMain.handle(IPC.Homedir, (): string => homedir())
+  // Terminal links: the default browser, never an Electron window, and only
+  // web/mail schemes — terminal output is untrusted (see isSafeExternalUrl).
+  ipcMain.on(IPC.OpenExternal, (_e, url: unknown) => {
+    if (isSafeExternalUrl(url)) void shell.openExternal(url)
+  })
 
   ipcMain.handle(IPC.ShortcutsLoad, () => loadShortcuts())
   ipcMain.handle(IPC.ShortcutsSave, (_e, cfg: ShortcutsConfig) => {
@@ -329,6 +335,13 @@ function createWindow(): void {
   const wc = mainWindow.webContents
   wc.on('will-navigate', (e, url) => {
     if (url !== wc.getURL()) e.preventDefault()
+  })
+  // Anything that asks for a new window — xterm's default for an OSC 8
+  // hyperlink is window.open() — used to open a second Light Code window on
+  // that URL. A link belongs in the browser; nothing gets a window of its own.
+  wc.setWindowOpenHandler(({ url }) => {
+    if (isSafeExternalUrl(url)) void shell.openExternal(url)
+    return { action: 'deny' }
   })
 
   if (win?.maximized) mainWindow.maximize()

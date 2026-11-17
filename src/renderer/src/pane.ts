@@ -2,6 +2,7 @@ import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { WebglAddon } from '@xterm/addon-webgl'
 import { guardPausedSelectionRedraw } from './xtermPauseGuard'
+import { openTerminalLink, webLinkProvider } from './terminalLinks'
 import { isBabysitterOn, toggleBabysitter } from './babysitter'
 import { alertDialog, promptDialog } from './confirmDialog'
 import { dismissCoexist, isCoexistDismissed } from './coexist'
@@ -293,9 +294,19 @@ export class TerminalPane {
       fontSize: state.fontSize,
       fontFamily: '"Cascadia Mono", Consolas, monospace',
       scrollback: 5000,
-      theme: xtermTheme
+      theme: xtermTheme,
+      // OSC 8 hyperlinks (Claude Code prints its links this way). xterm's own
+      // default calls window.open(), which opened a Light Code window instead
+      // of the browser. Ctrl/⌘ is required, like every terminal, so a plain
+      // click still just selects text.
+      linkHandler: {
+        activate: (e, uri) => openTerminalLink(e, uri),
+        allowNonHttpProtocols: false
+      }
     })
     this.term.loadAddon(this.fitAddon)
+    // Plain-text URLs too, with the same rule.
+    this.term.registerLinkProvider(webLinkProvider(this.term))
     // Let Ctrl+Shift+S/E/T/W bubble past xterm to the app dispatcher.
     this.term.attachCustomKeyEventHandler((e) => {
       if (isAppShortcut(e)) return false

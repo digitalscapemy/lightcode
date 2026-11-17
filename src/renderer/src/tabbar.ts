@@ -35,11 +35,12 @@ export function initTabBar(callbacks: TabBarCallbacks): void {
     { passive: false }
   )
 
-  // The tab list button only shows while the strip overflows. Window resizes
-  // and tab add/close/rename all change that, so watch the strip's size and
-  // its children rather than chasing every caller.
+  // The ▾ button lists the tabs that do not fit. Window resizes, scrolling and
+  // tab add/close/rename all change which those are, so watch the strip
+  // itself rather than chasing every caller.
   new ResizeObserver(updateOverflow).observe(box)
   new MutationObserver(updateOverflow).observe(box, { childList: true, subtree: true, characterData: true })
+  box.addEventListener('scroll', updateOverflow, { passive: true })
 
   // Right-click opens the bulk picker; plain left-click still opens exactly one
   // tab, so the button and the keyboard shortcut stay interchangeable.
@@ -53,11 +54,30 @@ export function initTabBar(callbacks: TabBarCallbacks): void {
   listBtn.addEventListener('click', () => toggleTabListMenu(listBtn))
 }
 
-function updateOverflow(): void {
+/**
+ * Tabs not fully inside the strip's visible area — the ones the ▾ menu offers.
+ * Measured, not estimated: names are full length now, so widths vary.
+ */
+function hiddenTabIds(): string[] {
   const box = document.getElementById('tabs')!
+  const view = box.getBoundingClientRect()
+  const hidden: string[] = []
+  for (const [id, el] of tabEls) {
+    if (el.classList.contains('dragging')) continue
+    const r = el.getBoundingClientRect()
+    if (r.left < view.left - 1 || r.right > view.right + 1) hidden.push(id)
+  }
+  return hidden
+}
+
+function updateOverflow(): void {
   const btn = document.getElementById('tab-list-btn')!
-  const overflowing = box.scrollWidth > box.clientWidth + 1
-  if (btn.hidden === overflowing) btn.hidden = !overflowing
+  const count = hiddenTabIds().length
+  if (btn.hidden !== (count === 0)) btn.hidden = count === 0
+  const badge = btn.querySelector('.tab-list-count')
+  const text = count > 0 ? String(count) : ''
+  if (badge && badge.textContent !== text) badge.textContent = text
+  btn.title = count === 1 ? '1 more tab' : `${count} more tabs`
 }
 
 /** Tab counts offered by the "+" right-click menu. */
@@ -94,11 +114,12 @@ function toggleAddMenu(anchor: HTMLElement): void {
   toggleMenu(anchor, menu)
 }
 
-/** Every open tab in strip order; picking one activates it (and scrolls to it). */
+/** The tabs that do not fit, in strip order; picking one activates it and scrolls to it. */
 function toggleTabListMenu(anchor: HTMLElement): void {
   const menu = document.createElement('div')
   menu.className = 'pane-menu tab-add-menu tab-list-menu'
-  for (const tab of state.tabs) {
+  const hidden = new Set(hiddenTabIds())
+  for (const tab of state.tabs.filter((t) => hidden.has(t.id))) {
     const item = document.createElement('button')
     item.className = 'pane-menu-item' + (tab.id === state.activeTabId ? ' active' : '')
     item.title = tab.projectPath

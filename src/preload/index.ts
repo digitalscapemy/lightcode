@@ -113,6 +113,7 @@ const api: LightClaudeApi = {
   },
   pickFolder: () => ipcRenderer.invoke(IPC.PickFolder),
   homedir: () => ipcRenderer.invoke(IPC.Homedir),
+  openExternal: (url) => ipcRenderer.send(IPC.OpenExternal, url),
   appVersion: () => ipcRenderer.invoke(IPC.AppVersion),
   updates: {
     check: () => ipcRenderer.invoke(IPC.UpdateCheck),

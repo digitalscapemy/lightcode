@@ -78,10 +78,9 @@ body {
   white-space: nowrap;
   color: var(--fg-muted);
   position: relative;
-  /* Tabs squeeze down to this and no further; past it #tabs scrolls. Without
-     a floor they shrank to nothing and the close buttons piled on each other. */
-  flex: 0 1 auto;
-  min-width: 84px;
+  /* Full names, never shrunk or cut with "…": tabs that do not fit scroll out
+     of the strip and are listed in the ▾ menu at its end instead. */
+  flex: 0 0 auto;
   /* Without this, #tabs' horizontal pan swallows touch/pen drags. */
   touch-action: none;
 }
@@ -113,11 +112,7 @@ body.tab-dragging * {
 }
 
 .tab-label {
-  flex: 1 1 auto;
-  min-width: 0;
-  max-width: 160px;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  flex: 0 0 auto;
 }
 
 .tab-close {
@@ -192,7 +187,20 @@ body.tab-dragging * {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 0;
+  gap: 3px;
+  width: auto;
+  min-width: 22px;
+  padding: 0 6px;
+}
+
+/* How many tabs are out of sight — the reason to open the menu. */
+.tab-list-count {
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.tab-list-count:empty {
+  display: none;
 }
 
 /* Everything right of the strip keeps its size; only #tabs gives way (and
