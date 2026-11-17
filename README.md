@@ -65,17 +65,30 @@ pane is a real shell, and everything Light Code adds is optional.
 
 <img src="docs/images/usage.png" alt="Token usage per account" width="720" />
 
-### Setup that helps instead of failing
+### Projects and accounts, one click away
 
-- **Setup and tools** checks whether Claude Code, Codex and the Antigravity CLI are installed, and
-  installs a missing one with the vendor's official command in a new tab you can watch.
+- **Projects** show as cards, grouped by category. Click one to open it in a new tab, or type its
+  name in any pane to jump there. Search, add and edit right in the grid.
+- **Accounts for Claude, Codex and Antigravity**, each in its own folder. Click an account to
+  start it in a new tab, or type its name in any pane. Claude and Codex keep each login fully
+  apart. Antigravity keeps settings and conversations apart, but its Google login is shared,
+  because Antigravity stores it in the system credential store.
+- Both are written to your shell profile, so they work in any terminal, not only Light Code.
+
+<img src="docs/images/accounts.png" alt="Accounts for Claude, Codex and Antigravity" width="720" />
+
+### Settings and setup that help instead of failing
+
+- **Settings** (the gear in the toolbar) gathers everything in one place: terminal text size, git
+  auto-fetch, the `lc` agent CLI, projects and accounts, updates, and what is installed.
+- **Installation** checks Claude Code, Codex, the Antigravity CLI, Docker and, on Windows, WSL,
+  and shows their versions. All of them are optional. A missing one installs with one click, using
+  the vendor's official command in a new tab you can watch.
 - **Permission checks** for everything Light Code needs, such as writing your shortcuts to
   `$PROFILE`, with step-by-step guides for the fixes only you can make (execution policy,
   Controlled folder access, PATH after an install).
-- **Project shortcuts and multiple Claude accounts**, written to your shell profile so they work in
-  any terminal.
 
-<img src="docs/images/setup.png" alt="Setup and tools" width="720" />
+<img src="docs/images/settings.png" alt="Settings, Installation" width="720" />
 
 ### And the details
 
@@ -110,7 +123,8 @@ After that Light Code updates itself. On Windows updates install in place; on ma
 notified and the right `.dmg` opens for you.
 
 Light Code works as a plain terminal on its own. Agent features need an agent CLI:
-open **Setup and tools** from the command palette to check and install them.
+open **Settings, Installation** (the gear in the toolbar) to check and install them, along with
+WSL and Docker if you want them. Every one is optional.
 
 ## Keyboard shortcuts
 
