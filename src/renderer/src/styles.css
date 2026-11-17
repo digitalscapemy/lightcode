@@ -1,14 +1,90 @@
+/*
+ * Design tokens. Flat, solid colours only — no gradients, glows or blur. One
+ * accent (blue); every other colour means something (status, danger). Anything
+ * that needs a colour, size, radius, shadow or layer takes it from here.
+ */
 :root {
-  --bg: #050505;
-  --bg-panel: #0b0b0b;
-  --fg: #d4d4d4;
-  --fg-muted: #9d9d9d;
-  --border: #1f1f1f;
+  /* Surfaces, darkest to lightest. */
+  --bg: #0b0b0d;
+  --bg-panel: #111114;
+  --bg-raised: #17171b;
+  --bg-hover: #1c1c21;
+  --bg-active: #232329;
+  --term-bg: #0b0b0d;
+
+  /* Text. */
+  --fg: #e4e4e7;
+  --fg-muted: #a1a1aa;
+  --fg-subtle: #71717a;
+
+  /* Lines. */
+  --border: #232328;
+  --border-strong: #2f2f36;
+
+  /* The one accent, and what sits on it. */
   --accent: #4c9aff;
-  --tab-hover: #151515;
-  --tab-active-bg: #050505;
-  --term-bg: #050505;
-  --overlay: rgba(5, 5, 5, 0.85);
+  --accent-hover: #6aaeff;
+  --accent-soft: rgba(76, 154, 255, 0.14);
+  --on-accent: #ffffff;
+
+  /* Meaning. */
+  --success: #3fb950;
+  --warning: #d29922;
+  --warning-strong: #9e6a03;
+  --danger: #f85149;
+  --danger-text: #ff6b6b;
+  --win-close: #e81123;
+
+  /* Shape. */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
+
+  /* Elevation — floating things only (menus, modals, toasts). */
+  --shadow-1: 0 4px 14px rgba(0, 0, 0, 0.35);
+  --shadow-2: 0 8px 24px rgba(0, 0, 0, 0.5);
+  --shadow-3: 0 12px 36px rgba(0, 0, 0, 0.55);
+  --backdrop: rgba(0, 0, 0, 0.5);
+
+  /* Type scale. */
+  --fs-xs: 11px;
+  --fs-sm: 12px;
+  --fs-md: 13px;
+  --fs-lg: 15px;
+  --fs-xl: 18px;
+  --font-ui: 'Segoe UI Variable Text', 'Segoe UI', -apple-system, BlinkMacSystemFont, 'Inter',
+    system-ui, sans-serif;
+  --font-mono: 'Cascadia Mono', 'SF Mono', Menlo, Consolas, monospace;
+
+  /* Spacing. */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+
+  /* Layers. */
+  --z-raised: 10;
+  --z-menu: 20;
+  --z-panel: 50;
+  --z-modal: 100;
+  --z-toast: 200;
+  --z-tooltip: 300;
+
+  /* Motion: short, and only on things that appear. */
+  --dur-fast: 0.1s;
+  --dur: 0.15s;
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+
+  /* Scrollbars. */
+  --scrollbar: #3a3a3a;
+  --scrollbar-hover: #555555;
+
+  /* Older names, kept so nothing that still uses them breaks. */
+  --tab-hover: var(--bg-hover);
+  --tab-active-bg: var(--bg);
+  --overlay: rgba(11, 11, 13, 0.85);
 }
 
 * {
@@ -24,7 +100,7 @@ body {
 }
 
 body {
-  font-family: 'Segoe UI Variable Text', 'Segoe UI', sans-serif;
+  font-family: var(--font-ui);
   font-size: 13px;
   color: var(--fg);
   background: var(--bg);
@@ -34,6 +110,228 @@ body {
   display: flex;
   flex-direction: column;
   height: 100vh;
+}
+
+/* ---------- Primitives ----------
+ * Shared building blocks. New UI uses these instead of styling its own
+ * buttons and chips; older classes are moved onto them as they are touched. */
+
+/* Keyboard focus: one flat ring everywhere, only for keyboard users. */
+:focus-visible {
+  outline: 1px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  height: 28px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--bg-raised);
+  color: var(--fg);
+  font: inherit;
+  font-size: var(--fs-md);
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    background var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease);
+}
+
+.btn:hover:not(:disabled) {
+  background: var(--bg-hover);
+}
+
+.btn:active:not(:disabled) {
+  background: var(--bg-active);
+}
+
+.btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.btn-primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+}
+
+.btn-primary:active:not(:disabled) {
+  background: var(--accent);
+}
+
+.btn-ghost {
+  background: transparent;
+  border-color: transparent;
+  color: var(--fg-muted);
+}
+
+.btn-ghost:hover:not(:disabled) {
+  color: var(--fg);
+}
+
+.btn-danger {
+  color: var(--danger-text);
+}
+
+.btn-icon {
+  width: 28px;
+  padding: 0;
+}
+
+.btn-sm {
+  height: 22px;
+  padding: 0 var(--space-2);
+  font-size: var(--fs-sm);
+}
+
+.btn-sm.btn-icon {
+  width: 22px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  height: 18px;
+  padding: 0 6px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  color: var(--fg-muted);
+  font-size: var(--fs-xs);
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.chip-accent {
+  border-color: transparent;
+  background: var(--accent-soft);
+  color: var(--accent-hover);
+}
+
+.chip-warning {
+  border-color: var(--warning-strong);
+  color: var(--warning);
+}
+
+.chip-danger {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+/* A key on a keyboard, for shortcut hints. */
+.kbd {
+  display: inline-flex;
+  align-items: center;
+  height: 18px;
+  padding: 0 5px;
+  border: 1px solid var(--border-strong);
+  border-bottom-width: 2px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-raised);
+  color: var(--fg-muted);
+  font-family: var(--font-ui);
+  font-size: var(--fs-xs);
+  line-height: 1;
+  white-space: nowrap;
+}
+
+/* Segmented control: a short row of mutually exclusive choices. */
+.seg {
+  display: inline-flex;
+  padding: 2px;
+  gap: 2px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg);
+}
+
+.seg button {
+  height: 24px;
+  min-width: 32px;
+  padding: 0 var(--space-2);
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--fg-muted);
+  font: inherit;
+  cursor: pointer;
+  transition:
+    background var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease);
+}
+
+.seg button:hover {
+  color: var(--fg);
+}
+
+.seg button.on,
+.seg button[aria-pressed='true'] {
+  background: var(--bg-active);
+  color: var(--fg);
+}
+
+.field {
+  width: 100%;
+  height: 30px;
+  padding: 0 var(--space-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--bg);
+  color: var(--fg);
+  font: inherit;
+}
+
+textarea.field {
+  height: auto;
+  min-height: 72px;
+  padding: var(--space-2);
+  resize: vertical;
+}
+
+.field:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--bg-panel);
+}
+
+/* Things that appear — menus, modals, toasts — fade and settle in once. */
+@keyframes appear {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Motion is decoration; whoever asked the OS for less gets none of it. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
 }
 
 /* ---------- Tab bar ---------- */
@@ -96,10 +394,10 @@ body {
 
 .tab.dragging {
   opacity: 0.92;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+  box-shadow: var(--shadow-1);
   background: var(--bg-panel);
   cursor: grabbing;
-  z-index: 10;
+  z-index: var(--z-raised);
 }
 
 .tab.active.dragging {
@@ -270,7 +568,7 @@ body.tab-dragging * {
   width: auto;
   padding: 0 10px;
   font-size: 11px;
-  font-family: 'Cascadia Mono', Consolas, monospace;
+  font-family: var(--font-mono);
 }
 
 #win-controls {
@@ -305,8 +603,8 @@ body.tab-dragging * {
 }
 
 #win-close:hover {
-  background: #e81123 !important;
-  color: #ffffff !important;
+  background: var(--win-close) !important;
+  color: var(--on-accent) !important;
 }
 
 /* ---------- Content / splits ---------- */
@@ -438,7 +736,7 @@ body.tab-dragging * {
   padding: 1px 5px;
   border-radius: 8px;
   background: var(--accent);
-  color: #ffffff;
+  color: var(--on-accent);
   white-space: nowrap;
 }
 
@@ -501,14 +799,14 @@ body.tab-dragging * {
   padding: 1px 6px;
   border-radius: 8px;
   background: transparent;
-  border: 1px solid #9e6a03;
-  color: #d29922;
+  border: 1px solid var(--warning-strong);
+  color: var(--warning);
   white-space: nowrap;
   cursor: pointer;
 }
 
 .pane-warn:hover {
-  border-color: #d29922;
+  border-color: var(--warning);
 }
 
 /* ---------- Squad role ----------
@@ -589,7 +887,7 @@ body.tab-dragging * {
 /* Driven from outside its crew, or a worker driving its lead. Amber, as for
    the shared-folder warning: worth a look, not a stop. */
 .pane-driven[data-scope='out'] {
-  background: #9e6a03;
+  background: var(--warning-strong);
 }
 
 /* On a lead's header: workers stuck on a permission prompt. The approval red,
@@ -675,7 +973,7 @@ body.tab-dragging * {
    output would otherwise suggest it is still conducting. */
 .crew-strip.paused .crew-strip-summary,
 .crew-strip.paused .crew-strip-pause {
-  color: #d29922;
+  color: var(--warning);
 }
 
 /* One row of cards, scrolled sideways rather than wrapped: the strip must not
@@ -805,7 +1103,7 @@ body.tab-dragging * {
 }
 
 .crew-card-line {
-  font-family: 'Cascadia Mono', Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 10px;
 }
 
@@ -814,7 +1112,7 @@ body.tab-dragging * {
 }
 
 .crew-card-note {
-  color: #d29922;
+  color: var(--warning);
 }
 
 /* A fact about how the role reached the agent, not a problem: muted. */
@@ -974,7 +1272,7 @@ body.tab-dragging * {
   min-height: 16px;
   margin-top: 6px;
   font-size: 11px;
-  color: #ff6b6b;
+  color: var(--danger-text);
 }
 
 .pane-usage {
@@ -990,9 +1288,10 @@ body.tab-dragging * {
 /* ---------- Claude activity status ---------- */
 
 :root {
-  --status-working: #3fb950;
-  --status-waiting-input: #d29922;
-  --status-waiting-approval: #f85149;
+  --status-working: var(--success);
+  --status-waiting-input: var(--warning);
+  --status-waiting-approval: var(--danger);
+  --status-idle: var(--fg-subtle);
 }
 
 .pane-status {
@@ -1117,7 +1416,7 @@ body.tab-dragging * {
   position: absolute;
   top: 26px;
   right: 4px;
-  z-index: 20;
+  z-index: var(--z-menu);
   display: flex;
   flex-direction: column;
   min-width: 150px;
@@ -1128,7 +1427,7 @@ body.tab-dragging * {
   background: var(--bg-panel);
   border: 1px solid var(--border);
   border-radius: 6px;
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+  box-shadow: var(--shadow-1);
 }
 
 /*
@@ -1140,7 +1439,7 @@ body.tab-dragging * {
  */
 .layout-menu {
   position: fixed;
-  z-index: 20;
+  z-index: var(--z-menu);
   display: flex;
   flex-direction: column;
   max-height: 70vh;
@@ -1149,7 +1448,7 @@ body.tab-dragging * {
   background: var(--bg-panel);
   border: 1px solid var(--border);
   border-radius: 8px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.55);
+  box-shadow: var(--shadow-2);
   -webkit-app-region: no-drag;
 }
 
@@ -1263,7 +1562,7 @@ body.tab-dragging * {
   position: absolute;
   inset: 0;
   border: 1px dashed var(--accent);
-  background: rgba(76, 154, 255, 0.08);
+  background: var(--accent-soft);
   pointer-events: none;
   z-index: 4;
 }
@@ -1347,11 +1646,11 @@ body.tab-dragging * {
 #shortcuts-overlay {
   position: fixed;
   inset: 0;
-  z-index: 100;
+  z-index: var(--z-modal);
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(0, 0, 0, 0.5);
+  background: var(--backdrop);
 }
 
 .shortcuts-modal {
@@ -1363,7 +1662,7 @@ body.tab-dragging * {
   background: var(--bg-panel);
   border: 1px solid var(--border);
   border-radius: 8px;
-  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.55);
+  box-shadow: var(--shadow-3);
 }
 
 .shortcuts-header {
@@ -1460,7 +1759,7 @@ body.tab-dragging * {
 }
 
 .shortcuts-row input.invalid {
-  border-color: #e81123;
+  border-color: var(--win-close);
 }
 
 .shortcuts-name {
@@ -1626,7 +1925,7 @@ body.tab-dragging * {
 }
 
 .shortcuts-status.error {
-  color: #ff6b6b;
+  color: var(--danger-text);
 }
 
 .shortcuts-primary,
@@ -1641,7 +1940,7 @@ body.tab-dragging * {
 .shortcuts-primary {
   border: 1px solid var(--accent);
   background: var(--accent);
-  color: #ffffff;
+  color: var(--on-accent);
 }
 
 .shortcuts-primary:hover:not(:disabled) {
@@ -1711,7 +2010,7 @@ body.tab-dragging * {
 }
 
 .about-version {
-  font-family: 'Cascadia Mono', Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 12px;
   color: var(--fg-muted);
 }
@@ -1752,14 +2051,14 @@ body.tab-dragging * {
 .about-changelog::-webkit-scrollbar-thumb,
 .shortcuts-body::-webkit-scrollbar-thumb,
 .shortcuts-list::-webkit-scrollbar-thumb {
-  background: #3a3a3a;
+  background: var(--scrollbar);
   border-radius: 3px;
 }
 
 .about-changelog::-webkit-scrollbar-thumb:hover,
 .shortcuts-body::-webkit-scrollbar-thumb:hover,
 .shortcuts-list::-webkit-scrollbar-thumb:hover {
-  background: #555555;
+  background: var(--scrollbar-hover);
 }
 
 .about-changelog::-webkit-scrollbar-button,
@@ -1769,7 +2068,7 @@ body.tab-dragging * {
 }
 
 .about-entry-head {
-  font-family: 'Cascadia Mono', Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 11px;
   color: var(--fg);
   margin: 6px 0 4px;
@@ -1793,7 +2092,7 @@ body.tab-dragging * {
   position: fixed;
   right: 16px;
   bottom: 16px;
-  z-index: 200;
+  z-index: var(--z-toast);
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -1803,7 +2102,7 @@ body.tab-dragging * {
   background: var(--bg-panel);
   border: 1px solid var(--border);
   border-radius: 8px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  box-shadow: var(--shadow-2);
 }
 
 .toast-text {
@@ -1920,7 +2219,7 @@ body.tab-dragging * {
 
 .empty-card .hint .key {
   display: inline-block;
-  font-family: 'Cascadia Mono', Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 11px;
   color: var(--fg);
   background: var(--bg-panel);
@@ -1949,11 +2248,11 @@ body.tab-dragging * {
 #mission-overlay {
   position: fixed;
   inset: 0;
-  z-index: 100;
+  z-index: var(--z-modal);
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(0, 0, 0, 0.5);
+  background: var(--backdrop);
 }
 
 .mission-modal {
@@ -1965,7 +2264,7 @@ body.tab-dragging * {
   background: var(--bg-panel);
   border: 1px solid var(--border);
   border-radius: 8px;
-  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.55);
+  box-shadow: var(--shadow-3);
 }
 
 .mission-header {
@@ -2101,7 +2400,7 @@ body.tab-dragging * {
   white-space: nowrap;
   color: var(--fg-muted);
   font-size: 11px;
-  font-family: 'Cascadia Mono', Consolas, monospace;
+  font-family: var(--font-mono);
 }
 
 .mission-elapsed {
@@ -2153,7 +2452,7 @@ body.tab-dragging * {
   min-width: 0;
   font: inherit;
   font-size: 12px;
-  font-family: 'Cascadia Mono', Consolas, monospace;
+  font-family: var(--font-mono);
   color: var(--fg);
   background: var(--bg);
   border: 1px solid var(--border);
@@ -2185,7 +2484,7 @@ body.tab-dragging * {
   flex: 0 0 auto;
   border: 1px solid var(--accent);
   background: var(--accent);
-  color: #ffffff;
+  color: var(--on-accent);
 }
 
 .mission-primary:hover:not(:disabled) {
@@ -2217,12 +2516,12 @@ body.tab-dragging * {
 }
 
 .mission-list::-webkit-scrollbar-thumb {
-  background: #3a3a3a;
+  background: var(--scrollbar);
   border-radius: 3px;
 }
 
 .mission-list::-webkit-scrollbar-thumb:hover {
-  background: #555555;
+  background: var(--scrollbar-hover);
 }
 
 /* ---------- Git tree panel ----------
@@ -2282,7 +2581,7 @@ body.tab-dragging * {
 
 .git-panel-btn:hover:not(:disabled) {
   color: var(--fg);
-  background: var(--bg-raised, rgba(255, 255, 255, 0.06));
+  background: var(--bg-raised);
 }
 
 .git-panel-btn:disabled {
@@ -2341,7 +2640,7 @@ body.tab-dragging * {
 /* An unfinished merge is the one state here that stops other actions working,
    so it is said in the warning colour rather than as another muted line. */
 .git-panel-note {
-  color: #d29922;
+  color: var(--warning);
   border-bottom: 1px solid var(--border);
   display: flex;
   align-items: flex-start;
@@ -2400,7 +2699,7 @@ body.tab-dragging * {
 }
 
 .git-row-clickable:hover {
-  background: var(--bg-raised, rgba(255, 255, 255, 0.03));
+  background: var(--bg-raised);
 }
 
 /* The base branch is the thing everything else is measured against, so it reads
@@ -2426,7 +2725,7 @@ body.tab-dragging * {
 
 .git-row-dirty {
   font-size: 9px;
-  color: #d29922;
+  color: var(--warning);
   flex: 0 0 auto;
 }
 
@@ -2440,8 +2739,8 @@ body.tab-dragging * {
 }
 
 .git-row-badge-warn {
-  color: #d29922;
-  border-color: #d29922;
+  color: var(--warning);
+  border-color: var(--warning);
 }
 
 /* A worktree whose folder is gone is only a record; it reads as one. */
@@ -2475,7 +2774,7 @@ body.tab-dragging * {
 }
 
 .git-row-upstream-warn {
-  color: #d29922;
+  color: var(--warning);
 }
 
 .git-row-meta {
@@ -2668,7 +2967,7 @@ body.tab-dragging * {
 }
 
 .orch-report:hover {
-  background: var(--bg-raised, rgba(255, 255, 255, 0.04));
+  background: var(--bg-raised);
   color: var(--fg);
 }
 
@@ -2694,7 +2993,7 @@ body.tab-dragging * {
 }
 
 .orch-event.orch-clickable:hover {
-  background: var(--bg-raised, rgba(255, 255, 255, 0.04));
+  background: var(--bg-raised);
 }
 
 .orch-event-time {
@@ -2747,7 +3046,7 @@ body.tab-dragging * {
   margin: 0;
   padding: 12px 16px;
   overflow: auto;
-  font-family: 'Cascadia Mono', Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 12px;
   line-height: 1.5;
   color: var(--fg);
@@ -2759,7 +3058,7 @@ body.tab-dragging * {
 .report-note {
   padding: 6px 16px;
   font-size: 11px;
-  color: #d29922;
+  color: var(--warning);
   border-top: 1px solid var(--border);
 }
 

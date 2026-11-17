@@ -1,11 +1,28 @@
 import type { ITheme } from '@xterm/xterm'
 
+/**
+ * The terminal's background and text follow the design tokens in styles.css
+ * (--term-bg, --fg), so a pane and the chrome around it are the same colour.
+ * Read once, when the first terminal is built; the fallbacks are the token
+ * values in case the stylesheet has not applied yet.
+ */
+function token(name: string, fallback: string): string {
+  try {
+    return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback
+  } catch {
+    return fallback
+  }
+}
+
+const TERM_BG = token('--term-bg', '#0b0b0d')
+const TERM_FG = token('--fg', '#e4e4e7')
+
 /** Dark-only. Near-black background per user preference. */
 export const xtermTheme: ITheme = {
-  background: '#050505',
-  foreground: '#d4d4d4',
-  cursor: '#d4d4d4',
-  cursorAccent: '#050505',
+  background: TERM_BG,
+  foreground: TERM_FG,
+  cursor: TERM_FG,
+  cursorAccent: TERM_BG,
   selectionBackground: '#264f78',
   black: '#000000',
   red: '#cd3131',
