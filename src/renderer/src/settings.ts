@@ -184,7 +184,7 @@ function aboutSection(close: () => void): HTMLElement {
     })
   })
   box.append(
-    settingRow('Version', 'Light Code, open source under the MIT licence.', verRow),
+    settingRow('Version', 'Light Code. Free for the community under MIT with the Commons Clause: not for sale.', verRow),
     settingRow('Updates', 'Light Code checks on launch and tells you when a new version is ready.', check),
     status
   )

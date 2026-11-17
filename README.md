@@ -7,11 +7,11 @@
 **The calm cockpit for running many AI coding agents at once.**
 
 Run Claude Code, Codex and plain shells side by side in tabs and split panes,
-see which one needs you, and give each its own git worktree. Free and open source.
+see which one needs you, and give each its own git worktree. Free, with the source open to the community.
 
 [![Latest release](https://img.shields.io/github/v/release/digitalscapemy/lightcode?label=release)](https://github.com/digitalscapemy/lightcode/releases/latest)
 [![Downloads](https://img.shields.io/github/downloads/digitalscapemy/lightcode/total?label=downloads)](https://github.com/digitalscapemy/lightcode/releases)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![License: MIT + Commons Clause](https://img.shields.io/badge/license-MIT%20%2B%20Commons%20Clause-blue.svg)](LICENSE)
 ![Platforms](https://img.shields.io/badge/platform-Windows%20%7C%20macOS-lightgrey)
 [![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
@@ -176,7 +176,7 @@ process.
 
 ## Contributing
 
-Light Code is open source and contributions are very welcome, from a typo fix to a new feature.
+Light Code is built in the open and contributions are very welcome, from a typo fix to a new feature.
 
 - **Found a bug?** [Open an issue](https://github.com/digitalscapemy/lightcode/issues/new/choose)
   with what you did, what you expected and what happened.
@@ -194,4 +194,12 @@ If Light Code saves you time, a star on GitHub helps other people find it.
 
 ## License
 
-[MIT](LICENSE) © 2026 Digital Scape MY
+[MIT with the Commons Clause](LICENSE) © 2026 Digital Scape MY
+
+Light Code is free for everyone to use, including at work, and you may read, change and share
+the code. What the Commons Clause adds is one limit: you may not sell it. That means no selling
+Light Code or a modified copy, and no paid product or service whose value comes entirely or
+substantially from it. It is made for the community, not to be resold.
+
+Versions up to and including 1.0.1 were released under the plain MIT licence, and those copies
+keep it.
