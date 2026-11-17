@@ -9,6 +9,15 @@ export const DEVELOPER = 'Digital Scape MY'
 /** Newest first. Add an entry on every release (see release procedure). */
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '1.0.0',
+    date: '2026-11-17',
+    notes: [
+      'Light Code 1.0. The first stable release: everything from 0.7.0, now with a promise that the way you work today keeps working in every update after it.',
+      'What 1.0 means: a plain terminal stays a plain terminal, every feature on top of it is optional, your keyboard shortcuts never take a key your shell or agent needs, and updates keep installing themselves.',
+      'Light Code is open source under the MIT licence. Ideas, questions and bug reports are welcome in GitHub Discussions and Issues, and the README and CONTRIBUTING guide show how to get started with the code.'
+    ]
+  },
+  {
     version: '0.7.0',
     date: '2026-11-17',
     notes: [
