@@ -19,18 +19,12 @@ import { initTooltips } from './ui/tooltip'
 import { registerCommands, type Command } from './commands'
 import { openPalette, openShortcutHelp, togglePalette } from './palette'
 import { initToolbar } from './toolbar'
+import { initWelcome } from './welcome'
 import { flushPersist, notifyStatus, persist, state } from './store'
 import { initTabBar } from './tabbar'
 
 async function boot(): Promise<void> {
   document.body.classList.add(`platform-${window.lightclaude.platform}`)
-  // The HTML spells shortcuts the Windows way; rewrite them for macOS. Anything
-  // built in JS should use keys.ts (MOD_LABEL / shortcutLabel) instead.
-  if (window.lightclaude.platform === 'darwin') {
-    for (const key of document.querySelectorAll('.empty-card .hint .key')) {
-      key.textContent = (key.textContent ?? '').replace('Ctrl', '⌘')
-    }
-  }
 
   initTabBar({
     onActivate: (id) => app.activateTab(id),
@@ -42,10 +36,6 @@ async function boot(): Promise<void> {
     onAdd: () => void app.addTab(),
     onAddMany: (count) => void app.addTabs(count)
   })
-
-  document
-    .getElementById('empty-open')!
-    .addEventListener('click', () => void app.addTabViaPicker())
 
   // Arming or disarming a pane changes whether two agents are about to tread on
   // each other, without any directory having changed — so the warning is
@@ -141,6 +131,7 @@ async function boot(): Promise<void> {
 
   registerCommands(buildCommands())
   initToolbar()
+  initWelcome()
 
   document.getElementById('fanout-btn')!.addEventListener('click', () => void openFanOut())
   document.getElementById('squad-btn')!.addEventListener('click', () => void openSquad())
@@ -154,11 +145,12 @@ async function boot(): Promise<void> {
   const home = await window.lightclaude.homedir()
   app.setDefaultCwd(home)
 
+  // Returning users get their tabs back exactly as they left them. With none
+  // to restore — a first launch, or the last tab closed — the welcome page
+  // shows instead of a bare shell; Enter there opens that same terminal.
   const persisted = await window.lightclaude.state.load()
   if (persisted && persisted.tabs.length > 0) {
     await app.restore(persisted)
-  } else {
-    await app.createTab({ projectPath: home, name: 'Home' })
   }
   app.updateEmptyState()
 

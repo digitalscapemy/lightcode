@@ -1,6 +1,7 @@
 import { CHANGELOG, DEVELOPER } from '../../shared/changelog'
 import { panes } from './app'
 import { state } from './store'
+import { logoSvg } from './ui/logo'
 
 let overlay: HTMLElement | null = null
 let version = ''
@@ -44,10 +45,10 @@ function openModal(): void {
 
   const hero = document.createElement('div')
   hero.className = 'about-hero'
-  const logo = document.createElement('img')
+  // The same mark as the welcome page, still: crisp at any size.
+  const logo = document.createElement('div')
   logo.className = 'about-logo'
-  logo.src = './logo.png'
-  logo.alt = 'Light Code'
+  logo.innerHTML = logoSvg({ size: 64 }) // constant SVG only
   const name = document.createElement('div')
   name.className = 'about-name'
   name.textContent = 'Light Code'

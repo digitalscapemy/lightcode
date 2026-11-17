@@ -64,6 +64,7 @@ import {
 import { firstPaneId, paneIds, paneNodes, removePane, splitPane } from './splitTree'
 import { refreshTabStatuses, renderTabs } from './tabbar'
 import { askRemove, removeAll, worktreeOfPane } from './worktrees'
+import { noteRecentProject } from './recentProjects'
 
 export const panes = new Map<string, TerminalPane>()
 const tabViews = new Map<string, HTMLElement>()
@@ -135,6 +136,7 @@ export interface CreateTabOptions {
 
 export async function createTab(opts: CreateTabOptions): Promise<void> {
   const layout: LayoutNode = opts.layout ?? { type: 'pane', id: newId('p') }
+  noteRecentProject(opts.projectPath)
   const tab: TabState = {
     id: opts.id ?? newId('t'),
     name: opts.name ?? basename(opts.projectPath),

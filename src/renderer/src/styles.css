@@ -2139,9 +2139,8 @@ body.tab-dragging * {
 }
 
 .about-logo {
-  width: 56px;
-  height: 56px;
-  border-radius: 12px;
+  width: 64px;
+  height: 64px;
 }
 
 .about-name {
@@ -2319,12 +2318,13 @@ body.tab-dragging * {
 
 /* ---------- Empty state ---------- */
 
+/* ---------- Welcome page (welcome.ts) ----------
+ * Shown whenever no tab is open. Calm, flat, one column. */
+
 #empty-state {
   position: absolute;
   inset: 36px 0 0 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  overflow-y: auto;
   background: var(--bg);
 }
 
@@ -2332,56 +2332,213 @@ body.tab-dragging * {
   display: none;
 }
 
-.empty-card {
-  text-align: center;
+.welcome {
+  width: min(760px, calc(100% - 48px));
+  margin: 0 auto;
+  padding: 9vh 0 var(--space-6);
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--space-6);
+}
+
+.wl-hero {
+  display: flex;
+  flex-direction: column;
   align-items: center;
+  text-align: center;
+  gap: var(--space-2);
 }
 
-.empty-logo {
-  width: 96px;
-  height: 96px;
+.wl-logo {
+  margin-bottom: var(--space-3);
 }
 
-.empty-card h2 {
+.wl-title {
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--fg);
+}
+
+.wl-tagline {
+  color: var(--fg-muted);
+  font-size: var(--fs-lg);
+}
+
+.wl-actions {
+  display: flex;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+}
+
+.wl-actions .btn {
+  height: 36px;
+  padding: 0 var(--space-4);
+  gap: var(--space-2);
+}
+
+.wl-icon {
+  display: inline-flex;
+}
+
+.wl-enter {
+  margin-left: var(--space-1);
+  background: rgba(255, 255, 255, 0.16);
+  border-color: transparent;
+  color: var(--on-accent);
+}
+
+.wl-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.wl-section h2 {
+  color: var(--fg-subtle);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.wl-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.wl-projects {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+.wl-project {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-panel);
+  color: var(--fg-muted);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color var(--dur-fast) var(--ease),
+    background var(--dur-fast) var(--ease);
+}
+
+.wl-project:hover {
+  border-color: var(--border-strong);
+  background: var(--bg-raised);
+}
+
+.wl-project-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.wl-project-name {
+  color: var(--fg);
+}
+
+.wl-project-path {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--fg-subtle);
+  font-size: var(--fs-xs);
+}
+
+.wl-cards {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+.wl-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--bg-panel);
+  color: var(--fg);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color var(--dur-fast) var(--ease),
+    background var(--dur-fast) var(--ease);
+}
+
+.wl-card:hover {
+  border-color: var(--border-strong);
+  background: var(--bg-raised);
+}
+
+.wl-card-top {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.wl-card-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-md);
+  background: var(--accent-soft);
+  color: var(--accent-hover);
+}
+
+.wl-card-title {
   font-weight: 600;
 }
 
-.empty-card p {
+.wl-card-text {
+  flex: 1 1 auto;
   color: var(--fg-muted);
+  font-size: var(--fs-sm);
+  line-height: 1.5;
 }
 
-.empty-card .hint {
-  font-size: 12px;
-  line-height: 2;
+.wl-card-cta {
+  color: var(--accent-hover);
+  font-size: var(--fs-sm);
 }
 
-.empty-card .hint .key {
-  display: inline-block;
-  font-family: var(--font-mono);
-  font-size: 11px;
-  color: var(--fg);
-  background: var(--bg-panel);
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  padding: 1px 6px;
-  margin-right: 4px;
+.wl-keys {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2) var(--space-5);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border);
+  color: var(--fg-muted);
+  font-size: var(--fs-sm);
 }
 
-#empty-open {
-  border: 1px solid var(--border);
-  background: var(--bg-panel);
-  color: var(--fg);
-  padding: 8px 20px;
-  border-radius: 6px;
-  font: inherit;
-  cursor: pointer;
+.wl-key {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
 }
 
-#empty-open:hover {
-  border-color: var(--accent);
+@media (max-width: 720px) {
+  .wl-cards,
+  .wl-projects {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 /* ---------- Mission Control ---------- */
@@ -3567,4 +3724,127 @@ body.tab-dragging * {
   gap: var(--space-3);
   min-height: 28px;
   color: var(--fg);
+}
+
+/* ---------- Logo (ui/logo.ts) ---------- */
+
+.lc-logo {
+  display: block;
+  overflow: visible;
+}
+
+.lc-logo-disc {
+  fill: var(--bg-active);
+}
+
+.lc-logo-stroke {
+  fill: none;
+  stroke: var(--fg-muted);
+  stroke-width: 10.5;
+  stroke-linecap: round;
+  stroke-linejoin: miter;
+}
+
+/* Arrival: disc settles, brackets draw in from their rounded ends, then slide
+   the last few units home and cool from the accent to grey. ~1s, once. */
+.lc-logo-animated .lc-logo-disc {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: lc-disc-in 0.45s var(--ease) both;
+}
+
+.lc-logo-animated .lc-logo-stroke {
+  stroke-dasharray: 100;
+  animation:
+    lc-draw 0.65s var(--ease) 0.15s both,
+    lc-cool 0.9s ease-out 0.5s both;
+}
+
+.lc-logo-animated .lc-logo-b .lc-logo-stroke {
+  animation-delay: 0.27s, 0.62s;
+}
+
+/* Each bracket starts a little away from the centre and locks in, then
+   breathes: a slow drift of a unit or two apart and back. */
+.lc-logo-animated .lc-logo-a {
+  animation:
+    lc-lock-a 0.5s var(--ease) 0.55s both,
+    lc-breathe-a 6s ease-in-out 1.4s infinite alternate;
+}
+
+.lc-logo-animated .lc-logo-b {
+  animation:
+    lc-lock-b 0.5s var(--ease) 0.67s both,
+    lc-breathe-b 6s ease-in-out 1.4s infinite alternate;
+}
+
+@keyframes lc-disc-in {
+  from {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+}
+
+@keyframes lc-draw {
+  from {
+    stroke-dashoffset: 100;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes lc-cool {
+  from {
+    stroke: var(--accent);
+  }
+  to {
+    stroke: var(--fg-muted);
+  }
+}
+
+@keyframes lc-lock-a {
+  from {
+    transform: translate(3px, -3px);
+  }
+  to {
+    transform: none;
+  }
+}
+
+@keyframes lc-lock-b {
+  from {
+    transform: translate(-3px, 3px);
+  }
+  to {
+    transform: none;
+  }
+}
+
+@keyframes lc-breathe-a {
+  to {
+    transform: translate(1.5px, -1.5px);
+  }
+}
+
+@keyframes lc-breathe-b {
+  to {
+    transform: translate(-1.5px, 1.5px);
+  }
+}
+
+/* Nothing animates in a window nobody is looking at. */
+body.page-hidden .lc-logo-animated *,
+body.page-hidden .lc-logo-animated {
+  animation-play-state: paused;
+}
+
+/* Reduced motion: the finished mark, still. */
+@media (prefers-reduced-motion: reduce) {
+  .lc-logo-animated *,
+  .lc-logo-animated .lc-logo-a,
+  .lc-logo-animated .lc-logo-b {
+    animation: none !important;
+    stroke-dashoffset: 0;
+  }
 }
