@@ -8,7 +8,7 @@ import { IPC } from '../shared/ipc'
 import type { ClipboardPasteResult } from '../shared/ipc'
 import type { PersistedState, ShortcutsConfig } from '../shared/types'
 import { HookWatcher, installHookAssets, sweepDeadHookDirs } from './agentHooks'
-import { agentAvailability } from './agentBins'
+import { agentAvailability, resetAgentAvailability } from './agentBins'
 import { lastAssistantText } from './agentResult'
 import {
   addWorktree,
@@ -42,6 +42,9 @@ import {
 } from './stateStore'
 import { initUpdater, scheduleUpdateCheck } from './updater'
 import { UsageWatcher } from './usageWatcher'
+import { checkTools } from './toolCheck'
+import { systemPageUri } from '../shared/guides'
+import { checkPermissions } from './permissionCheck'
 
 // Keep the pre-rename app name so userData stays %APPDATA%\lightclaude —
 // renaming it would silently abandon existing state.json and shortcuts.json.
@@ -91,6 +94,17 @@ function registerIpc(): void {
   // web/mail schemes — terminal output is untrusted (see isSafeExternalUrl).
   ipcMain.on(IPC.OpenExternal, (_e, url: unknown) => {
     if (isSafeExternalUrl(url)) void shell.openExternal(url)
+  })
+  ipcMain.handle(IPC.PermissionsCheck, () => checkPermissions())
+  ipcMain.handle(IPC.ToolsCheck, async () => {
+    const result = await checkTools()
+    resetAgentAvailability() // the pickers should see a fresh install too
+    return result
+  })
+  // Only pages named in shared/guides.ts, by key — never a URI from the renderer.
+  ipcMain.on(IPC.OpenSystemPage, (_e, page: unknown) => {
+    const uri = systemPageUri(page, process.platform)
+    if (uri) void shell.openExternal(uri)
   })
 
   ipcMain.handle(IPC.ShortcutsLoad, () => loadShortcuts())

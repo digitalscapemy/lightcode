@@ -7,6 +7,9 @@ import {
 import type { AccountShortcut, PathShortcut, ShortcutsConfig } from '../../shared/types'
 import { panes } from './app'
 import { state } from './store'
+import { GUIDES } from '../../shared/guides'
+import { openGuide } from './ui/guide'
+import { toast } from './ui/toast'
 
 type Kind = 'paths' | 'accounts'
 
@@ -513,6 +516,16 @@ async function save(): Promise<void> {
     parts.push(`new panes get these automatically; existing panes: run ${reloadHint}`)
     const warnings = result.warnings ?? []
     setStatus([parts.join(' · '), ...warnings].join(' · '), warnings.length > 0)
+    // What Light Code could not do itself, with the steps to do it.
+    for (const id of result.guides ?? []) {
+      toast({
+        tone: 'warning',
+        title: GUIDES[id].title,
+        detail: 'Your shortcuts are saved and work in Light Code panes.',
+        action: { label: 'How to fix', run: () => openGuide(id) },
+        duration: 12000
+      })
+    }
   } else {
     setStatus(result.errors.join(' · '), true)
     markInvalid(result.errors)

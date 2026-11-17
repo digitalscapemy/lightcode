@@ -22,6 +22,7 @@ import { initToolbar } from './toolbar'
 import { initWelcome } from './welcome'
 import { flushPersist, notifyStatus, persist, state } from './store'
 import { initTabBar } from './tabbar'
+import { openSetup } from './setup'
 
 async function boot(): Promise<void> {
   document.body.classList.add(`platform-${window.lightclaude.platform}`)
@@ -178,6 +179,7 @@ function buildCommands(): Command[] {
     // General
     { id: 'palette', title: 'Command palette', group: 'General', icon: 'search', shortcut: 'command-palette', run: () => void openPalette() },
     { id: 'shortcuts', title: 'Keyboard shortcuts', group: 'General', icon: 'keyboard', keywords: 'help keys cheat sheet', shortcut: 'shortcut-help', run: openShortcutHelp },
+    { id: 'setup', title: 'Setup & tools: install Claude, Codex, Antigravity CLI', group: 'General', icon: 'sparkle', keywords: 'install agent cli check codex agy antigravity claude help guide', run: openSetup },
     { id: 'projects', title: 'Project shortcuts', group: 'General', icon: 'projects', keywords: 'folders paths profile', run: click('projects-btn') },
     { id: 'accounts', title: 'Claude accounts', group: 'General', icon: 'accounts', keywords: 'config dir login', run: click('accounts-btn') },
     { id: 'open-project', title: 'Open project folder', group: 'General', icon: 'folder', keywords: 'new tab pick folder', run: () => void app.addTabViaPicker() },

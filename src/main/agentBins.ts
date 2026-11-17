@@ -43,6 +43,11 @@ export function onPath(
 
 let cached: Record<string, boolean> | null = null
 
+/** Forget the answer, after an install may have changed it. */
+export function resetAgentAvailability(): void {
+  cached = null
+}
+
 /** Every adapter id, found or not. Worked out once per run: PATH does not move. */
 export function agentAvailability(): Record<string, boolean> {
   if (cached !== null) return cached

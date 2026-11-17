@@ -3919,3 +3919,215 @@ body.page-hidden .lc-logo-animated {
   text-overflow: ellipsis;
   min-width: 0;
 }
+
+/* ---------- Setup & tools (setup.ts) and guides (ui/guide.ts) ---------- */
+
+.chip-success {
+  border-color: transparent;
+  background: rgba(63, 185, 80, 0.14);
+  color: var(--success);
+}
+
+.setup-modal {
+  width: 600px;
+}
+
+.setup-head {
+  color: var(--fg-subtle);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.setup-note {
+  margin-top: calc(-1 * var(--space-2));
+  color: var(--fg-subtle);
+  font-size: var(--fs-sm);
+  line-height: 1.5;
+}
+
+.tool-list {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg);
+}
+
+.tool-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3);
+}
+
+.tool-row + .tool-row {
+  border-top: 1px solid var(--border);
+}
+
+.tool-row.compact {
+  padding: var(--space-2) var(--space-3);
+}
+
+.tool-text {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.tool-name {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--fg);
+}
+
+.tool-blurb {
+  margin-top: 2px;
+  color: var(--fg-muted);
+  font-size: var(--fs-sm);
+}
+
+.tool-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.wl-tools {
+  background: var(--bg-panel);
+}
+
+.guide-links {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.guide-link {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--fg);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.guide-link:hover {
+  background: var(--bg-hover);
+}
+
+.guide-link-icon {
+  display: inline-flex;
+  color: var(--accent-hover);
+}
+
+.guide-modal {
+  width: 540px;
+}
+
+.guide {
+  gap: var(--space-3);
+}
+
+.guide-why {
+  color: var(--fg-muted);
+  line-height: 1.55;
+}
+
+.guide .chip {
+  align-self: flex-start;
+}
+
+.guide-steps {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding-left: var(--space-5);
+  color: var(--fg);
+  line-height: 1.5;
+}
+
+.guide-steps li {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+
+.guide-command {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  padding: var(--space-1) var(--space-1) var(--space-1) var(--space-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--bg);
+}
+
+.guide-command code {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-x: auto;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  color: var(--fg);
+}
+
+/* Step numbers drawn explicitly: a flex list item drops the native marker. */
+.guide-steps {
+  counter-reset: guide-step;
+  list-style: none;
+  padding-left: 0;
+}
+
+.guide-steps li {
+  position: relative;
+  padding-left: 32px;
+  counter-increment: guide-step;
+}
+
+.guide-steps li::before {
+  content: counter(guide-step);
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent-hover);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+}
+
+/* Permission checks in Setup & tools. */
+.perm-icon {
+  display: inline-flex;
+}
+
+.perm-row.ok .perm-icon {
+  color: var(--success);
+}
+
+.perm-row.bad .perm-icon {
+  color: var(--warning);
+}
+
+.perm-detail {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+}

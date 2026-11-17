@@ -10,6 +10,7 @@ import type {
   ShortcutsImportResult,
   ShortcutsSaveResult
 } from '../shared/types'
+import type { GuideId } from '../shared/guides'
 
 const START_MARKER = '# >>> LightClaude shortcuts >>>'
 const END_MARKER = '# <<< LightClaude shortcuts <<<'
@@ -522,15 +523,24 @@ export function saveShortcuts(cfg: ShortcutsConfig): ShortcutsSaveResult {
     return { ok: false, profilesWritten: [], errors: [describeWriteError(shortcutsFile(), err)] }
   }
   const { created, warnings } = createMissingFolders(cfg, homedir())
+  const guides: GuideId[] = []
   const policyWarning = profilePolicyWarning(effectiveExecutionPolicy())
-  if (policyWarning) warnings.push(policyWarning)
+  if (policyWarning) {
+    warnings.push(policyWarning)
+    guides.push('execution-policy')
+  }
 
   const block = renderBlock(cfg)
   const written: string[] = []
   for (const file of profileTargets()) {
     const err = writeManagedBlock(file, block)
-    if (err) warnings.push(`${err}. Light Code panes still have these shortcuts.`)
+    if (err) {
+      warnings.push(`${err}. Light Code panes still have these shortcuts.`)
+      if (/Controlled folder access/.test(err) && !guides.includes('controlled-folder-access')) {
+        guides.push('controlled-folder-access')
+      }
+    }
     else written.push(file)
   }
-  return { ok: true, profilesWritten: written, errors: [], created, warnings }
+  return { ok: true, profilesWritten: written, errors: [], created, warnings, guides }
 }

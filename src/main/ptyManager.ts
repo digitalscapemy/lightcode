@@ -12,6 +12,7 @@ import { detectShell, hookEnv, lcEnv } from './shell'
 import { psNativeArgSafe } from '../shared/psQuote'
 import { loadShortcuts, psStartupShortcuts } from './shortcuts'
 import type { UsageWatcher } from './usageWatcher'
+import { refreshProcessPath } from './toolCheck'
 
 /**
  * Windows: append the saved shortcuts to the pane's `-Command` startup, so
@@ -100,6 +101,8 @@ export class PtyManager {
   spawn({ paneId, cwd, cols, rows, role, crew, agent }: SpawnOptions): SpawnResult {
     this.kill(paneId)
     const shell = detectShell()
+    // A tool installed since Light Code started must be found in this pane.
+    refreshProcessPath()
 
     let realCwd = cwd
     let cwdFallback = false

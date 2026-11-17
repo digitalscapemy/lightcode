@@ -6,6 +6,8 @@ import type {
   ShortcutsImportResult,
   ShortcutsSaveResult
 } from './types'
+import type { PermissionCheck, SystemPage } from './guides'
+import type { ToolStatus } from './tools'
 
 export const IPC = {
   PtySpawn: 'pty:spawn',
@@ -28,6 +30,9 @@ export const IPC = {
   PickFolder: 'dialog:pickFolder',
   Homedir: 'app:homedir',
   OpenExternal: 'app:open-external',
+  ToolsCheck: 'tools:check',
+  PermissionsCheck: 'permissions:check',
+  OpenSystemPage: 'app:open-system-page',
   AppVersion: 'app:version',
   UpdateCheck: 'update:check',
   UpdateDownload: 'update:download',
@@ -486,6 +491,12 @@ export interface LightClaudeApi {
   homedir(): Promise<string>
   /** Open a terminal link in the default browser (http/https/mailto only). */
   openExternal(url: string): void
+  /** Which agent CLIs are installed (fresh PATH, versions). */
+  checkTools(): Promise<ToolStatus[]>
+  /** What Light Code may write, and what it needs installed. */
+  checkPermissions(): Promise<PermissionCheck[]>
+  /** Open one of a fixed set of OS settings pages, for a guide step. */
+  openSystemPage(page: SystemPage): void
   appVersion(): Promise<string>
   updates: {
     check(): Promise<UpdateCheckStatus>

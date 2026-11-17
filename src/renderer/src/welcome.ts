@@ -6,6 +6,8 @@ import { recentProjects } from './recentProjects'
 import { state } from './store'
 import { icon, type IconName } from './ui/icons'
 import { logoSvg } from './ui/logo'
+import { openSetup, refreshTools, toolRow } from './setup'
+import { TOOLS, type ToolStatus } from '../../shared/tools'
 
 /**
  * The welcome page: what the window shows when no tab is open — on the very
@@ -91,6 +93,22 @@ async function render(root: HTMLElement): Promise<void> {
   actions.append(newTerm, openProj)
   hero.appendChild(actions)
   page.appendChild(hero)
+
+  // Agent CLIs: what is installed, and one click to install the rest.
+  const agents = el('section', 'wl-section')
+  const agentsHead = el('div', 'wl-section-head')
+  agentsHead.appendChild(el('h2', undefined, 'Agent CLIs'))
+  const setupBtn = el('button', 'btn btn-ghost btn-sm', 'Setup & tools')
+  setupBtn.addEventListener('click', openSetup)
+  agentsHead.appendChild(setupBtn)
+  const agentList = el('div', 'tool-list wl-tools')
+  const paint = (s: ToolStatus[] | null): void => {
+    agentList.replaceChildren(...TOOLS.map((t) => toolRow(t, s?.find((x) => x.id === t.id), true)))
+  }
+  paint(null)
+  void refreshTools().then(paint)
+  agents.append(agentsHead, agentList)
+  page.appendChild(agents)
 
   // Projects: saved shortcuts first, then recent folders not already listed.
   const saved = await savedProjects()

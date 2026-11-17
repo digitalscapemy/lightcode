@@ -1,3 +1,4 @@
+import type { GuideId } from './guides'
 /** The role a pane holds, as remembered across restarts. */
 export interface PaneNodeRole {
   id: string
@@ -146,6 +147,8 @@ export interface ShortcutsSaveResult {
   created?: string[]
   /** Non-blocking problems (a folder that could not be created, …). */
   warnings?: string[]
+  /** Guides (shared/guides.ts) for the warnings the user can fix themselves. */
+  guides?: GuideId[]
 }
 
 export interface ShortcutsImportResult {
