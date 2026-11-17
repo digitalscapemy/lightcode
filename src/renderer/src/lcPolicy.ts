@@ -25,8 +25,11 @@ export type Gate = { allow: true; warning?: string } | { allow: false; error: st
  * first, not the message as a whole: "y" then a newline and an essay is a yes,
  * and "1. Run the tests" chooses option 1 before the rest is read. So: an empty
  * send (a bare Enter confirms the highlighted row), a first line that is a
- * reply on its own, a first character that is a digit, or any control or
- * escape character other than tab and line breaks (arrow keys, Esc).
+ * reply on its own, a first character that is a digit or a menu hotkey letter
+ * (y, a, n — Codex answers on the key itself, so "yeah, go on" is a yes and
+ * "now do X" a no), or any control or escape character other than tab and
+ * line breaks (arrow keys, Esc). Only agents are held to this, and an agent
+ * can always open with another word.
  */
 export function looksLikePromptAnswer(text: string): boolean {
   // eslint-disable-next-line no-control-regex
@@ -35,7 +38,7 @@ export function looksLikePromptAnswer(text: string): boolean {
   // whatever row the menu has highlighted.
   const first = text.split(/\r?\n|\r/)[0]!.trim()
   if (first === '') return true
-  if (/^\d/.test(first)) return true
+  if (/^[0-9yna]/i.test(first)) return true
   return (
     /^[a-z0-9]{1,2}[.!]?$/i.test(first) ||
     /^(yes|no|ok|okay|allow|deny|always|approve|accept|reject|y\/n)[.!]?$/i.test(first)
@@ -99,7 +102,8 @@ export function sendGate(o: {
       error:
         `${o.target}'s status is only estimated, so a permission prompt there would be invisible ` +
         `to Light Code — and "${(o.text ?? '').trim() || 'Enter'}" is the kind of reply that ` +
-        'would answer one. Send a full instruction, or add --force if answering is what you mean.'
+        'would answer one. Start the message with a word that is not y…, n…, a… or a digit ' +
+        '(“Please …” works), or add --force if answering is what you mean.'
     }
   }
   if (o.status === 'working') {

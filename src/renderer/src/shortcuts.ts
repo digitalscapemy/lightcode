@@ -441,7 +441,13 @@ function renderRows(): void {
 
 /** Import entries of the ACTIVE kind only; the other section stays as loaded. */
 async function runImport(silentIfEmpty: boolean): Promise<void> {
-  const result = await window.lightclaude.shortcuts.importFromProfile()
+  let result: Awaited<ReturnType<typeof window.lightclaude.shortcuts.importFromProfile>>
+  try {
+    result = await window.lightclaude.shortcuts.importFromProfile()
+  } catch (err) {
+    setStatus(`Import failed: ${err instanceof Error ? err.message : String(err)}`, true)
+    return
+  }
   const rows = activeRows()
   const known = new Set(rows.map((r) => r.name.toLowerCase()).filter(Boolean))
   const incoming =
@@ -456,10 +462,20 @@ async function runImport(silentIfEmpty: boolean): Promise<void> {
     added++
   }
   renderRows()
+  const unreadable = result.unreadable ?? []
   if (added > 0) {
     setStatus(`${added} imported from ${profileLabel} — press Save to keep them.`, false)
+  } else if (unreadable.length > 0) {
+    setStatus(`Could not read ${unreadable.join(' · ')}`, true)
   } else if (!silentIfEmpty) {
-    setStatus(`No new entries found in ${profileLabel}.`, false)
+    // A fresh install has no profile at all: say that, rather than implying
+    // the import looked and failed.
+    setStatus(
+      result.found === 0
+        ? `There is no ${profileLabel} on this computer yet, so there is nothing to import — add shortcuts here and press Save.`
+        : `No new entries found in ${profileLabel}.`,
+      false
+    )
   }
 }
 
@@ -479,7 +495,14 @@ async function save(): Promise<void> {
   }
   if (projectRoot) cfg.projectRoot = projectRoot
   if (categories.length > 0) cfg.categories = categories
-  const result = await window.lightclaude.shortcuts.save(cfg)
+  let result: Awaited<ReturnType<typeof window.lightclaude.shortcuts.save>>
+  try {
+    result = await window.lightclaude.shortcuts.save(cfg)
+  } catch (err) {
+    // Never a silent save: whatever went wrong, the person sees it.
+    setStatus(`Save failed: ${err instanceof Error ? err.message : String(err)}`, true)
+    return
+  }
   if (result.ok) {
     // Saved rows keep their folder from now on, whatever the name becomes.
     for (const r of [...pathRows, ...accountRows]) r.fresh = false

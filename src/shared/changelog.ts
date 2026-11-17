@@ -9,6 +9,15 @@ export const DEVELOPER = 'Digital Scape MY'
 /** Newest first. Add an entry on every release (see release procedure). */
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.6.2',
+    date: '2026-11-17',
+    notes: [
+      'Saving project shortcuts no longer reports a failure that did not happen. On a new Windows machine, Windows Security’s Controlled folder access often blocks unknown apps from writing to Documents — where $PROFILE lives — and the save showed a raw “operation not permitted”, which looked like missing admin rights and as if nothing had been saved. The shortcuts were saved, and Light Code panes use them regardless. Now the save says it worked, and a separate note explains that other terminals will not see them yet and exactly where to allow Light Code (no admin rights needed). If the shortcuts file itself cannot be written, that is now said plainly instead of the save silently doing nothing.',
+      'Import from $PROFILE says what it found. A fresh install has no PowerShell profile at all, and import used to answer “No new entries found”, as if it had looked and failed; it now says there is nothing to import yet. A profile that exists but cannot be read is named, with the reason.',
+      'One more guard on `lc send` into Codex and shell panes: a message from an agent that starts with y, n or a is refused unless forced, because Codex answers its permission menu on that key alone — “yeah, go on” was a yes. Starting with any other word works.'
+    ]
+  },
+  {
     version: '0.6.1',
     date: '2026-11-17',
     notes: [

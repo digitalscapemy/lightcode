@@ -153,4 +153,8 @@ export interface ShortcutsImportResult {
   accounts: AccountShortcut[]
   /** Entries recognised but not importable (unresolvable variables etc.). */
   skipped: number
+  /** Profile files that exist on this machine (0 on a fresh install). */
+  found?: number
+  /** Profile files that exist but could not be read, with the reason. */
+  unreadable?: string[]
 }

@@ -223,7 +223,7 @@ export function writeManagedBlock(file: string, block: string): string | null {
     renameSync(tmp, file)
     return null
   } catch (err) {
-    return `${file}: ${err instanceof Error ? err.message : String(err)}`
+    return describeWriteError(file, err)
   }
 }
 
@@ -412,13 +412,17 @@ export function parseProfiles(files: string[]): ShortcutsImportResult {
   const accounts = new Map<string, { name: string; configDir: string }>()
   let skipped = 0
 
+  let found = 0
+  const unreadable: string[] = []
   for (const file of files) {
     if (!existsSync(file)) continue
+    found++
     let text: string
     try {
       const buf = readFileSync(file)
       text = decode(buf, sniffEncoding(buf))
-    } catch {
+    } catch (err) {
+      unreadable.push(`${file}: ${err instanceof Error ? err.message : String(err)}`)
       continue
     }
     const { stripped } = stripManagedRegions(text) // never re-import our own block
@@ -455,7 +459,7 @@ export function parseProfiles(files: string[]): ShortcutsImportResult {
     }
   }
 
-  return { paths: [...paths.values()], accounts: [...accounts.values()], skipped }
+  return { paths: [...paths.values()], accounts: [...accounts.values()], skipped, found, unreadable }
 }
 
 /** Profile candidates in shell load order (later definitions win). */
@@ -481,11 +485,42 @@ export function importCandidates(): string[] {
 
 // ---------- Save orchestration ----------
 
+/**
+ * A write failure in words a person can act on. On Windows an EPERM/EACCES in
+ * Documents is nearly always Controlled folder access (ransomware protection),
+ * which blocks apps it does not know — it reads like missing admin rights,
+ * and running as admin is not the fix.
+ */
+export function describeWriteError(file: string, err: unknown): string {
+  const code = (err as { code?: string })?.code
+  const msg = err instanceof Error ? err.message : String(err)
+  if (IS_WIN && (code === 'EPERM' || code === 'EACCES')) {
+    return (
+      `Windows blocked writing ${file}. This is usually Controlled folder access: open ` +
+      `Windows Security → Virus & threat protection → Ransomware protection → ` +
+      `"Allow an app through Controlled folder access" and add Light Code. No admin rights needed.`
+    )
+  }
+  return `${file}: ${msg}`
+}
+
+/**
+ * Save the shortcuts. Only two things fail a save: an invalid entry, or
+ * shortcuts.json itself not being written — that file is what Light Code
+ * panes read, so once it is on disk the shortcuts work there. Writing
+ * $PROFILE is for other terminals; when Windows refuses it (Controlled folder
+ * access, a read-only file) the save still succeeds and says so as a warning,
+ * rather than reporting a save that did happen as one that did not.
+ */
 export function saveShortcuts(cfg: ShortcutsConfig): ShortcutsSaveResult {
   const errors = validateConfig(cfg)
   if (errors.length > 0) return { ok: false, profilesWritten: [], errors }
 
-  saveShortcutsJson(cfg)
+  try {
+    saveShortcutsJson(cfg)
+  } catch (err) {
+    return { ok: false, profilesWritten: [], errors: [describeWriteError(shortcutsFile(), err)] }
+  }
   const { created, warnings } = createMissingFolders(cfg, homedir())
   const policyWarning = profilePolicyWarning(effectiveExecutionPolicy())
   if (policyWarning) warnings.push(policyWarning)
@@ -494,8 +529,8 @@ export function saveShortcuts(cfg: ShortcutsConfig): ShortcutsSaveResult {
   const written: string[] = []
   for (const file of profileTargets()) {
     const err = writeManagedBlock(file, block)
-    if (err) errors.push(err)
+    if (err) warnings.push(`${err} — Light Code panes still have these shortcuts.`)
     else written.push(file)
   }
-  return { ok: errors.length === 0, profilesWritten: written, errors, created, warnings }
+  return { ok: true, profilesWritten: written, errors: [], created, warnings }
 }

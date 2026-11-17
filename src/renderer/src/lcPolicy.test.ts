@@ -64,7 +64,16 @@ describe('sendGate', () => {
     it('lets real instructions through', () => {
       expect(est('run the tests and report back').allow).toBe(true)
       expect(est('fix it').allow).toBe(true)
-      expect(est('now refactor the parser\nand add tests').allow).toBe(true)
+      expect(est('Please refactor the parser\nand add tests').allow).toBe(true)
+    })
+
+    // Codex answers its menu on the key itself: y / a / n.
+    it('refuses a first keystroke that is a menu hotkey letter', () => {
+      for (const t of ['yeah, go on', 'Now run the tests', 'add a test for it', '  y please']) {
+        expect(est(t).allow).toBe(false)
+      }
+      const refused = est('now run the tests')
+      if (!refused.allow) expect(refused.error).toMatch(/Please/)
     })
 
     // A menu reads keys as they arrive: the first line and first key decide.
