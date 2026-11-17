@@ -154,9 +154,12 @@ async function boot(): Promise<void> {
     await app.restore(persisted)
   }
   app.updateEmptyState()
-  // Two frames: one to lay the screen out, one to paint it. Then the window
-  // may be shown, with nothing half-drawn in it.
-  requestAnimationFrame(() => requestAnimationFrame(() => window.lightclaude.rendererReady()))
+  // Two frames: one to lay the screen out, one to paint it. Then the splash
+  // fades and the finished screen is what is left.
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    hideSplash()
+    window.lightclaude.rendererReady()
+  }))
 
   // After restore, not before: whether the panel is docked open is part of the
   // persisted state, and initialising it earlier would read the default every
@@ -228,6 +231,20 @@ function buildCommands(): Command[] {
     { id: 'font-smaller', title: 'Smaller text', group: 'View', keywords: 'zoom out font size', shortcut: 'font-smaller', run: () => app.adjustFontSize(-1) },
     { id: 'font-reset', title: 'Reset text size', group: 'View', keywords: 'zoom font size default', shortcut: 'font-reset', run: () => app.adjustFontSize(0) }
   ]
+}
+
+/**
+ * Fade out the launch splash (index.html). Held for at least half a second so
+ * a fast launch does not flash it, and never longer than the boot itself.
+ */
+function hideSplash(): void {
+  const splash = document.getElementById('splash')
+  if (!splash) return
+  const wait = Math.max(0, 500 - performance.now())
+  window.setTimeout(() => {
+    splash.classList.add('gone')
+    window.setTimeout(() => splash.remove(), 300)
+  }, wait)
 }
 
 void boot()

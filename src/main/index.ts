@@ -383,9 +383,10 @@ function createWindow(): void {
   // Maximize only once there is something to show. On Windows, maximize() on a
   // hidden window also SHOWS it, before the page has painted: the window came
   // up black, with the old small frame drawn in its top-left corner.
-  // Shown when the renderer says its first real screen is painted (welcome
-  // page or the restored tab), not on Chromium's first paint, which can be an
-  // empty or half-built page. A safety net shows it anyway after 3 s.
+  // Shown on the first paint, which is the launch splash in index.html: a
+  // finished-looking window at once, while the real screen is built behind
+  // it. Maximized here, not earlier: on Windows maximize() on a hidden window
+  // also shows it, before anything is painted.
   let shown = false
   const reveal = (): void => {
     if (shown || !mainWindow || mainWindow.isDestroyed()) return
@@ -393,9 +394,10 @@ function createWindow(): void {
     if (win?.maximized) mainWindow.maximize()
     mainWindow.show()
   }
-  ipcMain.once(IPC.RendererReady, reveal)
+  ipcMain.once(IPC.RendererReady, reveal) // belt and braces; normally already shown
   setTimeout(reveal, 3000)
   mainWindow.on('ready-to-show', () => {
+    reveal()
     scheduleUpdateCheck()
   })
 

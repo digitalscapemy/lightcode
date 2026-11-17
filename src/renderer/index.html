@@ -19,9 +19,114 @@
       #app {
         visibility: hidden;
       }
+      /* Launch splash: painted in the first frame, before any script or
+         stylesheet, then faded out by main.ts once the real screen is ready.
+         Flat colours only, the same mark as ui/logo.ts. */
+      #splash {
+        position: fixed;
+        inset: 0;
+        z-index: 9999;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 28px;
+        background: #0b0b0d;
+        transition: opacity 0.25s ease;
+      }
+      #splash.gone {
+        opacity: 0;
+        pointer-events: none;
+      }
+      #splash .disc {
+        fill: #232329;
+        transform-box: fill-box;
+        transform-origin: center;
+        animation: sp-disc 0.45s cubic-bezier(0.2, 0, 0, 1) both;
+      }
+      #splash .stroke {
+        fill: none;
+        stroke: #a1a1aa;
+        stroke-width: 10.5;
+        stroke-linecap: round;
+        stroke-linejoin: miter;
+        stroke-dasharray: 100;
+        animation:
+          sp-draw 0.65s cubic-bezier(0.2, 0, 0, 1) 0.15s both,
+          sp-cool 0.9s ease-out 0.5s both;
+      }
+      #splash .b .stroke {
+        animation-delay: 0.27s, 0.62s;
+      }
+      #splash .bar {
+        position: relative;
+        width: 120px;
+        height: 2px;
+        overflow: hidden;
+        border-radius: 2px;
+        background: #232328;
+      }
+      #splash .bar::after {
+        content: '';
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        width: 40%;
+        border-radius: 2px;
+        background: #4c9aff;
+        animation: sp-bar 1.1s ease-in-out infinite;
+      }
+      @keyframes sp-disc {
+        from {
+          opacity: 0;
+          transform: scale(0.92);
+        }
+      }
+      @keyframes sp-draw {
+        from {
+          stroke-dashoffset: 100;
+        }
+        to {
+          stroke-dashoffset: 0;
+        }
+      }
+      @keyframes sp-cool {
+        from {
+          stroke: #4c9aff;
+        }
+        to {
+          stroke: #a1a1aa;
+        }
+      }
+      @keyframes sp-bar {
+        from {
+          left: -40%;
+        }
+        to {
+          left: 100%;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        #splash *,
+        #splash .bar::after {
+          animation: none !important;
+          stroke-dashoffset: 0;
+        }
+        #splash .bar::after {
+          left: 30%;
+        }
+      }
     </style>
   </head>
   <body>
+    <div id="splash" aria-hidden="true">
+      <svg width="88" height="88" viewBox="0 0 100 100">
+        <circle class="disc" cx="50" cy="50" r="48" />
+        <g class="a"><path class="stroke" pathLength="100" d="M49.5 26.5 H73.5 V50.5" /></g>
+        <g class="b"><path class="stroke" pathLength="100" d="M26.5 49.5 V73.5 H50.5" /></g>
+      </svg>
+      <div class="bar"></div>
+    </div>
     <div id="app">
       <header id="tabbar">
         <div id="tabs"></div>
