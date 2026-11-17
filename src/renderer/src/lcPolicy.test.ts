@@ -64,6 +64,21 @@ describe('sendGate', () => {
     it('lets real instructions through', () => {
       expect(est('run the tests and report back').allow).toBe(true)
       expect(est('fix it').allow).toBe(true)
+      expect(est('now refactor the parser\nand add tests').allow).toBe(true)
+    })
+
+    // A menu reads keys as they arrive: the first line and first key decide.
+    it('judges by what would be typed first, not the whole message', () => {
+      expect(est('y\nplease carry on with the refactor').allow).toBe(false)
+      expect(est('yes.\r\nthen run the suite').allow).toBe(false)
+      expect(est('1. Run the tests\n2. Report back').allow).toBe(false)
+      expect(est('   \nrun it').allow).toBe(false)
+    })
+
+    it('refuses control and escape characters (arrow keys, Esc)', () => {
+      expect(est('\x1b[B then continue').allow).toBe(false)
+      expect(est('carry on\x1b').allow).toBe(false)
+      expect(est('tabs\tare fine').allow).toBe(true)
     })
 
     it('never stops the person at the keyboard', () => {

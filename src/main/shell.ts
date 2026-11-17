@@ -6,6 +6,7 @@ import { basename, delimiter, join } from 'path'
 import { hookPaths } from './agentHooks'
 import { atomicWrite } from './instance'
 import { lcBinDir } from './lcClient'
+import { psNativeArgSafe } from '../shared/psQuote'
 import { LC_SYSTEM_HINT } from '../shared/lc'
 
 export interface ShellInfo {
@@ -90,7 +91,9 @@ export function lcEnv(socket: string | null): Record<string, string> {
   }
   if (socket !== null) {
     env['LIGHTCODE_LC_SOCKET'] = socket
-    env['LIGHTCODE_LC_HINT'] = LC_SYSTEM_HINT
+    // Passed to claude.exe as an argument by the Windows wrapper; see psNativeArgSafe.
+    env['LIGHTCODE_LC_HINT'] =
+      process.platform === 'win32' ? psNativeArgSafe(LC_SYSTEM_HINT) : LC_SYSTEM_HINT
   }
   return env
 }

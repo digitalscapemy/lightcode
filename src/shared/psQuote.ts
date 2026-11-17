@@ -14,3 +14,29 @@ const PS_SINGLE_QUOTES = /['‘’‚‛]/g
 export function psSingleQuote(value: string): string {
   return `'${value.replace(PS_SINGLE_QUOTES, (c) => c + c)}'`
 }
+
+/**
+ * Make free text safe to hand to a native program (claude.exe, codex.exe)
+ * as ONE argument from Windows PowerShell 5.1.
+ *
+ * Quoting the PowerShell literal correctly is not enough. When 5.1 builds the
+ * child's command line it wraps an argument in "…" without escaping the `"`
+ * inside it, so the program's own parser splits it: measured,
+ * `a b" --dangerously-skip-permissions "c d` arrived as three arguments, the
+ * middle one a real flag. A trailing backslash escapes the closing quote the
+ * same way. PowerShell 7.3+ gets this right for .exe files but not for .cmd
+ * shims (npm installs), so it is fixed here, for every version.
+ *
+ * `"` becomes “ / ” in turn — to an agent reading a prompt they mean the same —
+ * and a trailing run of backslashes gets a space so it cannot reach the quote.
+ * Backslashes elsewhere are literal once no `"` follows them.
+ */
+export function psNativeArgSafe(text: string): string {
+  let open = true
+  const swapped = text.replace(/"/g, () => {
+    const c = open ? '“' : '”'
+    open = !open
+    return c
+  })
+  return /\\$/.test(swapped) ? `${swapped} ` : swapped
+}

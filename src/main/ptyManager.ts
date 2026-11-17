@@ -9,6 +9,7 @@ import type { SpawnOptions, SpawnResult, StatusUpdate } from '../shared/ipc'
 import type { LcServer } from './lcServer'
 import { QuietWatcher } from './quietStatus'
 import { detectShell, hookEnv, lcEnv } from './shell'
+import { psNativeArgSafe } from '../shared/psQuote'
 import { loadShortcuts, psStartupShortcuts } from './shortcuts'
 import type { UsageWatcher } from './usageWatcher'
 
@@ -148,7 +149,10 @@ export class PtyManager {
         ...(role
           ? {
               LIGHTCODE_ROLE: role.id,
-              LIGHTCODE_ROLE_PROMPT: role.prompt,
+              // Windows: the wrapper hands this to claude.exe as an argument;
+              // a `"` in a repo's roles.json must not split it (psNativeArgSafe).
+              LIGHTCODE_ROLE_PROMPT:
+                process.platform === 'win32' ? psNativeArgSafe(role.prompt) : role.prompt,
               LIGHTCODE_SQUAD_DIR: role.squadDir
             }
           : {}),

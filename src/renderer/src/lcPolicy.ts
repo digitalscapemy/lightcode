@@ -18,10 +18,28 @@ import type { LcWaitFor } from '../../shared/lc'
 
 export type Gate = { allow: true; warning?: string } | { allow: false; error: string }
 
-/** A send short enough to be a menu choice rather than an instruction. */
+/**
+ * Whether typing `text` into a menu could pick something in it.
+ *
+ * A menu acts on keystrokes as they arrive, so what matters is what is typed
+ * first, not the message as a whole: "y" then a newline and an essay is a yes,
+ * and "1. Run the tests" chooses option 1 before the rest is read. So: an empty
+ * send (a bare Enter confirms the highlighted row), a first line that is a
+ * reply on its own, a first character that is a digit, or any control or
+ * escape character other than tab and line breaks (arrow keys, Esc).
+ */
 export function looksLikePromptAnswer(text: string): boolean {
-  const t = text.trim()
-  return t === '' || /^[a-z0-9]{1,2}$/i.test(t) || /^(yes|no|ok|allow|deny|always|approve|accept|reject)$/i.test(t)
+  // eslint-disable-next-line no-control-regex
+  if (/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/.test(text)) return true
+  // Not trimStart(): a leading line break is itself an Enter, which confirms
+  // whatever row the menu has highlighted.
+  const first = text.split(/\r?\n|\r/)[0]!.trim()
+  if (first === '') return true
+  if (/^\d/.test(first)) return true
+  return (
+    /^[a-z0-9]{1,2}[.!]?$/i.test(first) ||
+    /^(yes|no|ok|okay|allow|deny|always|approve|accept|reject|y\/n)[.!]?$/i.test(first)
+  )
 }
 
 /**

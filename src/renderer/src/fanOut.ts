@@ -1,6 +1,6 @@
 import { AGENTS } from '../../shared/agents'
 import { branchNameError } from '../../shared/git'
-import { psSingleQuote } from '../../shared/psQuote'
+import { psNativeArgSafe, psSingleQuote } from '../../shared/psQuote'
 
 /**
  * Fan one task across several agents, each in its own worktree.
@@ -62,8 +62,12 @@ export function layoutIdFor(count: AgentCount): string {
 export function quotePrompt(prompt: string, isWindows: boolean): string {
   // A newline would submit the command line early, splitting the prompt in two.
   const flat = prompt.replace(/[\r\n]+/g, ' ').trim()
-  // PowerShell: psSingleQuote also escapes the curly quotes it treats as '.
-  return isWindows ? psSingleQuote(flat) : `'${flat.replace(/'/g, "'\\''")}'`
+  // PowerShell: psSingleQuote also escapes the curly quotes it treats as ',
+  // and psNativeArgSafe stops 5.1 from splitting the prompt into extra
+  // arguments when it hands it to the agent binary.
+  return isWindows
+    ? psSingleQuote(psNativeArgSafe(flat))
+    : `'${flat.replace(/'/g, "'\\''")}'`
 }
 
 /**
