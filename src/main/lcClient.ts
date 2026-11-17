@@ -1,7 +1,8 @@
 import { app } from 'electron'
 import { chmodSync, mkdirSync, readFileSync } from 'fs'
 import { join } from 'path'
-import { LC_PROTOCOL } from '../shared/lc'
+import { AGENT_IDS } from '../shared/agents'
+import { LC_EXIT, LC_PROTOCOL, LC_SPLIT, LC_WAIT_FOR } from '../shared/lc'
 import { atomicWrite } from './instance'
 
 /**
@@ -106,17 +107,50 @@ const net = require('net')
 // Put here by the app that spawned this pane's shell, so a pane always reaches
 // the window it belongs to even with several Light Codes running.
 const SOCKET = process.env.LIGHTCODE_LC_SOCKET
+const EXIT = ${JSON.stringify(LC_EXIT)}
+const WAIT_FOR = ${JSON.stringify(LC_WAIT_FOR)}
+const SPLIT = ${JSON.stringify(LC_SPLIT)}
+const AGENTS = ${JSON.stringify(AGENT_IDS)}
 const USAGE = [
   'lc — drive Light Code panes from a terminal',
   '',
-  '  lc ls                                  every pane, with status, role and branch',
-  '  lc read <pane> [--tail N]              recent output, oldest line first',
-  '  lc send <pane> <text> [--no-enter]     type into a pane',
+  '  lc ls [--crew]                         every pane, with status, role and branch;',
+  '                                         --crew: only your orchestra',
+  '  lc read <pane> [--tail N] [--clean]    recent output, oldest line first;',
+  '                                         --clean: the words, without the TUI around them',
+  '  lc send <pane> <text|-> [--no-enter] [--force]',
+  '                                         type into a pane; - reads the text from stdin',
   '  lc close <pane>                        close a pane (worktrees are kept)',
-  '  lc wait <pane...> [--for idle|exit] [--timeout-ms N]',
+  '  lc wait <pane...> [--for ' + WAIT_FOR.join('|') + '] [--timeout-ms N]',
   '  lc fan <task> <count> <prompt> [--plan]   worktrees + agents in one call',
   '',
+  'Conducting an orchestra:',
+  '  lc spawn [--agent ' + AGENTS.join('|') + '] [--role R] [--handle H] [--plan]',
+  '           [--cwd DIR | --worktree [--branch B]] [--split right|down] [prompt|-]',
+  '                                         open a worker beside you, without taking',
+  '                                         the keyboard; from a pane in no orchestra,',
+  '                                         that pane becomes its lead; codex and',
+  '                                         gemini report no status of their own, so',
+  '                                         lc ls shows a guess, marked ~',
+  '  lc ask <pane> <text|-> [--timeout-ms N]',
+  '                                         send, wait for the turn to end, print the answer',
+  '  lc result <pane>                       its last answer (transcript, else its screen)',
+  '  lc events [--since N] [--timeout-ms N] what happened in your crew; with --since,',
+  '                                         waits for the next thing after #N',
+  '  lc interrupt <pane>                    stop the turn it is in; the session keeps running',
+  '  lc approve <pane> yes|no               answer its permission prompt — only if the',
+  '                                         person let the lead of this crew approve',
+  '',
+  'A <pane> is a pane id from lc ls, or in an orchestra: @lead, @<handle>, or',
+  '@* (the rest of your crew, for wait). Quote them in PowerShell, where a bare',
+  '@name is splatting: lc send "@developer" hi',
+  '',
   '  --json    print the raw reply instead of a table',
+  '  --force   send even to a pane showing a permission prompt, which the keys',
+  '            would answer',
+  '',
+  'Exit codes: 0 ok, 1 app not reachable, 2 bad usage, 3 refused, 4 timed out.',
+  'Warnings go to stderr and do not change the exit code.',
   '',
   'Every command needs the app running with the agent CLI switched on.'
 ].join('\\n')
@@ -136,28 +170,115 @@ function has(args, name) {
   return true
 }
 
+function readStdin() {
+  return require('fs').readFileSync(0, 'utf8')
+}
+
+// The rest of the arguments as one piece of text. A lone - is the text
+// arriving on stdin, which is the only sane way to hand over several lines
+// without fighting the shell's quoting. The final newline a heredoc always
+// ends with is dropped: Enter is --no-enter's job.
+function textOf(args, cmd) {
+  const text = args.join(' ')
+  if (text !== '-') return { text }
+  try {
+    return { text: readStdin().replace(/[\\r\\n]+$/, '') }
+  } catch (_) {
+    return { error: cmd + ' - could not read stdin.' }
+  }
+}
+
 function build(args) {
   const json = has(args, '--json')
   const cmd = args.shift()
   if (!cmd || cmd === 'help' || cmd === '--help' || cmd === '-h') return { usage: true }
 
-  // The app puts the pane id in the environment of every shell it spawns, so
-  // the caller can be told which row is itself rather than having to work it out.
-  if (cmd === 'ls') return { json, req: { cmd: 'ls', from: process.env.LIGHTCODE_PANE } }
+  if (cmd === 'ls') {
+    // Only asked for when wanted, so a plain ls is the request it always was.
+    return has(args, '--crew') ? { json, crew: true, req: { cmd: 'ls', crew: true } } : { json, req: { cmd: 'ls' } }
+  }
 
   if (cmd === 'read') {
     const pane = args.shift()
     if (!pane) return { error: 'read needs a pane id. Try: lc ls' }
+    const clean = has(args, '--clean')
     const tail = Number(flag(args, '--tail') || 50)
-    return { json, req: { cmd: 'read', pane, tail: Number.isFinite(tail) ? tail : 50 } }
+    const req = { cmd: 'read', pane, tail: Number.isFinite(tail) ? tail : 50 }
+    // Only when asked, so a plain read is the request it always was.
+    if (clean) req.clean = true
+    return { json, req }
   }
 
   if (cmd === 'send') {
     const pane = args.shift()
     const noEnter = has(args, '--no-enter')
-    const text = args.join(' ')
-    if (!pane || !text) return { error: 'send needs a pane id and some text.' }
-    return { json, req: { cmd: 'send', pane, text, enter: !noEnter } }
+    const force = has(args, '--force')
+    const got = textOf(args, 'send')
+    if (got.error) return got
+    if (!pane || !got.text) return { error: 'send needs a pane id and some text.' }
+    return { json, req: { cmd: 'send', pane, text: got.text, enter: !noEnter, force } }
+  }
+
+  if (cmd === 'spawn') {
+    const plan = has(args, '--plan')
+    const worktree = has(args, '--worktree')
+    const opts = {}
+    for (const name of ['agent', 'role', 'handle', 'cwd', 'branch', 'split']) {
+      const value = flag(args, '--' + name)
+      if (value === '') return { error: '--' + name + ' needs a value.' }
+      if (value !== null) opts[name] = value
+    }
+    if (opts.split !== undefined && !SPLIT.includes(opts.split)) {
+      return { error: '--split takes ' + SPLIT.join(' or ') + '.' }
+    }
+    if (opts.cwd !== undefined && (worktree || opts.branch !== undefined)) {
+      return { error: '--cwd and --worktree both choose the folder; give one of them.' }
+    }
+    const got = textOf(args, 'spawn')
+    if (got.error) return got
+    // No prompt starts the agent empty, waiting to be told what to do.
+    const req = Object.assign({ cmd: 'spawn', plan, prompt: got.text === '' ? null : got.text }, opts)
+    if (worktree) req.worktree = true
+    return { json, req }
+  }
+
+  if (cmd === 'ask') {
+    const timeoutMs = Number(flag(args, '--timeout-ms') || 600000)
+    const pane = args.shift()
+    const got = textOf(args, 'ask')
+    if (got.error) return got
+    if (!pane || !got.text) return { error: 'ask needs a pane id and a question.' }
+    return {
+      json,
+      req: { cmd: 'ask', pane, text: got.text, timeoutMs: Number.isFinite(timeoutMs) ? timeoutMs : 600000 }
+    }
+  }
+
+  if (cmd === 'result' || cmd === 'interrupt') {
+    const pane = args.shift()
+    if (!pane) return { error: cmd + ' needs a pane id.' }
+    return { json, req: { cmd, pane } }
+  }
+
+  if (cmd === 'approve') {
+    const pane = args.shift()
+    const answer = args.shift()
+    if (!pane || (answer !== 'yes' && answer !== 'no')) {
+      return { error: 'approve needs a pane id and yes or no.' }
+    }
+    return { json, req: { cmd: 'approve', pane, answer } }
+  }
+
+  if (cmd === 'events') {
+    const since = flag(args, '--since')
+    const timeoutMs = Number(flag(args, '--timeout-ms') || 60000)
+    const req = { cmd: 'events', timeoutMs: Number.isFinite(timeoutMs) ? timeoutMs : 60000 }
+    if (since !== null) {
+      const n = Number(since.replace(/^#/, ''))
+      if (!Number.isInteger(n) || n < 0) return { error: '--since takes an event number, as events prints it.' }
+      req.since = n
+    }
+    return { json, req }
   }
 
   if (cmd === 'close') {
@@ -168,8 +289,8 @@ function build(args) {
 
   if (cmd === 'wait') {
     const forWhat = flag(args, '--for') || 'idle'
-    if (forWhat !== 'idle' && forWhat !== 'exit') {
-      return { error: '--for takes idle or exit.' }
+    if (!WAIT_FOR.includes(forWhat)) {
+      return { error: '--for takes ' + WAIT_FOR.join(', ') + '.' }
     }
     const timeoutMs = Number(flag(args, '--timeout-ms') || 600000)
     const panes = args.filter((a) => !a.startsWith('--'))
@@ -188,24 +309,30 @@ function build(args) {
     if (!task || !Number.isFinite(count) || !prompt) {
       return { error: 'fan needs a task name, a count, and a prompt.' }
     }
-    return { json, req: { cmd: 'fan', task, count, prompt, plan, from: process.env.LIGHTCODE_PANE } }
+    return { json, req: { cmd: 'fan', task, count, prompt, plan } }
   }
 
   return { error: 'Unknown command: ' + cmd + '\\n\\n' + USAGE }
 }
 
-function render(res) {
+function render(res, crew) {
   if (res.panes) {
-    if (res.panes.length === 0) return 'No panes.'
+    if (res.panes.length === 0) return crew ? 'No crew panes.' : 'No panes.'
     // Silence here is the dangerous answer. The system prompt tells agents the
     // asterisk is how they identify themselves, so a listing with no asterisk
     // reads as "none of these is me, all are safe to drive". Say so out loud
-    // rather than letting an absent marker be mistaken for a present one.
-    const warning = res.panes.some((p) => p.self)
+    // rather than letting an absent marker be mistaken for a present one. A
+    // crew listing from a pane in no crew leaves the caller out by design, and
+    // the app has already said so in a warning.
+    const warning = res.panes.some((p) => p.self) || crew
       ? ''
       : 'WARNING: could not identify which pane you are in, so no row is marked. ' +
         'Do not send commands to any of these without checking which is yours.\\n\\n'
     const anyRole = res.panes.some((p) => p.role)
+    // Same bargain as the role column, for the same reason: these exist only
+    // in a window with an orchestra or a named agent in it.
+    const anyCrew = res.panes.some((p) => p.handle)
+    const anyAgent = res.panes.some((p) => p.agent)
     return warning + res.panes
       .map((p) => {
         const ctx = Math.round(p.contextTokens / 1000) + 'k/' + Math.round(p.contextWindow / 1000) + 'k'
@@ -215,30 +342,59 @@ function render(res) {
         // entirely when no pane has one — an ordinary window should not grow a
         // column of dashes to accommodate a feature it is not using.
         const role = anyRole ? [(p.role || '-').padEnd(13)] : []
-        return who + [p.pane, p.status.padEnd(8)].concat(role, [ctx.padEnd(11), branch.padEnd(24), p.cwd]).join('  ')
+        const handle = anyCrew
+          ? [(p.handle ? '@' + p.handle + (p.lead ? ' (lead)' : '') : '-').padEnd(22), (p.crew || '-').padEnd(10)]
+          : []
+        const agent = anyAgent ? [(p.agent || '-').padEnd(7)] : []
+        // An estimate from the terminal going quiet, not the agent's own word.
+        const status = p.statusSource === 'heuristic' ? '~' + p.status : p.status
+        return who + [p.pane, status.padEnd(8)].concat(handle, role, agent, [ctx.padEnd(11), branch.padEnd(24), p.cwd]).join('  ')
       })
       .join('\\n')
   }
   if (res.lines) return res.lines.join('\\n')
   if (res.done) return res.done.map((d) => d.pane + ' ' + d.state).join('\\n')
   if (res.created) return res.created.map((c) => c.pane + ' ' + c.branch).join('\\n')
+  if (res.spawned) {
+    const s = res.spawned
+    return [s.pane, '@' + s.handle, s.crew, s.agent].concat(s.branch ? [s.branch] : [], [s.cwd]).join('  ')
+  }
+  if (res.result) return res.result.text
+  if (res.events) {
+    // The seq leads every line, so the next --since is always on screen.
+    if (res.events.length === 0) return '(nothing new; still at #' + res.seq + ')'
+    return res.events.map(eventLine).join('\\n')
+  }
   return 'ok'
+}
+
+function eventLine(e) {
+  const at = new Date(e.at).toTimeString().slice(0, 8)
+  return '#' + e.seq + '  ' + at + '  @' + e.handle + ' (' + e.pane + ')  ' + e.kind +
+    (e.state ? ' ' + e.state : '') + (e.by ? ' by ' + e.by : '') + (e.detail ? ': ' + e.detail : '')
 }
 
 const parsed = build(process.argv.slice(2))
 if (parsed.usage) {
   console.log(USAGE)
-  process.exit(0)
+  process.exit(EXIT.ok)
 }
 if (parsed.error) {
   console.error(parsed.error)
-  process.exit(2)
+  process.exit(EXIT.usage)
 }
+// Who is asking, on every request. The token is what the app trusts: it put it
+// in this pane's environment and nowhere else. The pane id rides along for an
+// app too old to know about tokens, and one that does know ignores it. Without
+// either, an agent cannot be told which row of \`lc ls\` is itself, and a wrong
+// guess means it sends its next command to itself.
+parsed.req.token = process.env.LIGHTCODE_LC_TOKEN
+parsed.req.from = process.env.LIGHTCODE_PANE
 // Refused rather than guessed at. Picking some other window's socket is how an
 // agent ends up typing into panes in a repository it has never seen.
 if (!SOCKET) {
   console.error('lc cannot tell which Light Code window this is. Run it from a pane inside the app.')
-  process.exit(1)
+  process.exit(EXIT.transport)
 }
 
 const conn = net.connect(SOCKET)
@@ -250,7 +406,7 @@ conn.on('data', (d) => {
 })
 conn.on('error', () => {
   console.error('Light Code is not listening. Is the app running with the agent CLI switched on?')
-  process.exit(1)
+  process.exit(EXIT.transport)
 })
 conn.on('close', () => {
   let res
@@ -258,17 +414,22 @@ conn.on('close', () => {
     res = JSON.parse(buf.trim())
   } catch (_) {
     console.error('The app sent something unreadable.')
-    process.exit(1)
+    process.exit(EXIT.transport)
   }
   if (!res.ok) {
     console.error(res.error || 'Refused.')
-    process.exit(1)
+    // An app that names no kind predates them; every no it ever gave was a
+    // decision about the request, so refused is the honest code for it.
+    process.exit(EXIT[res.kind] || EXIT.refused)
   }
   if (res.protocol !== ${LC_PROTOCOL}) {
     console.error('This lc is version ${LC_PROTOCOL}; the app speaks ' + res.protocol + '. Restart the app.')
-    process.exit(1)
+    process.exit(EXIT.transport)
   }
-  console.log(parsed.json ? JSON.stringify(res) : render(res))
+  // stderr, so a script reading stdout gets the same answer it always did and
+  // a person or an agent watching the terminal still sees it.
+  if (res.warning) console.error('warning: ' + res.warning)
+  console.log(parsed.json ? JSON.stringify(res) : render(res, parsed.crew))
 })
 `
 }

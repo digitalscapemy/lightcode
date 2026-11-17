@@ -3,17 +3,19 @@ import './styles.css'
 import * as app from './app'
 import { initAboutUi } from './about'
 import { onBabysitterChange } from './babysitter'
+import { noteCrewOutput } from './crewStrip'
 import { closeTabWithWorktrees, openFanOut } from './fanOutUi'
 import { MOD_LABEL, initShortcuts } from './keys'
 import { initLc } from './lcHandlers'
 import { initGitTree, toggleGitTree } from './gitTree'
 import { initLayoutPicker } from './layoutPicker'
 import { openMission, toggleMissionControl } from './missionControl'
+import { initOrchPanel, toggleOrchPanel } from './orchPanel'
 import { clearDropTarget, hasDropTarget } from './pane'
 import { initShortcutsUi } from './shortcuts'
 import { openSquad } from './squadUi'
 import { initUpdateToast } from './toast'
-import { flushPersist, persist, state } from './store'
+import { flushPersist, notifyStatus, persist, state } from './store'
 import { initTabBar } from './tabbar'
 
 async function boot(): Promise<void> {
@@ -27,6 +29,7 @@ async function boot(): Promise<void> {
   }
   document.getElementById('mission-btn')!.title = `Mission Control (${MOD_LABEL}+Shift+M)`
   document.getElementById('git-btn')!.title = `Git tree (${MOD_LABEL}+Shift+G)`
+  document.getElementById('orch-btn')!.title = `Orchestra (${MOD_LABEL}+Shift+O)`
 
   initTabBar({
     onActivate: (id) => app.activateTab(id),
@@ -85,10 +88,15 @@ async function boot(): Promise<void> {
   window.addEventListener('dragend', () => clearDropTarget())
   window.addEventListener('blur', () => clearDropTarget())
 
-  window.lightclaude.pty.onData((paneId, data) => app.panes.get(paneId)?.write(data))
+  window.lightclaude.pty.onData((paneId, data) => {
+    app.panes.get(paneId)?.write(data)
+    // One map lookup for a pane in no orchestra; see crewStrip.noteCrewOutput.
+    noteCrewOutput(paneId)
+  })
   window.lightclaude.pty.onExit((paneId, code) => {
     app.panes.get(paneId)?.showExitOverlay(code)
     app.clearPaneSignals(paneId) // the dot/badge would otherwise outlive the session
+    notifyStatus(paneId) // a wait on it settles now: reached for exit, early otherwise
   })
   window.lightclaude.pty.onCwd((paneId, cwd) => app.setPaneCwd(paneId, cwd))
   window.lightclaude.usage.onUpdate((u) => app.applyUsage(u))
@@ -117,12 +125,15 @@ async function boot(): Promise<void> {
     'pane-left': () => app.focusPaneDirection('left'),
     'pane-right': () => app.focusPaneDirection('right'),
     'pane-up': () => app.focusPaneDirection('up'),
-    'pane-down': () => app.focusPaneDirection('down')
+    'pane-down': () => app.focusPaneDirection('down'),
+    'crew-approve': () => app.approveFocusedCrew(),
+    'orch-panel': () => toggleOrchPanel()
   })
 
   document.getElementById('fanout-btn')!.addEventListener('click', () => void openFanOut())
   document.getElementById('squad-btn')!.addEventListener('click', () => void openSquad())
   document.getElementById('git-btn')!.addEventListener('click', toggleGitTree)
+  document.getElementById('orch-btn')!.addEventListener('click', toggleOrchPanel)
 
   document
     .getElementById('mission-btn')!
@@ -143,6 +154,7 @@ async function boot(): Promise<void> {
   // persisted state, and initialising it earlier would read the default every
   // time and quietly discard the user's choice.
   initGitTree()
+  initOrchPanel()
 }
 
 void boot()

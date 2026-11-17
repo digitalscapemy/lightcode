@@ -244,6 +244,62 @@ function — so everything the pane starts inherits it. That distinction is the
 whole feature: an agent runs its commands in a child shell, and a function never
 reaches one.
 
+### 🎼 Orchestra: one lead pane conducting the rest
+
+A squad used to be five panes that happened to know about each other through
+`lc ls`. An orchestra makes the relationship real: one pane is the **lead**, the
+panes it directs are its **workers**, and the app knows which is which — so it
+can show you, at a glance, what every worker is doing without you visiting each
+one.
+
+The lead wears a `♪ orchestra` chip and an outline in its crew's colour. Each
+worker wears `@handle →` and a stripe in the same colour, and when you focus a
+crew member, faint lines run from the lead to each worker — animated while that
+worker is busy. Inside the lead pane, a **strip** of cards shows each worker's
+state, the last meaningful line it printed, who last sent it something and what,
+and whether it has a new report. A worker asking for permission lights a badge on
+the lead; the card has Approve and Deny, Stop for a runaway turn, the babysitter
+toggle, and a box to type into it — all without leaving the lead.
+
+There are three ways to start one, and all three end in the same place:
+
+- **Squad** — the squad dialog now creates an orchestra, with the orchestrator as
+  its lead. Squads saved by an older version are adopted the first time they load.
+- **Conduct from Here** — in any pane's `⋮` menu. That pane becomes a lead; add
+  workers with **Add Worker…** or link panes you already have.
+- **`lc spawn`** — an agent that spawns a worker from a pane in no orchestra
+  becomes that orchestra's lead, and the reply says so. It is never silent.
+
+Workers have names, so the lead addresses them as `@developer` rather than as
+`p_7f3a`, and it can **ask** a worker something and get back the answer, not the
+screen: `lc ask @developer -` sends, waits for the turn to end, and prints the
+last thing the agent actually said, read from its Claude transcript. `lc events`
+gives the lead a stream of what happened in its crew, so it can wait for news
+instead of polling every pane in turn.
+
+**The rule everywhere is warn, never block.** A lead driving a pane outside its
+crew, a worker driving its own lead, a send to a pane mid-turn — all allowed, all
+answered with a warning, and the driven pane's `LC` badge turns amber. A crew can
+opt into **Strict**, which turns those warnings into refusals. Two things are
+refused by default, because they protect *you* from an agent rather than limiting
+you: typing into a pane showing a permission prompt (keystrokes would answer it —
+`--force` overrides that on a plain pane, but on a crew worker it is held to the
+same rule as `lc approve`), and `lc approve`, which does nothing until you tick
+**Lead may approve** for that crew. A Strict crew also refuses `lc` run without the
+token the app puts in each pane. A permission question is yours unless you say
+otherwise.
+
+Workers do not have to be Claude. **Codex** is supported: Codex reports no status
+of its own, so its state is estimated from the terminal going quiet, and an
+estimate is always marked — `≈ working` on the pane, `~working` in `lc ls`. The
+babysitter never acts on an estimate, and Approve and Deny are hidden for one.
+A **Gemini** adapter is included too, written from Gemini CLI's documentation —
+it has not been run against the real thing yet, and the agent picker says so. A
+worker can also be a plain shell.
+
+None of this appears until you use it. A plain pane running `claude` gets no
+chips, no strip, and no new `lc ls` columns.
+
 ### 👥 Multi-account Claude switching
 Run different Claude accounts in different panes. Define account shortcuts (e.g. `claude1`,
 `claude2`) that launch Claude Code with a dedicated `CLAUDE_CONFIG_DIR` — and the token badges
@@ -575,8 +631,8 @@ running several.
 
 ### Running a squad
 
-The button between fan-out and Mission Control — a conductor and three players.
-It asks for three things:
+The button after fan-out — a conductor and three players. It asks for three
+things, plus which agent plays each role (Claude unless you pick otherwise):
 
 | | |
 | --- | --- |
@@ -593,6 +649,11 @@ Then talk to the orchestrator pane. It can see the others (`lc ls` shows each
 pane's role), give them work, wait for them, and read their reports. **The agent
 CLI must be on** for any of that — `Mod+Shift+M`, then **Agent CLI** — because
 without it the orchestrator has no way to reach the panes it is meant to direct.
+
+A squad is an orchestra with the orchestrator as its lead, so everything in
+[Conducting an orchestra](#conducting-an-orchestra) applies to it — the strip of
+worker cards, `@handle` names, `lc ask`, and the Orchestra panel, where each
+role's report shows up the moment it is written.
 
 To use your own roles, put a `.lightcode/roles.json` in the repository. See the
 [squad feature section](#-a-squad-one-orchestrator-several-specialists) for the
@@ -624,12 +685,18 @@ so you never have to explain it. What it has:
 
 ```
 lc ls                                  every pane, with status, role and branch
-lc read <pane> [--tail N]              recent output, oldest line first
-lc send <pane> <text> [--no-enter]     type into a pane
+lc read <pane> [--tail N] [--clean]    recent output, oldest line first
+lc send <pane> <text|-> [--no-enter] [--force]   type into a pane; - reads stdin
 lc close <pane>                        close a pane (worktrees are kept)
-lc wait <pane...> [--for idle|exit] [--timeout-ms N]
+lc wait <pane...> [--for idle|exit|approval|working|any] [--timeout-ms N]
 lc fan <task> <count> <prompt> [--plan]   worktrees + agents in one call
 ```
+
+`lc send` refuses a pane that is showing a permission prompt — the keystrokes would
+answer it — unless you add `--force`, and it refuses the pane it is sent from. Several
+lines arrive as one paste, not as a line per Enter. The verbs for directing other
+agents (`spawn`, `ask`, `events` and the rest) are in
+[Conducting an orchestra](#conducting-an-orchestra).
 
 Every command takes `--json`, because its usual reader is an agent parsing output rather
 than a person. Nothing needs installing: `lc` runs under the app's own runtime and exists
@@ -638,6 +705,77 @@ only inside Light Code's panes.
 One thing to know: `lc read` returns what is drawn on a pane's screen, which for an agent
 pane is its interface rather than its answer. If you want the result of a fan-out read
 back, tell the agents to write it to a file and have the reader open that.
+
+### Conducting an orchestra
+
+`Mod+Shift+O`, or the note button in the tab bar, opens the **Orchestra panel**:
+every orchestra in the window, its workers as cards, the reports its squad has
+written, and a timeline of what happened. With none open it offers to start one.
+The panel stays where you left it between restarts.
+
+**Start one** with the squad button, with `⋮` → **Conduct from Here** on any
+pane, or by asking an agent to `lc spawn` a worker. From a lead's `⋮` menu:
+
+| | |
+| --- | --- |
+| **Add Worker…** | asks for a handle and an agent, then opens it beside the lead, in the lead's folder |
+| **Agent ▸** | starts a different agent in a crew member's pane — Claude, Codex, Gemini, or a shell |
+| **Stop Conducting** | dissolves the orchestra; every pane and shell keeps running |
+
+Any other pane gets **Link to Orchestra…** once a lead exists, and a worker gets
+**Unlink from Orchestra**. An agent whose command is not on your `PATH` is dimmed
+in every picker, but can still be chosen — your pane's shell may find what the
+app could not.
+
+**The lead talks to workers by handle.** Inside an orchestra, a pane can be named
+as `@<handle>`, `@lead`, or `@*` (the rest of the crew — for `wait` only, so
+every send is checked on its own). In PowerShell, quote them: a bare `@name` is
+splatting. The verbs an orchestrator uses:
+
+```
+lc ls --crew                           just your orchestra, with handles and agents
+lc spawn [--agent claude|codex|gemini|shell] [--role R] [--handle H] [--plan]
+         [--cwd DIR | --worktree [--branch B]] [--split right|down] [prompt|-]
+lc ask @developer -                    send, wait for the turn to end, print the answer
+lc result @developer                   its last answer (transcript, else its screen)
+lc read @developer --clean             the screen's words without the interface around them
+lc events [--since N]                  what happened in your crew; --since waits for the next thing
+lc wait @* --for idle|exit|approval|working|any
+lc interrupt @developer                stop the turn; the session keeps running
+lc approve @developer yes|no           only if you ticked "Lead may approve"
+```
+
+A `-` reads the text from stdin, which is how several lines get through a shell
+without a fight over quoting — `lc ask @developer - <<'EOF'` and a heredoc.
+Several lines arrive as one paste followed by Enter, not as a line per Enter.
+`lc spawn` opens at most 12 workers per orchestra and 3 per ten seconds, and
+never moves your focus.
+
+Exit codes are `0` ok, `1` app not reachable, `2` bad usage, `3` refused,
+`4` timed out. A warning goes to stderr and leaves the exit code alone, so a
+script that only checks success keeps working.
+
+**Each crew has three switches** in the panel:
+
+| | |
+| --- | --- |
+| **Lead may approve** | lets the lead answer its own workers' permission prompts with `lc approve`. Off by default, and it asks before turning on |
+| **Strict** | refuses, instead of warning about, `lc` commands that reach outside the crew, and a worker driving its lead |
+| **Paused** | holds the lead's `lc` commands to the crew. Workers finish what they are doing, and the cards still work for you |
+
+`Mod+Shift+Y` approves whichever pane in the focused orchestra is asking — the
+focused one first, then the first worker in reading order. It asks to be sure the
+first time in a session, and it only answers Claude's prompts; an estimated
+status is never approved.
+
+**About `≈`:** Codex and Gemini report no status of their own, so Light Code
+guesses from the terminal — busy while it prints, finished once it goes quiet at a
+prompt. The guess is marked `≈` in the app and `~` in `lc ls`, it never claims a
+pane is waiting for approval, and nothing automatic acts on it. Gemini's adapter
+is written from its documentation and **has not been tested** against a real
+`gemini`; if its plan mode or its launch line is wrong, that is the place to
+look. Codex and Gemini give their role in their first message rather than in
+their environment, so `/clear` makes them forget it — the card says so.
 
 ## Keyboard shortcuts
 
@@ -650,6 +788,8 @@ back, tell the agents to write it to a file and have the reader open that.
 | `Ctrl+Shift+M` | `⌘+Shift+M` | Mission Control |
 | `Ctrl+Shift+G` | `⌘+Shift+G` | Git tree panel |
 | `Ctrl+Shift+J` | `⌘+Shift+J` | Jump to the pane that needs you |
+| `Ctrl+Shift+O` | `⌘+Shift+O` | Orchestra panel |
+| `Ctrl+Shift+Y` | `⌘+Shift+Y` | Approve the orchestra worker that is asking (Claude only) |
 | `Ctrl+C` (or `Ctrl+Shift+C`) | `⌘+C` | Copy the selection — sends `^C` when nothing is selected |
 | `Ctrl+V` | `⌘+V` | Paste text — or clipboard image as a file path |
 | *(drag & drop)* | *(drag & drop)* | Drop a file or folder on a pane to type its path |
@@ -746,6 +886,25 @@ src/shared    types + IPC contract (shared by all three layers)
 src/main      main process: PTY manager, usage watcher, agent hooks, git, lc server, updater
 src/preload   contextBridge boundary (window.lightclaude)
 src/renderer  UI: tab bar, split tree, terminal panes, modals, toast
+```
+
+The orchestra is spread across all four, mostly in pure modules with their tests
+beside them:
+
+```
+src/shared/crew.ts               crews: handles, @target resolution, scope warnings, link geometry
+src/shared/agents.ts             agent adapters — claude, codex, gemini (untested), shell
+src/main/agentResult.ts          an agent's last answer, read from its Claude transcript
+src/main/quietStatus.ts          the ≈ status for agents that report none of their own
+src/main/agentBins.ts            which agent commands are on PATH
+src/main/squadReports.ts         watches a squad's reports folder, behind a path guard
+src/renderer/src/lcPolicy.ts     what lc may do: send, spawn and approve gates, clean reads
+src/renderer/src/steer.ts        the one path for sending, approving and interrupting
+src/renderer/src/crewEvents.ts   the event log behind lc events and the panel timeline
+src/renderer/src/crewStrip.ts    the worker cards inside a lead pane
+src/renderer/src/crewOverlay.ts  the lead-to-worker link lines
+src/renderer/src/orchPanel.ts    the Orchestra panel
+src/renderer/src/agentPicker.ts  the agent choices, with missing ones dimmed
 ```
 
 ### Releases

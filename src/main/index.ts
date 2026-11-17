@@ -7,6 +7,8 @@ import { IPC } from '../shared/ipc'
 import type { ClipboardPasteResult } from '../shared/ipc'
 import type { PersistedState, ShortcutsConfig } from '../shared/types'
 import { HookWatcher, installHookAssets, sweepDeadHookDirs } from './agentHooks'
+import { agentAvailability } from './agentBins'
+import { lastAssistantText } from './agentResult'
 import {
   addWorktree,
   checkoutWorktree,
@@ -23,6 +25,7 @@ import { LcServer, loadLcEnabled, saveLcEnabled, socketPath } from './lcServer'
 import { PtyManager } from './ptyManager'
 import { loadRoles } from './roles'
 import { setHookSettings, setLcInstalled } from './shell'
+import { SquadReports } from './squadReports'
 import {
   importCandidates,
   loadShortcuts,
@@ -47,6 +50,7 @@ const usageWatcher = new UsageWatcher()
 const ptyManager = new PtyManager(usageWatcher)
 const hookWatcher = new HookWatcher()
 const lcServer = new LcServer()
+const squadReports = new SquadReports()
 let mainWindow: BrowserWindow | null = null
 let isQuitting = false
 
@@ -114,11 +118,35 @@ function registerIpc(): void {
   // The only network call the app makes itself. Fetching changes no branch and
   // no file; pull and push are typed into a pane instead.
   ipcMain.handle(IPC.GitFetch, (_e, cwd: string) => fetchRemotes(cwd))
-  ipcMain.handle(IPC.GitSquadPrepare, (_e, cwd: string, task: string) =>
-    prepareSquad(cwd, task)
+  // A folder handed out here is one the report watcher may look into, whatever
+  // it is called. See squadReports.squadDirAllowed.
+  ipcMain.handle(IPC.GitSquadPrepare, async (_e, cwd: string, task: string) => {
+    const dir = await prepareSquad(cwd, task)
+    if (dir !== null) squadReports.grant(dir)
+    return dir
+  })
+
+  // A squad's reports: watched while an orchestra on screen has a squad
+  // folder, so a report landing lights its worker's card. Read-only, and only
+  // ever inside a squad folder's reports/.
+  ipcMain.handle(IPC.SquadWatch, (_e, dir: unknown) => squadReports.watch(dir))
+  ipcMain.on(IPC.SquadUnwatch, (_e, dir: unknown) => squadReports.unwatch(dir))
+  ipcMain.handle(IPC.SquadReadReport, (_e, dir: unknown, name: unknown) =>
+    squadReports.read(dir, name)
   )
 
   ipcMain.handle(IPC.RolesList, (_e, cwd: string) => loadRoles(cwd))
+
+  // `lc result`: a pane's last answer, from the transcript its session writes.
+  // Read here because the renderer has no file access and the binding of pane
+  // to transcript is the usage watcher's.
+  ipcMain.handle(IPC.AgentResult, async (_e, paneId: string): Promise<string | null> => {
+    const file = typeof paneId === 'string' ? usageWatcher.transcriptFor(paneId) : null
+    return file === null ? null : lastAssistantText(file)
+  })
+
+  // Which agents' commands are on PATH, so a picker can say which it cannot find.
+  ipcMain.handle(IPC.AgentAvailable, (): Record<string, boolean> => agentAvailability())
 
   // The agent CLI. Off until switched on, and the switch is remembered.
   const lcState = (): { enabled: boolean; command: string } => ({
@@ -281,6 +309,7 @@ function createWindow(): void {
   ptyManager.setTarget(mainWindow.webContents)
   usageWatcher.setTarget(mainWindow.webContents)
   lcServer.setTarget(mainWindow.webContents)
+  squadReports.setTarget(mainWindow.webContents)
 
   // A renderer reload (Ctrl+R / HMR full-reload) respawns every pane with new
   // ids — kill the old ptys so they don't linger as orphans. Fresh spawns
@@ -288,6 +317,8 @@ function createWindow(): void {
   mainWindow.webContents.on('did-navigate', () => {
     ptyManager.killAll()
     usageWatcher.unwatchAll()
+    // The new page asks again for the folders it still shows.
+    squadReports.stopAll()
   })
 
   // Last line of defence for dropped files: navigating away tears down every
@@ -366,6 +397,7 @@ app.whenReady().then(() => {
   const lcInstalled = installLcClient() !== null
   setLcInstalled(lcInstalled)
   ptyManager.setLcSocket(lcInstalled ? socketPath() : null)
+  ptyManager.setLcTokens(lcServer)
   void lcServer.setEnabled(loadLcEnabled())
 
   // Seed usage roots before any pane spawns so restored panes bind everywhere.
@@ -388,5 +420,6 @@ app.on('will-quit', () => {
   usageWatcher.unwatchAll()
   hookWatcher.stop()
   lcServer.stop()
+  squadReports.stopAll()
   releaseStateOwnership()
 })

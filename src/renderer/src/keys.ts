@@ -15,6 +15,8 @@ export type ShortcutAction =
   | 'pane-right'
   | 'pane-up'
   | 'pane-down'
+  | 'crew-approve'
+  | 'orch-panel'
 
 const isMac = window.lightclaude.platform === 'darwin'
 
@@ -100,6 +102,13 @@ export function matchShortcut(e: KeyboardEvent): ShortcutAction | null {
     // newline in a terminal, but the Shift here keeps it clear of that.
     case 'KeyJ':
       return 'pane-attention'
+    // Y for yes: approve the permission prompt the focused orchestra is stuck
+    // on. Asks first the first time each session (crewStrip.approveFromKey).
+    case 'KeyY':
+      return 'crew-approve'
+    // O for orchestra: the panel of every crew in the window.
+    case 'KeyO':
+      return 'orch-panel'
     default:
       return null
   }

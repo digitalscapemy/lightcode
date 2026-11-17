@@ -193,3 +193,26 @@ describe('clampFontSize', () => {
     expect(clampFontSize(13.6)).toBe(14)
   })
 })
+
+describe('matchShortcut — crew approve', () => {
+  // Y for yes. Shift keeps it clear of Ctrl+Y, which is yank in readline.
+  it('Ctrl+Shift+Y approves, on both platforms with their own modifier', () => {
+    expect(matchShortcut(key('KeyY', ctrlShift))).toBe('crew-approve')
+    expect(onMac(key('KeyY', { metaKey: true, shiftKey: true }))).toBe('crew-approve')
+  })
+
+  it('leaves bare Ctrl+Y to the shell', () => {
+    expect(matchShortcut(key('KeyY', ctrl))).toBeNull()
+  })
+})
+
+describe('matchShortcut — orchestra panel', () => {
+  it('Ctrl+Shift+O toggles the panel, on both platforms with their own modifier', () => {
+    expect(matchShortcut(key('KeyO', ctrlShift))).toBe('orch-panel')
+    expect(onMac(key('KeyO', { metaKey: true, shiftKey: true }))).toBe('orch-panel')
+  })
+
+  it('leaves bare Ctrl+O to the shell', () => {
+    expect(matchShortcut(key('KeyO', ctrl))).toBeNull()
+  })
+})

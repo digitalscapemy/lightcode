@@ -19,6 +19,28 @@ export function initTabBar(callbacks: TabBarCallbacks): void {
   // The HTML ships the Windows label; macOS gets the glyph it actually uses.
   add.title = `New terminal tab (${MOD_LABEL}+Shift+T) — right-click to open several`
   add.addEventListener('click', () => cb.onAdd())
+
+  // The strip hides its scrollbar, so a mouse wheel (vertical) has to be
+  // turned into horizontal scroll or the overflowed tabs are unreachable.
+  const box = document.getElementById('tabs')!
+  box.addEventListener(
+    'wheel',
+    (e) => {
+      if (box.scrollWidth <= box.clientWidth) return
+      const delta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY
+      if (!delta) return
+      e.preventDefault()
+      box.scrollLeft += delta
+    },
+    { passive: false }
+  )
+
+  // The tab list button only shows while the strip overflows. Window resizes
+  // and tab add/close/rename all change that, so watch the strip's size and
+  // its children rather than chasing every caller.
+  new ResizeObserver(updateOverflow).observe(box)
+  new MutationObserver(updateOverflow).observe(box, { childList: true, subtree: true, characterData: true })
+
   // Right-click opens the bulk picker; plain left-click still opens exactly one
   // tab, so the button and the keyboard shortcut stay interchangeable.
   // (On macOS Ctrl+click raises the same event, which is the native gesture.)
@@ -26,27 +48,34 @@ export function initTabBar(callbacks: TabBarCallbacks): void {
     e.preventDefault()
     toggleAddMenu(add)
   })
+
+  const listBtn = document.getElementById('tab-list-btn')!
+  listBtn.addEventListener('click', () => toggleTabListMenu(listBtn))
+}
+
+function updateOverflow(): void {
+  const box = document.getElementById('tabs')!
+  const btn = document.getElementById('tab-list-btn')!
+  const overflowing = box.scrollWidth > box.clientWidth + 1
+  if (btn.hidden === overflowing) btn.hidden = !overflowing
 }
 
 /** Tab counts offered by the "+" right-click menu. */
 const BULK_COUNTS = [1, 3, 5, 8, 10, 16]
 
-let addMenu: HTMLElement | null = null
-let addMenuDismiss: (() => void) | null = null
+/** The one tab-bar dropdown open right now (bulk-add or tab list), if any. */
+let openMenu: { el: HTMLElement; anchor: HTMLElement } | null = null
+let menuDismiss: (() => void) | null = null
 
-function closeAddMenu(): void {
-  addMenuDismiss?.()
-  addMenuDismiss = null
-  addMenu?.remove()
-  addMenu = null
+function closeMenu(): void {
+  menuDismiss?.()
+  menuDismiss = null
+  openMenu?.el.remove()
+  openMenu = null
 }
 
 /** Bulk-tab picker anchored under the "+" button. */
 function toggleAddMenu(anchor: HTMLElement): void {
-  if (addMenu) {
-    closeAddMenu()
-    return
-  }
   const menu = document.createElement('div')
   menu.className = 'pane-menu tab-add-menu'
   for (const n of BULK_COUNTS) {
@@ -57,13 +86,51 @@ function toggleAddMenu(anchor: HTMLElement): void {
     item.textContent = n === 1 ? '+1 tab' : `+${n} tabs`
     item.addEventListener('click', (e) => {
       e.stopPropagation()
-      closeAddMenu()
+      closeMenu()
       cb.onAddMany(n)
     })
     menu.appendChild(item)
   }
+  toggleMenu(anchor, menu)
+}
+
+/** Every open tab in strip order; picking one activates it (and scrolls to it). */
+function toggleTabListMenu(anchor: HTMLElement): void {
+  const menu = document.createElement('div')
+  menu.className = 'pane-menu tab-add-menu tab-list-menu'
+  for (const tab of state.tabs) {
+    const item = document.createElement('button')
+    item.className = 'pane-menu-item' + (tab.id === state.activeTabId ? ' active' : '')
+    item.title = tab.projectPath
+    const dot = document.createElement('span')
+    dot.className = 'tab-status'
+    const status = tabStatus(tab)
+    if (status !== 'idle') dot.dataset['status'] = status
+    const name = document.createElement('span')
+    name.className = 'tab-list-name'
+    name.textContent = tab.name
+    item.append(dot, name)
+    item.addEventListener('click', (e) => {
+      e.stopPropagation()
+      closeMenu()
+      cb.onActivate(tab.id)
+      // renderTabs only scrolls when the active tab changes; picking the tab
+      // that is already active but scrolled away must still bring it back.
+      tabEls.get(tab.id)?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+    })
+    menu.appendChild(item)
+  }
+  toggleMenu(anchor, menu)
+  menu.querySelector<HTMLElement>('.active')?.scrollIntoView({ block: 'nearest' })
+}
+
+/** Open `menu` under `anchor`, or close it if that anchor's menu is already up. */
+function toggleMenu(anchor: HTMLElement, menu: HTMLElement): void {
+  const wasSame = openMenu?.anchor === anchor
+  closeMenu()
+  if (wasSame) return
   document.body.appendChild(menu)
-  addMenu = menu
+  openMenu = { el: menu, anchor }
 
   // Anchor under the "+", then pull back inside the viewport if it would
   // overhang. Windows parks its caption buttons at the right edge and macOS
@@ -77,19 +144,21 @@ function toggleAddMenu(anchor: HTMLElement): void {
   }
 
   const onPointerDown = (e: PointerEvent): void => {
-    if (!menu.contains(e.target as Node)) closeAddMenu()
+    // Presses on the anchor are left to its own handler, which toggles.
+    const t = e.target as Node
+    if (!menu.contains(t) && !anchor.contains(t)) closeMenu()
   }
   const onKey = (e: KeyboardEvent): void => {
-    if (e.key === 'Escape') closeAddMenu()
+    if (e.key === 'Escape') closeMenu()
   }
   // blur: clicking another window (or the OS taskbar/Dock) should dismiss too.
   window.addEventListener('pointerdown', onPointerDown, true)
   window.addEventListener('keydown', onKey, true)
-  window.addEventListener('blur', closeAddMenu)
-  addMenuDismiss = (): void => {
+  window.addEventListener('blur', closeMenu)
+  menuDismiss = (): void => {
     window.removeEventListener('pointerdown', onPointerDown, true)
     window.removeEventListener('keydown', onKey, true)
-    window.removeEventListener('blur', closeAddMenu)
+    window.removeEventListener('blur', closeMenu)
   }
 }
 
@@ -151,7 +220,17 @@ export function renderTabs(): void {
     prev = el
   }
   if (!session) document.body.classList.remove('tab-dragging')
+
+  // Keep the active tab on screen when it changes (Ctrl+Tab, a new tab, a
+  // click in Mission Control) — otherwise it can sit scrolled out of sight.
+  if (state.activeTabId !== lastActiveId) {
+    lastActiveId = state.activeTabId
+    const active = lastActiveId ? tabEls.get(lastActiveId) : undefined
+    if (active && !session) active.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+  }
 }
+
+let lastActiveId: string | null | undefined
 
 function makeTabEl(tab: TabState): HTMLElement {
   const el = document.createElement('div')
@@ -382,6 +461,24 @@ function startDrag(
     const desired = Math.min(Math.max(ev.clientX - grabOffset, boxRect.left), maxLeft)
     tx = desired - leftOf(s.order.indexOf(el))
     el.style.transform = `translateX(${tx}px) scale(1.04)`
+
+    // Held near either edge of an overflowing strip: scroll it, faster the
+    // closer to the edge, and keep ticking with the same pointer position so
+    // it carries on without the mouse moving. The next frame re-derives every
+    // slot from the new scrollLeft, so the tab keeps tracking the pointer.
+    const EDGE = 40
+    const maxScroll = box.scrollWidth - box.clientWidth
+    let step = 0
+    if (ev.clientX < boxRect.left + EDGE && box.scrollLeft > 0) {
+      step = -Math.ceil(Math.min(1.5, (boxRect.left + EDGE - ev.clientX) / EDGE) * 14)
+    } else if (ev.clientX > boxRect.right - EDGE && box.scrollLeft < maxScroll) {
+      step = Math.ceil(Math.min(1.5, (ev.clientX - (boxRect.right - EDGE)) / EDGE) * 14)
+    }
+    if (step) {
+      box.scrollLeft = Math.min(maxScroll, Math.max(0, box.scrollLeft + step))
+      if (!latest) latest = ev
+      if (!raf) raf = requestAnimationFrame(frame)
+    }
   }
 
   const onMove = (ev: PointerEvent): void => {

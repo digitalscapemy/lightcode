@@ -1,8 +1,24 @@
+import {
+  adoptLegacySquads,
+  carryNodeMeta,
+  crewHue,
+  crewMembers,
+  handleError,
+  linkSegments,
+  nextHandle,
+  normaliseCrews,
+  workerSlot
+} from '../../shared/crew'
+import type { CrewEventKind } from '../../shared/crew'
+import { AGENTS } from '../../shared/agents'
+import { rolePrompt, roleById } from '../../shared/roles'
 import type { PaneStatus, StatusUpdate, UsageUpdate } from '../../shared/ipc'
 import type {
+  CrewSettings,
   LayoutNode,
   Orientation,
-  PaneNodeRole,
+  PaneNode,
+  PaneNodeCrew,
   PersistedState,
   TabState
 } from '../../shared/types'
@@ -12,14 +28,21 @@ import {
   isBabysitterOn,
   noteManualInput
 } from './babysitter'
-import { alertDialog, confirmDialog } from './confirmDialog'
+import { agentOptions } from './agentPicker'
+import { alertDialog, choiceDialog, confirmDialog, promptDialog } from './confirmDialog'
 import { forgetCoexist, sharedRootWarnings } from './coexist'
+import { STATUS_WORD, crewEvents } from './crewEvents'
+import { drawCrewOverlay } from './crewOverlay'
+import { approveFromKey, crewSignal, refreshStrips, syncStrips } from './crewStrip'
+import type { StripCrew, StripHooks, StripWorker } from './crewStrip'
+import { quotePrompt } from './fanOut'
 import { refreshGitTree } from './gitTree'
-import { renderLayout } from './layout'
+import { refreshOrchPanel } from './orchPanel'
+import { LAYOUT_RESIZED, renderLayout } from './layout'
 import { buildLayout } from './layouts'
 import type { LayoutPreset } from './layouts'
 import { TerminalPane } from './pane'
-import type { PaneCallbacks } from './pane'
+import type { CrewAction, PaneCallbacks } from './pane'
 import { neighbour, nextAttentionPane, paneRects, step } from './paneNav'
 import type { Direction } from './paneNav'
 import {
@@ -27,11 +50,14 @@ import {
   activeTab,
   clampFontSize,
   expectingAgent,
+  forgetCrewSignals,
   newId,
+  notifyStatus,
   paneStatus,
   pendingCommand,
   paneUsage,
   persist,
+  restoredQuiet,
   state,
   tabOfPane
 } from './store'
@@ -56,6 +82,7 @@ const paneCallbacks: PaneCallbacks = {
     if (tab) lastFocusedInTab.set(tab.id, paneId)
     document.querySelectorAll('.pane.focused').forEach((p) => p.classList.remove('focused'))
     panes.get(paneId)?.el.classList.add('focused')
+    refreshCrewLinks()
     // The git tree describes whichever pane has the focus, so moving the focus
     // is a change of subject. Without this it kept describing the pane you left
     // until the one you arrived at happened to draw a prompt — which, in a pane
@@ -69,11 +96,20 @@ const paneCallbacks: PaneCallbacks = {
   onManualInput: (paneId) => noteManualInput(paneId),
   // A worktree opens beside the pane it came from: side by side is the point,
   // since that is where comparing two agents' work actually happens.
-  onSplitInto: (paneId, cwd) => void splitAt(paneId, 'row', false, cwd)
+  onSplitInto: (paneId, cwd) => void splitAt(paneId, 'row', false, cwd),
+  crewMenu: (paneId) => crewMenu(paneId),
+  onCrewAction: (paneId, action) => void crewAction(paneId, action),
+  onCrewAlert: (paneId) => goToAsking(paneId)
 }
 
-function createPane(paneId: string, cwd: string, role: PaneNodeRole | null = null): TerminalPane {
-  const pane = new TerminalPane(paneId, cwd, paneCallbacks, role)
+/**
+ * Build the pane a layout node describes. `node` carries what the pane is —
+ * its role, its crew, its agent — and is left out only for a pane that is
+ * none of those things, which is most of them.
+ */
+function createPane(paneId: string, cwd: string, node?: PaneNode): TerminalPane {
+  const pane = new TerminalPane(paneId, cwd, paneCallbacks, node?.role ?? null, node?.agent ?? null)
+  if (node?.crew) pane.setCrew(node.crew, crewHue(node.crew.id))
   panes.set(paneId, pane)
   return pane
 }
@@ -110,14 +146,18 @@ export async function createTab(opts: CreateTabOptions): Promise<void> {
   const view = document.createElement('div')
   view.className = 'tab-view'
   view.style.display = 'none'
+  // A divider drag moves the panes under an orchestra's link lines.
+  view.addEventListener(LAYOUT_RESIZED, () => refreshCrewLinks())
   contentEl().appendChild(view)
   tabViews.set(tab.id, view)
 
   for (const node of paneNodes(tab.layout)) {
-    const pane = createPane(node.id, node.cwd ?? tab.projectPath, node.role ?? null)
+    const pane = createPane(node.id, node.cwd ?? tab.projectPath, node)
     if (node.name) pane.setCustomName(node.name)
   }
-  renderLayout(view, tab.layout, (id) => panes.get(id)!.el)
+  rerender(tab)
+  // A restored orchestra needs its strip docked; a tab without one skips this.
+  if (paneNodes(tab.layout).some((n) => n.crew)) renderCrews()
 
   renderTabs()
   updateEmptyState()
@@ -174,6 +214,7 @@ export function activateTab(tabId: string): void {
     if (!current || current.id !== tabId) return
     for (const pid of paneIds(current.layout)) panes.get(pid)?.fit()
     syncWebgl()
+    refreshStrips() // a strip in a hidden tab stopped reading its workers' lines
     // Don't steal focus from an in-progress tab rename — the dblclick that
     // opened the input fires right after the activating click.
     if (document.activeElement?.classList.contains('tab-rename')) return
@@ -201,20 +242,25 @@ export function closeTab(tabId: string): void {
   const idx = state.tabs.findIndex((t) => t.id === tabId)
   if (idx === -1) return
   const tab = state.tabs[idx]
+  for (const node of paneNodes(tab.layout)) crewEvent(node.id, 'closed')
   for (const pid of paneIds(tab.layout)) {
     panes.get(pid)?.dispose()
     panes.delete(pid)
     paneStatus.delete(pid)
     paneUsage.delete(pid)
+    expectingAgent.delete(pid)
     lastNotified.delete(pid)
     forgetBabysitter(pid)
     forgetCoexist(pid)
+    forgetCrewSignals(pid)
+    notifyStatus(pid) // a wait on it settles now, as gone
   }
   tabViews.get(tabId)?.remove()
   tabViews.delete(tabId)
   lastFocusedInTab.delete(tabId)
   maximizedPane.delete(tabId)
   state.tabs.splice(idx, 1)
+  settleCrews() // a crew can span tabs; whoever it left behind is tidied up
 
   if (state.activeTabId === tabId) {
     const next = state.tabs[Math.min(idx, state.tabs.length - 1)]
@@ -321,7 +367,17 @@ export async function splitAt(
   /** Overrides the inherited directory — a worktree opens in its own copy. */
   intoCwd?: string,
   /** Typed at the new shell's first prompt. See store.pendingCommand. */
-  command?: string
+  command?: string,
+  opts: {
+    /**
+     * Move the cursor into the new pane. On by default — a person who splits
+     * means to type there; off for a pane opened on somebody else's behalf,
+     * which must not snatch the keyboard from whoever is typing.
+     */
+    focus?: boolean
+    /** What the new pane is, beyond its id: its crew, its agent, its role. */
+    node?: Omit<Partial<PaneNode>, 'type' | 'id'>
+  } = {}
 ): Promise<string | null> {
   const tab = tabOfPane(targetPaneId)
   if (!tab) return null
@@ -330,17 +386,19 @@ export async function splitAt(
   const srcCwd = intoCwd ?? paneNodes(tab.layout).find((p) => p.id === targetPaneId)?.cwd
   const newPaneId = newId('p')
   tab.layout = splitPane(tab.layout, targetPaneId, orientation, newPaneId, before)
+  const node = paneNodes(tab.layout).find((p) => p.id === newPaneId)
+  if (node && opts.node) Object.assign(node, opts.node)
   // Queued before the spawn, so the first prompt cannot be drawn ahead of it.
   if (command !== undefined) pendingCommand.set(newPaneId, command)
 
-  const pane = createPane(newPaneId, srcCwd ?? tab.projectPath)
-  const view = tabViews.get(tab.id)!
-  renderLayout(view, tab.layout, (id) => panes.get(id)!.el)
+  const pane = createPane(newPaneId, srcCwd ?? tab.projectPath, node)
+  if (node?.crew) renderCrews() // a new worker gets its card; rerender draws its line
+  rerender(tab)
   for (const pid of paneIds(tab.layout)) panes.get(pid)?.scheduleFit()
 
   await pane.spawn()
   if (tab.id === state.activeTabId) pane.attachWebgl()
-  pane.focus()
+  if (opts.focus !== false) pane.focus()
   persist()
   return newPaneId
 }
@@ -375,10 +433,17 @@ export async function applyLayout(preset: LayoutPreset): Promise<void> {
   // a pty can exit under it, so no count read beforehand still holds after.
   const overflow = paneIds(tab.layout).length - preset.count
   if (overflow > 0) {
+    // The panes past the preset's count are the ones that go; if an orchestra
+    // lead is among them its workers are left with nobody directing them, which
+    // is worth a sentence before rather than a surprise after.
+    const losesLead = paneNodes(tab.layout)
+      .slice(preset.count)
+      .some((n) => n.crew?.lead)
     const ok = await confirmDialog(
       `This layout has ${preset.count} panes, so ${overflow} open ` +
         `${overflow === 1 ? 'pane' : 'panes'} will be closed and ` +
-        `${overflow === 1 ? 'its' : 'their'} shell${overflow === 1 ? '' : 's'} ended.`,
+        `${overflow === 1 ? 'its' : 'their'} shell${overflow === 1 ? '' : 's'} ended.` +
+        (losesLead ? ' One of them conducts an orchestra; its workers will be left without a lead.' : ''),
       overflow === 1 ? 'Close pane' : 'Close panes'
     )
     if (!ok) {
@@ -398,32 +463,33 @@ export async function applyLayout(preset: LayoutPreset): Promise<void> {
   while (queue.length < preset.count) queue.push(newId('p'))
   const fresh = queue.slice(reused)
 
-  // buildLayout only knows ids, so carry each kept pane's cwd/name across.
+  // buildLayout only knows ids, so carry everything else each kept pane
+  // remembers across — its role included. See carryNodeMeta.
   const prev = new Map(paneNodes(tab.layout).map((n) => [n.id, n]))
   let i = 0
   const layout = buildLayout(preset.spec, () => queue[i++]!)
-  for (const node of paneNodes(layout)) {
-    const before = prev.get(node.id)
-    if (before?.cwd) node.cwd = before.cwd
-    if (before?.name) node.name = before.name
-  }
+  for (const node of paneNodes(layout)) carryNodeMeta(prev.get(node.id), node)
 
   for (const pid of dropped) {
+    crewEvent(pid, 'closed') // the old layout still holds its node, and its crew
     panes.get(pid)?.dispose()
     panes.delete(pid)
     paneStatus.delete(pid)
     paneUsage.delete(pid)
+    expectingAgent.delete(pid)
     lastNotified.delete(pid)
     forgetBabysitter(pid)
     forgetCoexist(pid)
+    forgetCrewSignals(pid)
+    notifyStatus(pid)
   }
   // New panes open where the first surviving pane is, matching splitAt().
   const srcCwd = (queue[0] ? prev.get(queue[0])?.cwd : undefined) ?? tab.projectPath
   for (const pid of fresh) createPane(pid, srcCwd)
 
   tab.layout = layout
-  const view = tabViews.get(tab.id)!
-  renderLayout(view, tab.layout, (id) => panes.get(id)!.el)
+  if (dropped.length > 0) settleCrews()
+  rerender(tab)
   for (const pid of paneIds(tab.layout)) panes.get(pid)?.scheduleFit()
 
   await Promise.all(fresh.map((pid) => panes.get(pid)!.spawn()))
@@ -471,7 +537,7 @@ export function toggleMaximizePane(paneId: string): void {
   const view = tabViews.get(tab.id)!
   if (maximizedPane.get(tab.id) === paneId) {
     maximizedPane.delete(tab.id)
-    renderLayout(view, tab.layout, (id) => panes.get(id)!.el)
+    rerender(tab)
     for (const pid of paneIds(tab.layout)) panes.get(pid)?.scheduleFit()
   } else {
     maximizedPane.set(tab.id, paneId)
@@ -509,6 +575,7 @@ export function closePane(paneId: string): void {
   expectingAgent.delete(paneId)
   const tab = tabOfPane(paneId)
   if (!tab) return
+  crewEvent(paneId, 'closed') // while its node still says which crew it was in
   maximizedPane.delete(tab.id)
   panes.get(paneId)?.dispose()
   panes.delete(paneId)
@@ -517,6 +584,8 @@ export function closePane(paneId: string): void {
   lastNotified.delete(paneId)
   forgetBabysitter(paneId)
   forgetCoexist(paneId)
+  forgetCrewSignals(paneId)
+  notifyStatus(paneId)
 
   const newLayout = removePane(tab.layout, paneId)
   if (!newLayout) {
@@ -524,13 +593,24 @@ export function closePane(paneId: string): void {
     return
   }
   tab.layout = newLayout
-  const view = tabViews.get(tab.id)!
-  renderLayout(view, tab.layout, (id) => panes.get(id)!.el)
+  settleCrews()
+  rerender(tab)
   for (const pid of paneIds(tab.layout)) panes.get(pid)?.scheduleFit()
   if (tab.id === state.activeTabId) {
     panes.get(firstPaneId(tab.layout))?.focus()
   }
   persist()
+}
+
+/**
+ * Put a tab's panes back on screen in its layout, and the link lines over them.
+ * renderLayout empties the view first, which takes the lines with it.
+ */
+function rerender(tab: TabState): void {
+  const view = tabViews.get(tab.id)
+  if (!view) return
+  renderLayout(view, tab.layout, (id) => panes.get(id)!.el)
+  refreshCrewLinks()
 }
 
 export function updateEmptyState(): void {
@@ -541,6 +621,453 @@ function regenPaneIds(node: LayoutNode): LayoutNode {
   // Keep the persisted custom name — pane ids change, titles shouldn't.
   if (node.type === 'pane') return { ...node, id: newId('p') }
   return { ...node, children: node.children.map(regenPaneIds) }
+}
+
+// ---------- Crews ----------
+
+/** Every pane node in the window, tab by tab, in reading order. */
+function allNodes(): PaneNode[] {
+  return state.tabs.flatMap((t) => paneNodes(t.layout))
+}
+
+function nodeOf(paneId: string): PaneNode | undefined {
+  const tab = tabOfPane(paneId)
+  return tab ? paneNodes(tab.layout).find((n) => n.id === paneId) : undefined
+}
+
+/**
+ * Bring every pane's crew chip and colour into line with its node, after
+ * something may have changed who is in which crew.
+ */
+function renderCrews(): void {
+  const nodes = allNodes()
+  for (const node of nodes) {
+    panes.get(node.id)?.setCrew(node.crew ?? null, node.crew ? crewHue(node.crew.id) : 0)
+    // A pane that has left its crew — unlinked, or its lead stopped conducting —
+    // is a plain pane again and keeps nothing of it: relinked later, its new
+    // card must not open on the old crew's last message or report.
+    if (!node.crew) forgetCrewSignals(node.id)
+  }
+  syncStrips(stripCrews(nodes), stripHooks)
+  refreshCrewLinks()
+  // The panel's crews, and which squad folders' reports are watched. Both a
+  // no-op in a window that has never had a crew.
+  refreshOrchPanel()
+}
+
+function stripWorker(node: PaneNode): StripWorker {
+  return {
+    pane: node.id,
+    handle: node.crew!.handle,
+    role: node.role?.id ?? null,
+    agent: node.agent ?? null
+  }
+}
+
+/** One strip per lead, carrying every worker of its crew — in any tab. */
+function stripCrews(nodes: PaneNode[]): StripCrew[] {
+  const out: StripCrew[] = []
+  for (const node of nodes) {
+    if (!node.crew?.lead || !panes.has(node.id)) continue
+    const crew = node.crew
+    out.push({
+      lead: node.id,
+      crewId: crew.id,
+      hue: crewHue(crew.id),
+      collapsed: crew.stripCollapsed === true,
+      paused: state.crewSettings[crew.id]?.paused === true,
+      workers: crewMembers(nodes, crew.id)
+        .filter((n) => !n.crew!.lead && panes.has(n.id))
+        .map(stripWorker)
+    })
+  }
+  return out
+}
+
+const stripHooks: StripHooks = {
+  mount: (leadId, el) => panes.get(leadId)?.mountStrip(el),
+  setAlert: (leadId, count, detail) => panes.get(leadId)?.setCrewAlert(count, detail),
+  roleBadge: (paneId) => panes.get(paneId)?.roleBadge() ?? null,
+  drivenTimes: (paneId) => panes.get(paneId)?.drivenTimes() ?? 0,
+  lastLine: (paneId) => panes.get(paneId)?.lastOutputLine() ?? null,
+  exited: (paneId) => panes.get(paneId)?.exited ?? true,
+  focus: (paneId) => revealPane(paneId),
+  addWorker: (leadId) => void addWorker(leadId),
+  setCollapsed: (leadId, collapsed) => {
+    const crew = nodeOf(leadId)?.crew
+    if (!crew?.lead) return
+    if (collapsed) crew.stripCollapsed = true
+    else delete crew.stripCollapsed
+    renderCrews()
+    persist()
+  },
+  setPaused: (crewId, paused) => setCrewPaused(crewId, paused),
+  afterSignal: () => refreshCrewLinks()
+}
+
+/**
+ * Repair the crews after panes went away, and redraw them.
+ *
+ * A lead closed under its workers leaves them a crew without a conductor,
+ * which is allowed; a crew reduced to one worker is just a pane, and is
+ * unlinked. See normaliseCrews. Cheap, and a no-op in a window with no crews.
+ */
+function settleCrews(): void {
+  normaliseCrews(allNodes())
+  renderCrews()
+}
+
+/**
+ * Outline the focused pane's crew-mates, so it is plain which panes belong
+ * with the one you are in. Nothing is outlined while a pane in no crew has the
+ * focus, so a window that never uses crews never sees it.
+ */
+function refreshCrewLinks(): void {
+  const nodes = allNodes()
+  const focused = nodes.find((n) => n.id === state.focusedPaneId)
+  const crewId = focused?.crew?.id
+  const linked =
+    crewId === undefined ? new Set<string>() : new Set(crewMembers(nodes, crewId).map((n) => n.id))
+  if (linked.size < 2) linked.clear()
+  for (const [id, pane] of panes) pane.el.classList.toggle('crew-linked', linked.has(id))
+
+  // The lines, in each tab the crew has panes in. None while a pane is
+  // maximized — the panes they would join are not on screen — and none in a
+  // tab where no crew is in focus, which clears whatever was drawn there.
+  const members =
+    crewId === undefined || linked.size === 0
+      ? []
+      : crewMembers(nodes, crewId).map((n) => ({ pane: n.id, lead: n.crew!.lead === true }))
+  const working = new Set(
+    members.filter((m) => paneStatus.get(m.pane)?.status === 'working').map((m) => m.pane)
+  )
+  const hue = crewId === undefined ? 0 : crewHue(crewId)
+  for (const tab of state.tabs) {
+    const view = tabViews.get(tab.id)
+    if (!view) continue
+    const segments =
+      members.length === 0 || maximizedPane.has(tab.id)
+        ? []
+        : linkSegments(paneRects(tab.layout), members)
+    drawCrewOverlay(view, segments, hue, working)
+  }
+}
+
+/**
+ * The approval badge on a lead was clicked: go to the first of its workers
+ * stuck on a permission prompt, in reading order.
+ */
+function goToAsking(leadId: string): void {
+  const crew = nodeOf(leadId)?.crew
+  if (!crew) return
+  const asking = crewMembers(allNodes(), crew.id).find(
+    (n) => n.id !== leadId && paneStatus.get(n.id)?.status === 'waiting-approval'
+  )
+  if (asking) revealPane(asking.id)
+}
+
+/**
+ * Mod+Shift+Y: approve the permission prompt the focused pane's crew is
+ * waiting on — the focused pane's own first, then its crew-mates in reading
+ * order. Outside a crew there is nothing to do. See crewStrip.approveFromKey.
+ */
+export function approveFocusedCrew(): void {
+  const focused = state.focusedPaneId ? nodeOf(state.focusedPaneId) : undefined
+  const crew = focused?.crew
+  if (!focused || !crew) return
+  const mates = crewMembers(allNodes(), crew.id).filter((n) => n.id !== focused.id)
+  void approveFromKey([focused, ...mates].filter((n) => panes.has(n.id)).map(stripWorker))
+}
+
+/** The pane menu's crew rows. Only what applies to this pane is offered. */
+function crewMenu(paneId: string): { label: string; action: CrewAction }[] {
+  const crew = nodeOf(paneId)?.crew
+  if (crew?.lead) {
+    return [
+      { label: 'Add Worker…', action: 'add-worker' },
+      { label: 'Agent ▸', action: 'agent' },
+      { label: 'Stop Conducting', action: 'unlink' }
+    ]
+  }
+  if (crew) {
+    return [
+      { label: 'Agent ▸', action: 'agent' },
+      { label: 'Unlink from Orchestra', action: 'unlink' }
+    ]
+  }
+  return [
+    { label: 'Conduct from Here', action: 'conduct' },
+    // Offered only when there is an orchestra to join: a row that can only
+    // lead to "there is nothing to link to" is noise in a menu this short.
+    ...(allNodes().some((n) => n.crew?.lead)
+      ? [{ label: 'Link to Orchestra…', action: 'link' as const }]
+      : [])
+  ]
+}
+
+async function crewAction(paneId: string, action: CrewAction): Promise<void> {
+  const node = nodeOf(paneId)
+  if (!node) return
+  if (action === 'add-worker') return addWorker(paneId)
+  if (action === 'agent') return switchAgent(paneId)
+  if (action === 'link') return linkToOrchestra(paneId)
+  if (action === 'conduct') {
+    conduct(paneId)
+    return
+  }
+  const crew = node.crew
+  if (!crew) return
+  if (crew.lead) {
+    // The lead going takes the whole crew with it: a lead is what makes the
+    // others an orchestra rather than panes that happen to share a colour.
+    // Only the links go — every shell keeps running exactly as it was.
+    for (const member of crewMembers(allNodes(), crew.id)) delete member.crew
+    delete state.crewSettings[crew.id]
+  } else {
+    delete node.crew
+  }
+  settleCrews()
+  persist()
+}
+
+/** Ask a lead's new worker for a handle, then open it beside its crew. */
+async function addWorker(leadId: string): Promise<void> {
+  const crew = nodeOf(leadId)?.crew
+  if (!crew?.lead) return
+  const taken = (): string[] => crewMembers(allNodes(), crew.id).map((n) => n.crew!.handle)
+  const handle = await promptDialog({
+    message: 'New worker — the lead addresses it as @<handle>',
+    initial: nextHandle('worker', taken()),
+    confirmLabel: 'Add worker',
+    validate: (v) => handleError(v, taken())
+  })
+  // The dialog awaited: the lead may have been closed or stopped leading since.
+  const tab = tabOfPane(leadId)
+  const lead = nodeOf(leadId)
+  if (handle === null || !tab || !lead?.crew?.lead || lead.crew.id !== crew.id) {
+    panes.get(leadId)?.focus()
+    return
+  }
+  const agent = await pickAgent(`What should @${handle} run?`)
+  if (agent === null || !nodeOf(leadId)?.crew?.lead) {
+    panes.get(leadId)?.focus()
+    return
+  }
+  // In the lead's folder rather than the split target's: the largest worker may
+  // well be sitting in a worktree of its own, and that is not the new one's.
+  const isWindows = window.lightclaude.platform === 'win32'
+  const command = AGENTS[agent]!.launch(null, { plan: false, quote: (p) => quotePrompt(p, isWindows) })
+  await openWorker({
+    near: leadId,
+    crewId: crew.id,
+    handle: nextHandle(handle, taken()),
+    cwd: lead.cwd ?? tab.projectPath,
+    // A shell types nothing, exactly as a worker opened before agents could
+    // be picked did.
+    ...(command !== '' ? { command } : {}),
+    node: { agent }
+  })
+}
+
+/**
+ * Ask which agent to run, with Claude Code as the primary button. Agents whose
+ * command was not found are dimmed and say why, but stay pickable (see
+ * agentPicker). Null when dismissed.
+ */
+async function pickAgent(message: string): Promise<string | null> {
+  const available = await window.lightclaude.agent.available()
+  // The last button is the primary one, and Claude is the one most people mean.
+  const options = agentOptions(available).reverse()
+  const i = await choiceDialog(
+    message,
+    options.map((o) => o.label),
+    options.map((o) => o.note)
+  )
+  return i === null ? null : (options[i]?.id ?? null)
+}
+
+/**
+ * "Agent ▸": start another agent in a crew member's pane, and remember it as
+ * the pane's agent — for the chip, the card, the keys that interrupt it, and
+ * main's ≈ status. Typed at the shell like any command, so when something
+ * already seems to be running there, the person is asked first rather than
+ * refused: they can see the pane, and the app is only guessing.
+ */
+async function switchAgent(paneId: string): Promise<void> {
+  const agent = await pickAgent('Which agent should this pane run?')
+  const node = nodeOf(paneId)
+  const pane = panes.get(paneId)
+  if (agent === null || !node?.crew || !pane || pane.exited) return
+  const adapter = AGENTS[agent]!
+  const status = paneStatus.get(paneId)?.status
+  const busy =
+    (status !== undefined && status !== 'idle') || (await window.lightclaude.pty.claudeActive(paneId))
+  // Typing the command into a running agent would send it as a message.
+  if (busy && adapter.launch(null, { plan: false, quote: (p) => p }) !== '') {
+    const go = await confirmDialog(
+      'Something seems to be running in this pane already, so the command would be typed into it. ' +
+        `Exit it first, or type the ${adapter.label} command anyway?`,
+      'Type it anyway'
+    )
+    if (!go || !panes.has(paneId)) return
+  }
+  // The role rides in front of the first message for an agent with no wrapper.
+  let role: string | null = null
+  if (node.role && adapter.rolePromptVia === 'first-message') {
+    const found = roleById((await window.lightclaude.roles.list(node.cwd ?? pane.cwd)).roles, node.role.id)
+    role = found ? rolePrompt(found) : null
+  }
+  const current = nodeOf(paneId)
+  if (!current?.crew || !panes.has(paneId)) return
+  current.agent = agent
+  pane.setAgent(agent)
+  window.lightclaude.pty.setAgent(paneId, agent)
+  const isWindows = window.lightclaude.platform === 'win32'
+  const command = adapter.launch(null, {
+    plan: false,
+    quote: (p) => quotePrompt(p, isWindows),
+    rolePrompt: role
+  })
+  if (command !== '') {
+    window.lightclaude.pty.write(paneId, `${command}\r`)
+    // The role is a first message, so a turn is coming; an empty agent waits.
+    if (role !== null) expectingAgent.add(paneId)
+  }
+  renderCrews()
+  persist()
+  pane.focus()
+}
+
+/**
+ * Make a pane in no crew the lead of a new one — "Conduct from Here", and
+ * `lc spawn` from a pane that was conducting nothing. Returns the crew, or
+ * null when the pane is gone or already in one.
+ */
+export function conduct(paneId: string, crewId = newId('c')): PaneNodeCrew | null {
+  const node = nodeOf(paneId)
+  if (!node || node.crew) return null
+  node.crew = { id: crewId, handle: nextHandle(node.role?.id ?? 'lead', [], true), lead: true }
+  settleCrews()
+  persist()
+  return node.crew
+}
+
+/**
+ * Open a worker for a crew in `near`'s tab, beside the crew's other panes
+ * there (see crew.workerSlot), and return its pane id.
+ *
+ * `near` is the pane asking: the lead for "Add Worker…", the caller for
+ * `lc spawn`. `focus: false` leaves the keyboard where it is, which is what
+ * a pane opened on an agent's behalf must do.
+ */
+export async function openWorker(o: {
+  near: string
+  crewId: string
+  handle: string
+  cwd: string
+  command?: string
+  node?: Omit<Partial<PaneNode>, 'type' | 'id' | 'crew'>
+  orientation?: Orientation
+  focus?: boolean
+}): Promise<string | null> {
+  const tab = tabOfPane(o.near)
+  if (!tab) return null
+  const here = new Set(paneIds(tab.layout))
+  const members = crewMembers(allNodes(), o.crewId).filter((n) => here.has(n.id))
+  const workers = members.filter((n) => !n.crew!.lead).map((n) => n.id)
+  const lead = members.find((n) => n.crew!.lead)?.id ?? o.near
+  const slot = workerSlot(paneRects(tab.layout), lead, workers)
+  return splitAt(slot.target, o.orientation ?? slot.orientation, false, o.cwd, o.command, {
+    ...(o.focus === false ? { focus: false } : {}),
+    node: { ...o.node, crew: { id: o.crewId, handle: o.handle } }
+  })
+}
+
+/**
+ * Record something that happened to a crew member, for `lc events` and the
+ * panel's timeline. A pane in no crew records nothing.
+ */
+export function crewEvent(
+  paneId: string,
+  kind: CrewEventKind,
+  extra: { state?: string; by?: string; detail?: string } = {}
+): void {
+  const crew = nodeOf(paneId)?.crew
+  if (!crew) return
+  crewEvents.push({ crew: crew.id, pane: paneId, handle: crew.handle, kind, ...extra })
+}
+
+/**
+ * Pause a crew, or resume it: the person at the screen taking the baton back
+ * from the lead. While paused, `lc` refuses every command that would act on
+ * the crew (lcPolicy.pauseGate); the buttons on the cards keep working.
+ */
+export function setCrewPaused(crewId: string, paused: boolean): void {
+  writeCrewSetting(crewId, 'paused', paused)
+  const lead = crewMembers(allNodes(), crewId).find((n) => n.crew!.lead)
+  if (lead) crewEvent(lead.id, paused ? 'paused' : 'resumed', { by: 'you' })
+  renderCrews()
+  persist()
+}
+
+/**
+ * Turn one of a crew's permissions on or off, from the Orchestra panel:
+ * whether its lead may answer permission prompts (`lc approve`), and whether
+ * crossing the crew's edge is refused rather than warned about. Both start
+ * off; see lcPolicy.approveGate and crew.canDrive.
+ */
+export function setCrewSetting(crewId: string, key: 'leadMayApprove' | 'strict', on: boolean): void {
+  writeCrewSetting(crewId, key, on)
+  renderCrews()
+  persist()
+}
+
+/**
+ * Settings are stored only while true, and a crew with none left has no entry
+ * at all — so the state file of a crew nobody has changed says nothing about it.
+ */
+function writeCrewSetting(crewId: string, key: keyof CrewSettings, on: boolean): void {
+  const settings = { ...state.crewSettings[crewId] }
+  if (on) settings[key] = true
+  else delete settings[key]
+  if (Object.keys(settings).length > 0) state.crewSettings[crewId] = settings
+  else delete state.crewSettings[crewId]
+}
+
+/** Put a pane in no crew into an existing orchestra, under a handle. */
+async function linkToOrchestra(paneId: string): Promise<void> {
+  const leads = allNodes().filter((n) => n.crew?.lead && n.id !== paneId)
+  if (leads.length === 0) return
+  let lead = leads[0]!
+  if (leads.length > 1) {
+    const labels = leads.map((n) => {
+      const where = tabOfPane(n.id)?.name
+      return `${panes.get(n.id)?.label() ?? n.id}${where ? ` · ${where}` : ''}`
+    })
+    const pick = await choiceDialog('Link this pane to which orchestra?', labels)
+    if (pick === null) {
+      panes.get(paneId)?.focus()
+      return
+    }
+    lead = leads[pick]!
+  }
+  const crewId = lead.crew!.id
+  const taken = (): string[] => crewMembers(allNodes(), crewId).map((n) => n.crew!.handle)
+  const handle = await promptDialog({
+    message: 'Its lead will address this pane as @<handle>',
+    initial: nextHandle(nodeOf(paneId)?.role?.id ?? 'worker', taken()),
+    confirmLabel: 'Link',
+    validate: (v) => handleError(v, taken())
+  })
+  // Both ends re-read after the dialog: either pane may have gone meanwhile.
+  const now = nodeOf(paneId)
+  const stillLed = crewMembers(allNodes(), crewId).some((n) => n.crew!.lead)
+  if (handle !== null && now && !now.crew && stillLed) {
+    now.crew = { id: crewId, handle: nextHandle(handle, taken()) }
+    settleCrews()
+    persist()
+  }
+  panes.get(paneId)?.focus()
 }
 
 // ---------- Token usage badges ----------
@@ -575,12 +1102,14 @@ export function applyUsage(u: UsageUpdate): void {
 
 /** The session behind this pane is gone — drop every trace of it. */
 export function clearPaneSignals(paneId: string): void {
+  crewEvent(paneId, 'exited')
   paneStatus.delete(paneId)
   paneUsage.delete(paneId)
   const pane = panes.get(paneId)
   pane?.setStatus(null)
   pane?.setUsage(null)
   refreshTabStatuses()
+  crewSignal(paneId)
 }
 
 // ---------- Claude activity status ----------
@@ -650,15 +1179,40 @@ export function focusAttentionPane(): void {
   const all = state.tabs.flatMap((tab) =>
     paneIds(tab.layout).map((id) => ({ id, status: paneStatus.get(id)?.status }))
   )
-  const target = nextAttentionPane(all, state.focusedPaneId)
+  // Inside an orchestra, its own members come first: conducting means working
+  // through your crew's questions, not being pulled to another project's tab
+  // halfway through. Once the crew has nothing waiting, the rest follow.
+  const crewId = state.focusedPaneId ? nodeOf(state.focusedPaneId)?.crew?.id : undefined
+  const mine =
+    crewId === undefined
+      ? new Set<string>()
+      : new Set(crewMembers(allNodes(), crewId).map((n) => n.id))
+  const inCrew = mine.size > 0 ? all.filter((p) => mine.has(p.id)) : []
+  // A crew whose only waiting pane is the focused one has nothing else to
+  // offer — a lead resting at its prompt after delegating is the usual case —
+  // so that counts as nothing waiting in the crew, and the search widens.
+  const crewTarget = nextAttentionPane(inCrew, state.focusedPaneId)
+  const target =
+    crewTarget !== null && crewTarget !== state.focusedPaneId
+      ? crewTarget
+      : nextAttentionPane(all, state.focusedPaneId)
   if (target === null) return // nothing is waiting: do nothing, quietly
+  revealPane(target)
+}
 
-  const tab = tabOfPane(target)
+/**
+ * Bring a pane into view from somewhere that may be a maximized tab — a worker
+ * card, the approval badge, Mod+Shift+J. Same tab goes through goToPane, which
+ * carries a maximized view along with the focus; focusPane handles the tab
+ * switch when it is somewhere else.
+ */
+export function revealPane(paneId: string): void {
+  const tab = tabOfPane(paneId)
   if (!tab) return
-  // Same tab goes through goToPane, which carries a maximized view along with
-  // the focus; focusPane handles the tab switch when it is somewhere else.
-  if (tab.id === state.activeTabId) goToPane(tab, target)
-  else focusPane(target)
+  if (tab.id === state.activeTabId) {
+    lastFocusedInTab.set(tab.id, paneId)
+    goToPane(tab, paneId)
+  } else focusPane(paneId)
 }
 
 /** Mod+Alt+Arrow: move focus to the pane lying that way on screen. */
@@ -671,14 +1225,39 @@ export function focusPaneDirection(dir: Direction): void {
   if (target) goToPane(tab, target)
 }
 
-/** Show in the pane that the agent CLI drove it. See TerminalPane.markDriven. */
-export function markDrivenByLc(paneId: string): void {
-  panes.get(paneId)?.markDriven()
+/**
+ * Show in the pane that the agent CLI drove it. `offScope` is canDrive's
+ * warning when the driver was outside the pane's crew. See TerminalPane.markDriven.
+ */
+export function markDrivenByLc(paneId: string, offScope?: string): void {
+  panes.get(paneId)?.markDriven(offScope)
+  crewSignal(paneId) // the card's "lc N"
 }
 
-/** Human label for a pane in notifications — its tab name. */
+/**
+ * Human label for a pane in notifications — its tab name, and for a pane in an
+ * orchestra its handle too: "auth · @developer" says which of five panes in
+ * one tab is asking, where the tab name alone says only which project.
+ */
 function paneLabel(paneId: string): string {
-  return tabOfPane(paneId)?.name ?? 'Claude'
+  const tab = tabOfPane(paneId)?.name ?? 'Claude'
+  const crew = nodeOf(paneId)?.crew
+  if (!crew) return tab
+  return crew.lead ? `${tab} · ♪ orchestra` : `${tab} · @${crew.handle}`
+}
+
+/**
+ * Whether the person can already see that this pane is waiting: its own tab is
+ * on screen, or — for a worker — its lead's is, where the strip shows the card
+ * and the lead's header carries the approval badge.
+ */
+function inView(paneId: string): boolean {
+  if (!document.hasFocus()) return false
+  if (tabOfPane(paneId)?.id === state.activeTabId) return true
+  const crew = nodeOf(paneId)?.crew
+  if (!crew || crew.lead) return false
+  const lead = crewMembers(allNodes(), crew.id).find((n) => n.crew!.lead)
+  return lead !== undefined && tabOfPane(lead.id)?.id === state.activeTabId
 }
 
 /** Central status sink: updates the pane pill, tab dot, notifications, babysitter. */
@@ -689,12 +1268,25 @@ export function applyStatus(u: StatusUpdate): void {
   // hang for ever on a pane whose agent has since finished and exited, because
   // that pane reports `idle` and the expectation says to keep waiting.
   if (u.status !== 'idle') expectingAgent.delete(u.paneId)
+  // Something is running in it again, so a restored card stops saying otherwise.
+  restoredQuiet.delete(u.paneId)
   const prev = paneStatus.get(u.paneId)?.status
   paneStatus.set(u.paneId, u)
-  panes.get(u.paneId)?.setStatus(u.status, u.lastTool)
+  if (prev !== u.status) {
+    crewEvent(u.paneId, 'status', {
+      state: STATUS_WORD[u.status],
+      ...(u.status === 'waiting-approval' && u.lastTool ? { detail: u.lastTool } : {})
+    })
+  }
+  const estimated = u.source === 'heuristic'
+  panes.get(u.paneId)?.setStatus(u.status, u.lastTool, estimated)
   refreshTabStatuses()
   maybeNotify(prev, u)
-  handleStatusChange(u.paneId, u.status)
+  // The babysitter types into a pane on its own. It does that only on Claude's
+  // word that a turn ended, never on a guess from the terminal going quiet.
+  handleStatusChange(u.paneId, u.status, estimated)
+  notifyStatus(u.paneId)
+  crewSignal(u.paneId)
 }
 
 /** OS notification when Claude transitions from working to a waiting state. */
@@ -702,8 +1294,7 @@ function maybeNotify(prev: PaneStatus | undefined, u: StatusUpdate): void {
   if (u.status !== 'waiting-input' && u.status !== 'waiting-approval') return
   if (prev !== 'working') return // only fire on the working → waiting edge
   // Don't nag when the user is already looking right at this pane.
-  const tab = tabOfPane(u.paneId)
-  if (document.hasFocus() && tab?.id === state.activeTabId) return
+  if (inView(u.paneId)) return
   const now = Date.now()
   if (now - (lastNotified.get(u.paneId) ?? 0) < NOTIFY_COOLDOWN_MS) return
   lastNotified.set(u.paneId, now)
@@ -711,12 +1302,16 @@ function maybeNotify(prev: PaneStatus | undefined, u: StatusUpdate): void {
   const name = paneLabel(u.paneId)
   const title =
     u.status === 'waiting-approval' ? `${name} — needs approval` : `${name} — waiting for you`
+  // An estimated status (≈) comes from an agent that is not Claude, and only
+  // ever says a turn seems to have ended.
   const body =
     u.status === 'waiting-approval'
       ? u.lastTool
         ? `Claude wants to run ${u.lastTool}`
         : 'Claude is waiting for a permission'
-      : 'Claude finished its turn'
+      : u.source === 'heuristic'
+        ? `${AGENTS[nodeOf(u.paneId)?.agent ?? '']?.label ?? 'The agent'} seems to have finished its turn`
+        : 'Claude finished its turn'
   try {
     const n = new Notification(title, { body, silent: false })
     n.onclick = (): void => {
@@ -774,12 +1369,24 @@ export async function restore(persisted: PersistedState): Promise<void> {
   if (persisted.fontSize) state.fontSize = clampFontSize(persisted.fontSize)
   state.gitPanelOpen = persisted.gitPanelOpen ?? false
   state.gitAutoFetch = persisted.gitAutoFetch ?? true
-  for (const tab of persisted.tabs) {
+  state.orchPanelOpen = persisted.orchPanelOpen ?? false
+  state.crewSettings = persisted.crewSettings ?? {}
+  const layouts = persisted.tabs.map((tab) => regenPaneIds(tab.layout))
+  // Before any pane is built, so each is built knowing its crew. Squads from
+  // before crews existed become crews here; anything a crew's last session
+  // left bent is straightened. Neither touches a pane that is in no squad.
+  const nodes = layouts.flatMap(paneNodes)
+  adoptLegacySquads(nodes)
+  normaliseCrews(nodes)
+  // Fresh shells, and no agent started in any of them: the cards say so until
+  // something reports. Only crew members — a plain pane has no card.
+  for (const node of nodes) if (node.crew) restoredQuiet.add(node.id)
+  for (const [i, tab] of persisted.tabs.entries()) {
     await createTab({
       id: tab.id,
       projectPath: tab.projectPath,
       name: tab.name,
-      layout: regenPaneIds(tab.layout),
+      layout: layouts[i]!,
       activate: false
     })
   }

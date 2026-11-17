@@ -3,10 +3,12 @@ import { alertDialog } from './confirmDialog'
 import { quotePrompt } from './fanOut'
 import { createWorktreesSerially } from './fanOutUi'
 import { buildLayout } from './layouts'
-import { commandFor, rolesFor, squadCost, squadLayoutSpec } from './squad'
+import { agentOptions } from './agentPicker'
+import { commandFor, roleAgent, rolesFor, squadCost, squadLayoutSpec, squadNodes } from './squad'
 import type { SquadRequest } from './squad'
 import { paneNodes } from './splitTree'
 import { expectingAgent, newId, pendingCommand, state } from './store'
+import { crewIdFor } from '../../shared/crew'
 import { branchForRole, taskNameError } from '../../shared/roles'
 import type { Role } from '../../shared/roles'
 import type { LayoutNode } from '../../shared/types'
@@ -59,18 +61,31 @@ export async function runSquad(
     if (path !== undefined) worktreeFor.set(role.id, path)
   })
 
-  chosen.forEach((role, i) => {
-    const node = nodes[i]
-    if (!node) return
-    // A reviewing role sits in the repository itself: it reads the code and
-    // writes findings, so a checkout of its own would be a copy nobody edits.
-    node.cwd = worktreeFor.get(role.id) ?? cwd
-    node.role = { id: role.id, squadDir }
-    pendingCommand.set(node.id, commandFor(role, req.prompt, (p) => quotePrompt(p, isWindows)))
+  // A squad for this task may still be open from before, with the same folder
+  // and so the same crew id; the new one gets its own rather than joining it.
+  const inUse = state.tabs.some((t) =>
+    paneNodes(t.layout).some((n) => n.crew?.id === crewIdFor(squadDir))
+  )
+  const stamped = squadNodes(nodes, chosen, {
+    cwd,
+    squadDir,
+    worktreeFor,
+    ...(inUse ? { crewId: newId('c') } : {}),
+    ...(req.agents ? { agents: req.agents } : {})
+  })
+  for (const { node, role } of stamped) {
+    // The same choice squadNodes stamped, asked again rather than read back off
+    // node.agent: Claude is never stamped, and an absent agent would let
+    // commandFor fall back to whatever roles.json names for the role.
+    const agent = roleAgent(role, req.agents)
+    const command = commandFor(role, req.prompt, (p) => quotePrompt(p, isWindows), agent)
+    // A role played by a plain shell starts nothing, and nothing is coming.
+    if (command === '') continue
+    pendingCommand.set(node.id, command)
     // Record that an agent is coming, so an `lc wait` issued straight after this
     // returns holds the line rather than refusing a pane with nothing in it yet.
     expectingAgent.add(node.id)
-  })
+  }
 
   await createTab({ projectPath: cwd, name: req.task, layout, awaitSpawn: true })
 
@@ -81,7 +96,7 @@ export async function runSquad(
 
 // ---------- The dialog ----------
 
-function askSquad(roles: Role[]): Promise<SquadRequest | null> {
+function askSquad(roles: Role[], available: Record<string, boolean>): Promise<SquadRequest | null> {
   return new Promise((resolve) => {
     const overlay = document.createElement('div')
     overlay.id = 'shortcuts-overlay'
@@ -107,6 +122,8 @@ function askSquad(roles: Role[]): Promise<SquadRequest | null> {
     // Every role is on by default: the squad is the point, and a user who wants
     // fewer can say so faster than one who has to assemble it from nothing.
     const picked = new Set(roles.map((r) => r.id))
+    // Only the roles whose agent was changed here; the rest keep their own.
+    const agents: Record<string, string> = {}
     for (const role of roles) {
       const row = document.createElement('label')
       row.className = 'squad-role'
@@ -130,7 +147,26 @@ function askSquad(roles: Role[]): Promise<SquadRequest | null> {
         : role.writes
           ? 'own branch'
           : 'reads and reports'
-      row.append(box, text, note)
+      // Which agent plays it. Claude unless the role or the person says else;
+      // one whose command was not found on PATH is dimmed and says so, but can
+      // still be picked — the pane's shell may well find it.
+      const agent = document.createElement('select')
+      agent.className = 'squad-agent'
+      agent.title = 'The agent that plays this role'
+      for (const o of agentOptions(available)) {
+        const opt = document.createElement('option')
+        opt.value = o.id
+        opt.textContent = o.label
+        opt.title = o.note ?? ''
+        if (o.note !== null) opt.className = 'agent-missing'
+        agent.appendChild(opt)
+      }
+      agent.value = roleAgent(role)
+      agent.addEventListener('change', () => {
+        if (agent.value === roleAgent(role)) delete agents[role.id]
+        else agents[role.id] = agent.value
+      })
+      row.append(box, text, note, agent)
       roleList.appendChild(row)
     }
 
@@ -182,7 +218,12 @@ function askSquad(roles: Role[]): Promise<SquadRequest | null> {
 
     const submit = (): void => {
       if (accept.disabled) return
-      finish({ task: task.value.trim(), roleIds: [...picked], prompt: prompt.value.trim() })
+      finish({
+        task: task.value.trim(),
+        roleIds: [...picked],
+        prompt: prompt.value.trim(),
+        ...(Object.keys(agents).length > 0 ? { agents: { ...agents } } : {})
+      })
     }
 
     const onKeydown = (e: KeyboardEvent): void => {
@@ -229,7 +270,7 @@ export async function openSquad(): Promise<void> {
   // had no effect.
   if (error !== null) await alertDialog(`Using the built-in roles — ${error}`)
 
-  const req = await askSquad(roles)
+  const req = await askSquad(roles, await window.lightclaude.agent.available())
   if (req === null) return
   await runSquad(cwd, roles, req)
 }

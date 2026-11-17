@@ -1,3 +1,4 @@
+import { AGENTS } from '../../shared/agents'
 import { branchNameError } from '../../shared/git'
 
 /**
@@ -76,8 +77,7 @@ export function quotePrompt(prompt: string, isWindows: boolean): string {
  * files, and reads side by side. Pick the approach, then run it once.
  */
 export function agentCommand(prompt: string, isWindows: boolean, plan = false): string {
-  const mode = plan ? '--permission-mode plan ' : ''
-  return `claude ${mode}${quotePrompt(prompt, isWindows)}`
+  return AGENTS.claude!.launch(prompt, { plan, quote: (p) => quotePrompt(p, isWindows) })
 }
 
 /** What a fan-out was asked to do. */

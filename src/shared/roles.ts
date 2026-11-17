@@ -19,15 +19,17 @@
  * `lc read`. `lc read` returns what is *drawn on a pane's screen*, and for a
  * Claude session that is its interface, not its answer. An orchestrator that
  * screen-scrapes its team is unreliable by construction; one that waits for
- * `lc wait --for idle` and then reads a file is not. That is why no new `lc`
- * verb is needed here — the loop already exists, it only lacked somewhere to
- * put the answer.
+ * `lc wait --for idle` and then reads a file is not. `lc ask` and `lc result`
+ * since read the agent's own last message from its transcript — never its
+ * screen — which is enough for a short answer; the full write-up still goes
+ * in the report file, where it outlives the session.
  *
  * Deliberately importing nothing at runtime: the renderer is sandboxed with no
  * node integration, so anything shared with it has to be plain data and string
  * work, exactly as in shared/git.ts.
  */
 
+import { AGENTS, AGENT_IDS } from './agents'
 import { branchNameError } from './git'
 
 /** Where a squad leaves its reports, relative to the squad folder. */
@@ -50,6 +52,11 @@ export interface Role {
   plan?: boolean
   /** Exactly one role may be this, and it drives the others. */
   orchestrator?: boolean
+  /**
+   * The agent this role is played by when the squad dialog is not told
+   * otherwise: an id from shared/agents.ts. Absent means Claude Code.
+   */
+  agent?: string
 }
 
 /**
@@ -82,12 +89,16 @@ export const BUILTIN_ROLES: Role[] = [
     orchestrator: true,
     prompt:
       'You are the orchestrator. You do not edit code yourself — you decide what needs doing, ' +
-      'delegate it to the other panes, and judge what comes back. Use `lc ls` to see the squad ' +
-      'and which role each pane holds, `lc send <pane> "<task>"` to give one work, and ' +
-      '`lc wait <pane...> --for idle` to wait for it. Do not read a pane\'s screen to learn its ' +
-      'answer — that shows its interface, not its result. Read ' +
-      '$LIGHTCODE_SQUAD_DIR/reports/<role>.md instead. Give one role one task at a time, and ' +
-      'say plainly when a report disagrees with another rather than quietly picking one.'
+      'delegate it to the other panes, and judge what comes back. `lc ls --crew` shows your ' +
+      'crew; address a member as @<handle> (quote it in PowerShell). Delegate with ' +
+      '`lc ask @<handle> -` and the task on stdin (a heredoc): it waits for the turn to end and ' +
+      'prints the answer. `lc spawn --role <role> "<task>"` opens another worker if you need ' +
+      'one. While several work at once, follow `lc events --since <n>` rather than polling. ' +
+      'For the full write-up read $LIGHTCODE_SQUAD_DIR/reports/<role>.md, never a pane\'s ' +
+      'screen. A worker stuck on a permission prompt is for the person to answer: tell them ' +
+      'which one, do not type into it. Give one role one task at a time; after three failed ' +
+      'attempts with one worker, stop and report rather than retry. Say plainly when a report ' +
+      'disagrees with another rather than quietly picking one.'
   },
   {
     id: 'developer',
@@ -175,7 +186,7 @@ export function taskNameError(task: string): string | null {
 }
 
 /** A role id we would put in a branch name and a filename. */
-const ROLE_ID_RE = /^[a-z0-9][a-z0-9-]{0,31}$/
+export const ROLE_ID_RE = /^[a-z0-9][a-z0-9-]{0,31}$/
 
 /**
  * Why this override entry is not a role, or null.
@@ -209,6 +220,9 @@ export function roleError(value: unknown): string | null {
   }
   if (r.orchestrator !== undefined && typeof r.orchestrator !== 'boolean') {
     return `Role "${r.id}" has an "orchestrator" that is not true or false.`
+  }
+  if (r.agent !== undefined && (typeof r.agent !== 'string' || AGENTS[r.agent] === undefined)) {
+    return `Role "${r.id}" names an agent this app does not know. Known: ${AGENT_IDS.join(', ')}.`
   }
   if (r.orchestrator === true && r.writes === true) {
     return 'The orchestrator delegates rather than editing, so it cannot have "writes": true.'
@@ -255,7 +269,8 @@ export function mergeRoles(builtin: Role[], override: unknown): RolesResult {
       prompt: r.prompt,
       writes: r.writes,
       plan: r.plan,
-      orchestrator: r.orchestrator
+      orchestrator: r.orchestrator,
+      ...(r.agent !== undefined ? { agent: r.agent } : {})
     })
   }
   const leads = roles.filter((r) => r.orchestrator === true)

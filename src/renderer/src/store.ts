@@ -1,5 +1,5 @@
 import type { PaneStatus, StatusUpdate, UsageUpdate } from '../../shared/ipc'
-import type { PersistedState, TabState } from '../../shared/types'
+import type { CrewSettings, PersistedState, TabState } from '../../shared/types'
 
 /**
  * Terminal font size, in px, shared by every pane.
@@ -25,6 +25,10 @@ export interface AppState {
   gitPanelOpen: boolean
   /** The panel fetches from the remote every few minutes while it is open. */
   gitAutoFetch: boolean
+  /** The Orchestra panel is docked open. Closed until asked for, and remembered. */
+  orchPanelOpen: boolean
+  /** What the person has allowed each crew, by crew id. Empty for most people. */
+  crewSettings: Record<string, CrewSettings>
 }
 
 export const state: AppState = {
@@ -33,7 +37,9 @@ export const state: AppState = {
   focusedPaneId: null,
   fontSize: FONT_SIZE_DEFAULT,
   gitPanelOpen: false,
-  gitAutoFetch: true
+  gitAutoFetch: true,
+  orchPanelOpen: false,
+  crewSettings: {}
 }
 
 /** Latest Claude activity state per pane (ephemeral — never persisted). */
@@ -61,8 +67,60 @@ export const pendingCommand = new Map<string, string>()
  */
 export const expectingAgent = new Set<string>()
 
+/**
+ * Told whenever a pane's state may have moved: a status report, its shell
+ * exiting, the pane closing. Called with the pane id and nothing else — a
+ * listener reads whatever it cares about from the maps above.
+ *
+ * This is what `lc wait` waits on. It used to poll every 250ms because status
+ * arrives by several routes and a poll cannot miss one; the routes all pass
+ * through the few places that call notifyStatus now, and the wait keeps a slow
+ * poll anyway as a net for a route somebody adds later and forgets to wire.
+ */
+export const statusListeners = new Set<(paneId: string) => void>()
+
+export function notifyStatus(paneId: string): void {
+  // Copied: a listener that settles a wait removes itself while this runs.
+  for (const listener of [...statusListeners]) listener(paneId)
+}
+
 /** Latest token usage per pane (ephemeral — mirrors what the badge shows). */
 export const paneUsage = new Map<string, UsageUpdate>()
+
+/*
+ * What an orchestra's worker cards show beyond status. Ephemeral, and kept only
+ * for panes in a crew: nothing writes here for a plain pane. Every entry has to
+ * go when its pane does — see forgetCrewSignals, which closePane, closeTab and
+ * applyLayout's dropped panes all call.
+ */
+
+/** When each crew member last printed anything (ms). */
+export const lastOutputAt = new Map<string, number>()
+
+/** The last line on each crew member's screen that says something. */
+export const paneLastLine = new Map<string, string>()
+
+/** The last text typed into each crew member from outside it, and by whom. */
+export const lastSent = new Map<string, { text: string; at: number; by: string }>()
+
+/** Crew members with a report filed that nobody has looked at yet. */
+export const reportLanded = new Set<string>()
+
+/**
+ * Crew members brought back by a restart and silent since. A restart gives
+ * every pane a fresh shell and starts no agent in it, so the card says so
+ * ("restored — agent not running") rather than "no agent", which would read
+ * as though the worker had never had one. Cleared by the pane's first status.
+ */
+export const restoredQuiet = new Set<string>()
+
+export function forgetCrewSignals(paneId: string): void {
+  lastOutputAt.delete(paneId)
+  paneLastLine.delete(paneId)
+  lastSent.delete(paneId)
+  reportLanded.delete(paneId)
+  restoredQuiet.delete(paneId)
+}
 
 const STATUS_RANK: Record<PaneStatus, number> = {
   'waiting-approval': 3,
@@ -114,7 +172,13 @@ function serialize(): PersistedState {
     tabs: state.tabs,
     fontSize: state.fontSize,
     gitPanelOpen: state.gitPanelOpen,
-    gitAutoFetch: state.gitAutoFetch
+    gitAutoFetch: state.gitAutoFetch,
+    // Only while open, like crewSettings below: a state file that never had an
+    // orchestra in it stays exactly what it was.
+    ...(state.orchPanelOpen ? { orchPanelOpen: true } : {}),
+    // Only once some crew has a setting, so the state file of somebody who has
+    // never opened an orchestra is byte for byte what it was.
+    ...(Object.keys(state.crewSettings).length > 0 ? { crewSettings: state.crewSettings } : {})
   }
 }
 

@@ -1,5 +1,9 @@
 import type { LayoutSpec } from './layouts'
+import { AGENTS, DEFAULT_AGENT, agentFor } from '../../shared/agents'
+import { crewIdFor, nextHandle } from '../../shared/crew'
+import { rolePrompt } from '../../shared/roles'
 import type { Role } from '../../shared/roles'
+import type { PaneNode } from '../../shared/types'
 
 /**
  * Shaping a squad: who gets a worktree, and where the panes go.
@@ -17,6 +21,23 @@ export interface SquadRequest {
   roleIds: string[]
   /** The brief. Goes to the orchestrator; it decides who does what. */
   prompt: string
+  /**
+   * The agent each role is played by, by role id, where the dialog changed it.
+   * A role missing here is played by its own default (roleAgent).
+   */
+  agents?: Record<string, string>
+}
+
+/**
+ * The agent a role is played by: the dialog's choice, then the role's own
+ * default from roles.json, then Claude Code. An id nobody knows counts as
+ * no choice at all.
+ */
+export function roleAgent(role: Role, chosen?: Record<string, string>): string {
+  const pick = chosen?.[role.id]
+  if (pick !== undefined && AGENTS[pick]) return pick
+  if (role.agent !== undefined && AGENTS[role.agent]) return role.agent
+  return DEFAULT_AGENT
 }
 
 /**
@@ -56,6 +77,58 @@ export function squadLayoutSpec(workerCount: number): LayoutSpec {
 }
 
 /**
+ * Stamp each pane of a fresh squad layout with what it is: its folder, its
+ * role, and its place in the crew.
+ *
+ * `nodes` are the layout's panes in reading order and `roles` come from
+ * rolesFor, so they pair up one to one and the orchestrator lands in the large
+ * first slot. The orchestrator leads the crew; every handle is the role id, so
+ * the lead addresses `@developer` by the name it was told the role has.
+ *
+ * The crew id comes from the squad folder (crewIdFor), the same id a squad
+ * opened before crews existed is given when it is adopted on restore — one
+ * squad, one crew, whichever way it arrived. `crewId` overrides it for the one
+ * case where that would merge two crews: the same task opened twice while the
+ * first squad is still on screen, both pointing at one folder.
+ *
+ * A writing role works in its own worktree; everyone else sits in the
+ * repository, since a reviewer's checkout of its own would be a copy nobody
+ * edits. A pane whose role is played by another agent than Claude records it
+ * (roleAgent).
+ * Mutates the nodes; returns the ones it stamped, paired with roles.
+ */
+export function squadNodes(
+  nodes: PaneNode[],
+  roles: Role[],
+  o: {
+    cwd: string
+    squadDir: string
+    worktreeFor: Map<string, string>
+    crewId?: string
+    agents?: Record<string, string>
+  }
+): { node: PaneNode; role: Role }[] {
+  const crewId = o.crewId ?? crewIdFor(o.squadDir)
+  const taken: string[] = []
+  const out: { node: PaneNode; role: Role }[] = []
+  roles.forEach((role, i) => {
+    const node = nodes[i]
+    if (!node) return
+    node.cwd = o.worktreeFor.get(role.id) ?? o.cwd
+    node.role = { id: role.id, squadDir: o.squadDir }
+    const handle = nextHandle(role.id, taken, role.orchestrator === true)
+    taken.push(handle)
+    node.crew = { id: crewId, handle, ...(role.orchestrator === true ? { lead: true as const } : {}) }
+    // Claude is what a pane that names no agent runs, so a squad played by
+    // Claude alone is stamped exactly as it was before agents could be picked.
+    const agent = roleAgent(role, o.agents)
+    if (agent !== DEFAULT_AGENT) node.agent = agent
+    out.push({ node, role })
+  })
+  return out
+}
+
+/**
  * What each pane is told to run.
  *
  * Every pane starts an agent, but only the orchestrator is given the brief:
@@ -63,15 +136,25 @@ export function squadLayoutSpec(workerCount: number): LayoutSpec {
  * shape of the thing — five agents each independently attacking the same brief
  * is a fan-out, and there is already a button for that.
  *
- * The role's own instructions do not appear here at all. They ride in the pane's
- * environment and are re-applied by the `claude` wrapper at every launch, so a
- * role survives the agent restarting itself. See SpawnOptions.role.
+ * For Claude the role's own instructions do not appear here at all. They ride in
+ * the pane's environment and are re-applied by the `claude` wrapper at every
+ * launch, so a role survives the agent restarting itself. See SpawnOptions.role.
+ * An agent with no wrapper is told its role in its first message instead, and
+ * a worker of that kind starts on the role alone. A shell is typed nothing:
+ * the empty string.
  */
-export function commandFor(role: Role, prompt: string, quoted: (p: string) => string): string {
-  const plan = role.plan === true ? '--permission-mode plan ' : ''
-  return role.orchestrator === true
-    ? `claude ${plan}${quoted(prompt)}`
-    : `claude ${plan}`.trimEnd()
+export function commandFor(
+  role: Role,
+  prompt: string,
+  quoted: (p: string) => string,
+  agent: string = roleAgent(role)
+): string {
+  const adapter = agentFor(agent)
+  return adapter.launch(role.orchestrator === true ? prompt : null, {
+    plan: role.plan === true,
+    quote: quoted,
+    rolePrompt: adapter.rolePromptVia === 'first-message' ? rolePrompt(role) : null
+  })
 }
 
 /**

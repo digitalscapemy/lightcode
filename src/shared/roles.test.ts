@@ -25,6 +25,17 @@ describe('the built-in squad', () => {
     expect(leads[0]!.writes).toBe(false)
   })
 
+  // The verbs it is taught are the ones that exist, and it is told to leave
+  // permission prompts to the person.
+  it('teaches the orchestrator to delegate by handle, ask, and follow events', () => {
+    const prompt = BUILTIN_ROLES.find((r) => r.orchestrator)!.prompt
+    for (const verb of ['lc ls --crew', 'lc ask @', 'lc spawn', 'lc events --since']) {
+      expect(prompt).toContain(verb)
+    }
+    expect(prompt).toMatch(/permission prompt is for the person/)
+    expect(prompt).toMatch(/three failed/)
+  })
+
   it('gives branches only to the roles that write code', () => {
     // The whole design: reviewers have nothing to merge, so they cannot conflict.
     const writers = BUILTIN_ROLES.filter((r) => r.writes).map((r) => r.id)
@@ -88,6 +99,19 @@ describe('roleError', () => {
     const missing = role()
     delete missing['writes']
     expect(roleError(missing)).toMatch(/writes/)
+  })
+
+  it('accepts an agent it knows and refuses one it does not', () => {
+    expect(roleError(role({ agent: 'codex' }))).toBeNull()
+    expect(roleError(role({ agent: 'shell' }))).toBeNull()
+    expect(roleError(role({ agent: 'copilot' }))).toMatch(/agent.*Known: claude/)
+    expect(roleError(role({ agent: 'constructor' }))).toMatch(/agent/)
+    expect(roleError(role({ agent: 3 }))).toMatch(/agent/)
+  })
+
+  it("keeps a role's agent through an override", () => {
+    expect(mergeRoles(BUILTIN_ROLES, [role({ agent: 'gemini' })]).roles[0]!.agent).toBe('gemini')
+    expect(mergeRoles(BUILTIN_ROLES, [role()]).roles[0]).not.toHaveProperty('agent')
   })
 
   it('refuses an orchestrator that also writes code', () => {

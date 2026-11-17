@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { commandFor, rolesFor, squadCost, squadLayoutSpec } from './squad'
-import { paneCount } from './layouts'
-import { BUILTIN_ROLES } from '../../shared/roles'
+import { commandFor, roleAgent, rolesFor, squadCost, squadLayoutSpec, squadNodes } from './squad'
+import { buildLayout, paneCount } from './layouts'
+import { paneNodes } from './splitTree'
+import { crewIdFor, normaliseCrews } from '../../shared/crew'
+import { BUILTIN_ROLES, rolePrompt } from '../../shared/roles'
 import type { Role } from '../../shared/roles'
 
 const ids = BUILTIN_ROLES.map((r) => r.id)
@@ -74,6 +76,47 @@ describe('commandFor', () => {
     // It rides in the environment so it survives the agent restarting claude.
     expect(commandFor(dev, 'x', quoted)).not.toContain('append-system-prompt')
   })
+
+  it('tells an agent with no wrapper its role in its first message', () => {
+    expect(commandFor(dev, 'x', quoted, 'codex')).toBe(
+      `codex -a on-request '${rolePrompt(dev)}\n\nWait for your first task.'`
+    )
+    expect(commandFor(lead, 'ship it', quoted, 'codex')).toBe(
+      `codex -a on-request '${rolePrompt(lead)}\n\nYour task: ship it'`
+    )
+  })
+
+  it('types nothing for a role played by a shell', () => {
+    expect(commandFor(dev, 'x', quoted, 'shell')).toBe('')
+  })
+
+  it('plays a role with the agent roles.json names for it', () => {
+    expect(commandFor({ ...dev, agent: 'gemini' }, 'x', quoted)).toMatch(/^gemini -i /)
+  })
+})
+
+describe('roleAgent', () => {
+  const dev = BUILTIN_ROLES.find((r) => r.id === 'developer')!
+
+  it('is Claude unless something says otherwise', () => {
+    expect(roleAgent(dev)).toBe('claude')
+  })
+
+  it('takes the dialog over the role, and the role over the default', () => {
+    expect(roleAgent({ ...dev, agent: 'gemini' })).toBe('gemini')
+    expect(roleAgent({ ...dev, agent: 'gemini' }, { developer: 'codex' })).toBe('codex')
+  })
+
+  it('ignores an agent nobody knows', () => {
+    expect(roleAgent({ ...dev, agent: 'nope' }, { developer: 'constructor' })).toBe('claude')
+  })
+
+  it('lets the dialog choose Claude for a role roles.json gives to another agent', () => {
+    const role = { ...dev, agent: 'codex' }
+    const agent = roleAgent(role, { developer: 'claude' })
+    expect(agent).toBe('claude')
+    expect(commandFor(role, 'x', (p) => `'${p}'`, agent)).toBe('claude')
+  })
 })
 
 describe('squadCost', () => {
@@ -92,5 +135,73 @@ describe('squadCost', () => {
   it('counts the reviewing roles apart from the writing ones', () => {
     const text = squadCost('auth', rolesFor(BUILTIN_ROLES, ids))
     expect(text).toContain('2 reviewing')
+  })
+})
+
+describe('squadNodes', () => {
+  const chosen = rolesFor(BUILTIN_ROLES, ['orchestrator', 'developer', 'security'])
+  const fresh = (): ReturnType<typeof paneNodes> => {
+    let n = 0
+    return paneNodes(buildLayout(squadLayoutSpec(chosen.length - 1), () => `p_${n++}`))
+  }
+  const opts = {
+    cwd: '/repo',
+    squadDir: '/repo/.squads/auth',
+    worktreeFor: new Map([['developer', '/repo-auth-developer']])
+  }
+
+  it('makes the squad one crew, led by the orchestrator in the large slot', () => {
+    const nodes = fresh()
+    squadNodes(nodes, chosen, opts)
+    const id = crewIdFor(opts.squadDir)
+    expect(nodes.map((n) => n.crew)).toEqual([
+      { id, handle: 'orchestrator', lead: true },
+      { id, handle: 'developer' },
+      { id, handle: 'security' }
+    ])
+  })
+
+  it('keeps the role and the folder each pane had before crews', () => {
+    const nodes = fresh()
+    squadNodes(nodes, chosen, opts)
+    expect(nodes.map((n) => [n.role?.id, n.cwd])).toEqual([
+      ['orchestrator', '/repo'],
+      ['developer', '/repo-auth-developer'],
+      ['security', '/repo']
+    ])
+    expect(nodes.every((n) => n.role?.squadDir === opts.squadDir)).toBe(true)
+  })
+
+  it('pairs each stamped node with its role', () => {
+    const stamped = squadNodes(fresh(), chosen, opts)
+    expect(stamped.map((s) => [s.node.id, s.role.id])).toEqual([
+      ['p_0', 'orchestrator'],
+      ['p_1', 'developer'],
+      ['p_2', 'security']
+    ])
+  })
+
+  it('takes a crew id of its own when told to', () => {
+    const nodes = fresh()
+    squadNodes(nodes, chosen, { ...opts, crewId: 'c_new' })
+    expect(nodes.every((n) => n.crew?.id === 'c_new')).toBe(true)
+  })
+
+  it('leaves nothing for normaliseCrews to repair', () => {
+    const nodes = fresh()
+    squadNodes(nodes, chosen, opts)
+    expect(normaliseCrews(nodes)).toBe(0)
+  })
+
+  it('names no agent, so a squad pane launches exactly as it did', () => {
+    const nodes = fresh()
+    squadNodes(nodes, chosen, opts)
+    expect(nodes.every((n) => n.agent === undefined)).toBe(true)
+  })
+
+  it('names the agent of a role played by another', () => {
+    const nodes = fresh()
+    squadNodes(nodes, chosen, { ...opts, agents: { developer: 'codex', security: 'claude' } })
+    expect(nodes.map((n) => n.agent)).toEqual([undefined, 'codex', undefined])
   })
 })

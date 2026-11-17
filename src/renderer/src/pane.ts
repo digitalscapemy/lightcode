@@ -1,19 +1,22 @@
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { WebglAddon } from '@xterm/addon-webgl'
+import { guardPausedSelectionRedraw } from './xtermPauseGuard'
 import { isBabysitterOn, toggleBabysitter } from './babysitter'
 import { alertDialog, promptDialog } from './confirmDialog'
 import { dismissCoexist, isCoexistDismissed } from './coexist'
 import { MOD_LABEL, isAppShortcut } from './keys'
+import { lastMeaningfulLine } from './lcPolicy'
 import { shellArgs } from './paths'
 import { state } from './store'
 import { xtermTheme } from './theme'
 import { removeWorktreeAsking } from './worktrees'
 
+import { AGENTS } from '../../shared/agents'
 import { branchNameError } from '../../shared/git'
 import type { GitInfo, PaneRole, PaneStatus } from '../../shared/ipc'
 import { roleById, rolePrompt } from '../../shared/roles'
-import type { PaneNodeRole } from '../../shared/types'
+import type { PaneNodeCrew, PaneNodeRole } from '../../shared/types'
 import type { Orientation } from '../../shared/types'
 
 const STATUS_LABEL: Record<PaneStatus, string> = {
@@ -28,6 +31,9 @@ interface MenuItem {
   action: () => void
   disabled?: boolean
 }
+
+/** What the pane menu can ask of a pane's crew. The app decides which apply. */
+export type CrewAction = 'conduct' | 'add-worker' | 'link' | 'unlink' | 'agent'
 
 // Monochrome glyphs (fill: currentColor) so the header can tint them one gray.
 const KEY_ICON =
@@ -51,6 +57,15 @@ export interface PaneCallbacks {
    * two working copies side by side, which is where comparing agents happens.
    */
   onSplitInto(paneId: string, cwd: string): void
+  /**
+   * The crew rows for this pane's menu, in order. The app answers because it
+   * is the side that can see every crew; a pane knows only its own.
+   */
+  crewMenu?(paneId: string): { label: string; action: CrewAction }[]
+  /** One of those rows was picked. */
+  onCrewAction?(paneId: string, action: CrewAction): void
+  /** The approval badge on a lead's header was clicked. */
+  onCrewAlert?(paneId: string): void
 }
 
 /**
@@ -103,6 +118,22 @@ export class TerminalPane {
   private gitEl: HTMLElement
   private warnEl: HTMLElement
   private roleEl: HTMLElement
+  /** `♪ orchestra` on a lead, `@handle →` on a worker; hidden on a plain pane. */
+  private crewEl: HTMLElement
+  /** Which agent runs here, when it is not Claude Code. */
+  private agentEl: HTMLElement
+  /** The crew this pane is in, as the app last said. See setCrew. */
+  private crewInfo: PaneNodeCrew | null = null
+  /** On a lead: how many of its workers are stuck on a permission prompt. */
+  private crewAlertEl: HTMLElement
+  /**
+   * Where an orchestra lead's worker strip docks, between the header and the
+   * terminal. Empty and hidden on every other pane, so it costs a plain pane
+   * nothing — not even a pixel of the terminal's height.
+   */
+  private stripHost: HTMLElement
+  /** The role's emoji once roles.json has been read, for the worker cards. */
+  private roleEmoji: string | null = null
   /**
    * Marks a pane something drove through `lc` rather than a person typing.
    *
@@ -112,6 +143,8 @@ export class TerminalPane {
    */
   private drivenEl!: HTMLElement
   private drivenCount = 0
+  /** Why the last off-crew drive was off-crew, for the badge's tooltip. */
+  private lastOffScope: string | null = null
   /** Last git reading, so the menu knows whether this pane is in a worktree. */
   private git: GitInfo | null = null
   /** One reading at a time: a burst of prompts must not spawn a burst of gits. */
@@ -135,7 +168,9 @@ export class TerminalPane {
     readonly cwd: string,
     private callbacks: PaneCallbacks,
     /** Squad role, when this pane was opened as part of one. */
-    readonly role: PaneNodeRole | null = null
+    readonly role: PaneNodeRole | null = null,
+    /** The agent this pane was opened for, when one was named. See setAgent. */
+    public agent: string | null = null
   ) {
     this.liveCwd = cwd
     this.el = document.createElement('div')
@@ -159,6 +194,19 @@ export class TerminalPane {
     this.roleEl = document.createElement('span')
     this.roleEl.className = 'pane-role'
     this.roleEl.hidden = true
+    this.crewEl = document.createElement('span')
+    this.crewEl.className = 'pane-crew'
+    this.crewEl.hidden = true
+    this.agentEl = document.createElement('span')
+    this.agentEl.className = 'pane-agent'
+    this.paintAgent()
+    this.crewAlertEl = document.createElement('span')
+    this.crewAlertEl.className = 'pane-crew-alert'
+    this.crewAlertEl.hidden = true
+    this.crewAlertEl.addEventListener('click', (e) => {
+      e.stopPropagation()
+      this.callbacks.onCrewAlert?.(this.id)
+    })
 
     // Two agents in one folder. A chip rather than a dialog, and clicking it
     // makes it go away for good — see coexist.ts on why this never blocks.
@@ -211,6 +259,9 @@ export class TerminalPane {
     })
     header.append(
       this.titleEl,
+      this.crewEl,
+      this.agentEl,
+      this.crewAlertEl,
       this.roleEl,
       this.drivenEl,
       this.warnEl,
@@ -223,9 +274,13 @@ export class TerminalPane {
       killBtn
     )
 
+    this.stripHost = document.createElement('div')
+    this.stripHost.className = 'pane-strip-host'
+    this.stripHost.hidden = true
+
     this.body = document.createElement('div')
     this.body.className = 'pane-body'
-    this.el.append(header, this.body)
+    this.el.append(header, this.stripHost, this.body)
 
     this.term = new Terminal({
       allowProposedApi: true,
@@ -278,6 +333,8 @@ export class TerminalPane {
       return true
     })
     this.term.open(this.body)
+    // Background panes otherwise repaint on every line they print (xterm 6.0.0).
+    guardPausedSelectionRedraw(this.term)
     this.term.onData((data) => {
       window.lightclaude.pty.write(this.id, data)
       this.callbacks.onManualInput?.(this.id)
@@ -414,7 +471,11 @@ export class TerminalPane {
                 action: () => void this.removeWorktree()
               }
             ]
-          : [])
+          : []),
+        ...(this.callbacks.crewMenu?.(this.id) ?? []).map(({ label, action }) => ({
+          label,
+          action: () => this.callbacks.onCrewAction?.(this.id, action)
+        }))
       ],
       this.menuBtn
     )
@@ -700,14 +761,130 @@ export class TerminalPane {
     return lines
   }
 
-  /** Show that something other than a person typed here. */
-  markDriven(): void {
+  /**
+   * The last line on screen worth showing on a worker card, or null. See
+   * lcPolicy.lastMeaningfulLine for what is skipped and why.
+   */
+  lastOutputLine(): string | null {
+    return lastMeaningfulLine(this.recentLines(30))
+  }
+
+  /** How many times `lc` has driven this pane. */
+  drivenTimes(): number {
+    return this.drivenCount
+  }
+
+  /** The squad role's emoji, once known; null on a pane with no role. */
+  roleBadge(): string | null {
+    return this.roleEmoji
+  }
+
+  /**
+   * Dock an orchestra's worker strip into this pane, or take it out (null).
+   *
+   * The terminal gives up the strip's height and takes it back afterwards; the
+   * body's ResizeObserver refits it either way, so the shell is told its new
+   * row count without anything here having to remember to.
+   */
+  mountStrip(el: HTMLElement | null): void {
+    if (el === null) {
+      this.stripHost.textContent = ''
+      this.stripHost.hidden = true
+      return
+    }
+    if (el.parentElement !== this.stripHost) {
+      this.stripHost.textContent = ''
+      this.stripHost.appendChild(el)
+    }
+    this.stripHost.hidden = false
+  }
+
+  /**
+   * On a lead's header: how many workers are waiting on a permission prompt.
+   * Zero hides it. Clicking it goes to the first of them (onCrewAlert).
+   */
+  setCrewAlert(count: number, detail = ''): void {
+    this.crewAlertEl.hidden = count === 0
+    this.crewAlertEl.textContent = count === 0 ? '' : `⚠ ${count} approval${count === 1 ? '' : 's'}`
+    this.crewAlertEl.title = detail
+  }
+
+  /**
+   * Whether the program in this pane has asked for pasted text to be marked as
+   * a paste. A TUI agent does; a bare shell may not, and sending it the markers
+   * anyway would print them. See lcPolicy.sendKeystrokes.
+   */
+  acceptsBracketedPaste(): boolean {
+    return this.term.modes.bracketedPasteMode
+  }
+
+  /**
+   * Show that something other than a person typed here.
+   *
+   * `offScope` is the warning when whoever did it was outside this pane's crew,
+   * or a worker driving its own lead. The badge turns amber and stays amber —
+   * like the count, it is a record of what happened here, not of the latest.
+   */
+  markDriven(offScope?: string): void {
     this.drivenCount++
     this.gitEl.hidden = false
     this.drivenEl.hidden = false
     this.drivenEl.textContent = this.drivenCount > 1 ? `lc ${this.drivenCount}` : 'lc'
+    if (offScope) {
+      this.drivenEl.dataset['scope'] = 'out'
+      this.lastOffScope = offScope
+    }
     this.drivenEl.title =
-      `${this.drivenCount} command${this.drivenCount === 1 ? '' : 's'} sent by the agent CLI`
+      `${this.drivenCount} command${this.drivenCount === 1 ? '' : 's'} sent by the agent CLI` +
+      (this.lastOffScope ? `\nFrom outside its crew: ${this.lastOffScope}` : '')
+  }
+
+  /**
+   * Show this pane's place in an orchestra, or that it has none.
+   *
+   * The hue is the crew's colour (crew.crewHue), set as --crew-hue for the
+   * stylesheet to draw the lead's border and the workers' stripe in. Null puts
+   * the pane back exactly as a plain one: no chip, no attribute, no colour.
+   */
+  setCrew(crew: PaneNodeCrew | null, hue = 0): void {
+    this.crewInfo = crew === null ? null : { ...crew }
+    if (crew === null) {
+      this.crewEl.hidden = true
+      this.crewEl.textContent = ''
+      delete this.el.dataset['crewRole']
+      this.el.style.removeProperty('--crew-hue')
+      return
+    }
+    this.crewEl.hidden = false
+    this.el.dataset['crewRole'] = crew.lead ? 'lead' : 'worker'
+    this.el.style.setProperty('--crew-hue', String(hue))
+    this.crewEl.textContent = crew.lead ? '♪ orchestra' : `@${crew.handle} →`
+    this.crewEl.title = crew.lead
+      ? `Conducts this orchestra, as @${crew.handle}`
+      : `Plays in an orchestra; its lead addresses this pane as @${crew.handle}`
+  }
+
+  /**
+   * The agent this pane runs now, after "Agent ▸" started another in it. Kept
+   * so a respawn tells the pty the same, and shown as a chip when it is not
+   * Claude Code — a Claude pane, the usual case, gains nothing on its header.
+   */
+  setAgent(agent: string | null): void {
+    this.agent = agent
+    this.paintAgent()
+  }
+
+  private paintAgent(): void {
+    const a = this.agent
+    this.agentEl.hidden = a === null || a === 'claude'
+    this.agentEl.textContent = a ?? ''
+    const adapter = a === null ? undefined : AGENTS[a]
+    this.agentEl.title =
+      adapter === undefined
+        ? ''
+        : adapter.status === 'heuristic'
+          ? `Runs ${adapter.label}; its status is estimated from the terminal (≈)`
+          : `Runs ${adapter.label}`
   }
 
   /** Token usage badge; null hides it. */
@@ -717,8 +894,12 @@ export class TerminalPane {
     this.usageEl.title = tooltip
   }
 
-  /** Claude activity pill; the dot colour carries the state, text stays terse. */
-  setStatus(status: PaneStatus | null, lastTool: string | null = null): void {
+  /**
+   * Claude activity pill; the dot colour carries the state, text stays terse.
+   * `estimated` marks a status guessed from an agent's terminal going quiet
+   * (main/quietStatus.ts) with a ≈, so it is never read as Claude's own word.
+   */
+  setStatus(status: PaneStatus | null, lastTool: string | null = null, estimated = false): void {
     if (!status || status === 'idle') {
       this.statusEl.hidden = true
       this.statusEl.textContent = ''
@@ -727,13 +908,16 @@ export class TerminalPane {
     }
     this.statusEl.hidden = false
     this.statusEl.dataset['status'] = status
-    this.statusEl.textContent =
+    const text =
       status === 'waiting-approval'
         ? 'needs approval'
         : status === 'waiting-input'
           ? 'waiting'
           : (lastTool?.toLowerCase() ?? '')
-    this.statusEl.title = STATUS_LABEL[status] + (lastTool ? ` · ${lastTool}` : '')
+    this.statusEl.textContent = estimated ? `≈ ${text || 'working'}` : text
+    this.statusEl.title = estimated
+      ? `${status === 'working' ? 'Working' : STATUS_LABEL[status]} (estimated from the terminal going quiet)`
+      : STATUS_LABEL[status] + (lastTool ? ` · ${lastTool}` : '')
   }
 
   private async pasteClipboard(): Promise<void> {
@@ -818,7 +1002,17 @@ export class TerminalPane {
         cwd: this.cwd,
         cols: this.term.cols,
         rows: this.term.rows,
-        ...(this.role ? { role: await this.resolveRole(this.role) } : {})
+        ...(this.role ? { role: await this.resolveRole(this.role) } : {}),
+        ...(this.crewInfo
+          ? {
+              crew: {
+                id: this.crewInfo.id,
+                handle: this.crewInfo.handle,
+                lead: this.crewInfo.lead === true
+              }
+            }
+          : {}),
+        ...(this.agent ? { agent: this.agent } : {})
       })
       if (result.cwdFallback) {
         this.write(`\x1b[33mProject folder not found — opened in ${result.cwd}\x1b[0m\r\n`)
@@ -846,6 +1040,7 @@ export class TerminalPane {
       const found = roleById(roles, role.id)
       if (found) {
         prompt = rolePrompt(found)
+        this.roleEmoji = found.emoji
         this.roleEl.hidden = false
         this.roleEl.textContent = `${found.emoji} ${found.label}`
         this.roleEl.title = `Squad role: ${found.label}${found.writes ? '' : ' — reads and reports, does not edit code'}`

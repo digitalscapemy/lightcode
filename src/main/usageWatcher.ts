@@ -399,6 +399,14 @@ export class UsageWatcher {
     return this.paneSession.has(paneId)
   }
 
+  /**
+   * The transcript file of the session bound to this pane, or null. What
+   * `lc result` reads the pane's last answer from; see agentResult.ts.
+   */
+  transcriptFor(paneId: string): string | null {
+    return this.paneSession.get(paneId) ?? null
+  }
+
   /** Point a pane at its current directory; called on spawn and on every cd. */
   bindPane(paneId: string, projectPath: string): void {
     const prev = this.paneProject.get(paneId)

@@ -8,8 +8,9 @@ import {
 } from './babysitter'
 import { collectPaneIds, paneStatus, paneUsage, state } from './store'
 import { paneNodes } from './splitTree'
+import { crewHue, groupByCrew } from '../../shared/crew'
 import type { PaneStatus } from '../../shared/ipc'
-import type { TabState } from '../../shared/types'
+import type { PaneNodeCrew, TabState } from '../../shared/types'
 
 const STATUS_TEXT: Record<PaneStatus, string> = {
   working: 'working',
@@ -222,7 +223,14 @@ function render(): void {
     group.className = 'mission-group'
     group.textContent = tab.name
     listEl.appendChild(group)
-    for (const id of ids) listEl.appendChild(buildRow(tab, id, now))
+    // An orchestra's panes together, under its colour. A tab with no crew in
+    // it is one plain group and lists exactly as it always did.
+    const crewOf = new Map<string, PaneNodeCrew>()
+    for (const node of paneNodes(tab.layout)) if (node.crew) crewOf.set(node.id, node.crew)
+    for (const block of groupByCrew(ids, (id) => crewOf.get(id)?.id)) {
+      if (block.crew !== null) listEl.appendChild(crewHeader(block.crew, block.items, crewOf))
+      for (const id of block.items) listEl.appendChild(buildRow(tab, id, now))
+    }
   }
   if (!any) {
     const empty = document.createElement('div')
@@ -231,6 +239,20 @@ function render(): void {
     listEl.appendChild(empty)
   }
   updateSend()
+}
+
+/** The line over an orchestra's rows: its colour, and who conducts it. */
+function crewHeader(crewId: string, ids: string[], crewOf: Map<string, PaneNodeCrew>): HTMLElement {
+  const el = document.createElement('div')
+  el.className = 'mission-crew'
+  el.style.setProperty('--crew-hue', String(crewHue(crewId)))
+  const swatch = document.createElement('span')
+  swatch.className = 'mission-crew-swatch'
+  const label = document.createElement('span')
+  const lead = ids.find((id) => crewOf.get(id)?.lead)
+  label.textContent = lead ? `♪ ${panes.get(lead)?.label() ?? 'orchestra'}` : '♪ orchestra'
+  el.append(swatch, label)
+  return el
 }
 
 /** Refresh only the target count + Send button (cheap; runs on every keystroke). */
@@ -264,6 +286,9 @@ function buildRow(tab: TabState, id: string, now: number): HTMLElement {
   const name = document.createElement('span')
   name.className = 'mission-name'
   name.textContent = panes.get(id)?.label() ?? 'Terminal'
+  // A crew member is named the way its lead addresses it.
+  const crew = paneNodes(tab.layout).find((p) => p.id === id)?.crew
+  if (crew && !crew.lead) name.textContent = `@${crew.handle}`
 
   const project = document.createElement('span')
   project.className = 'mission-project'
@@ -304,7 +329,7 @@ function buildRow(tab: TabState, id: string, now: number): HTMLElement {
   return row
 }
 
-function metaText(
+export function metaText(
   status: PaneStatus | undefined,
   usage: ReturnType<typeof paneUsage.get>
 ): string {
@@ -323,7 +348,8 @@ function metaText(
   return parts.join('  ·  ')
 }
 
-function fmtElapsed(ms: number): string {
+/** How long ago, in the one unit that matters: 42s, 7m, 3h. */
+export function fmtElapsed(ms: number): string {
   const s = Math.max(0, Math.floor(ms / 1000))
   if (s < 60) return `${s}s`
   const m = Math.floor(s / 60)

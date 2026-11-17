@@ -1,7 +1,9 @@
 import { app } from 'electron'
+import { execFileSync } from 'child_process'
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'fs'
 import { homedir } from 'os'
 import { dirname, join } from 'path'
+import { isInside, isValidCategory } from '../shared/shortcutPaths'
 import type {
   ShortcutsConfig,
   ShortcutsImportResult,
@@ -28,11 +30,20 @@ export function loadShortcuts(): ShortcutsConfig {
     const raw = readFileSync(shortcutsFile(), 'utf8')
     const parsed = JSON.parse(raw) as ShortcutsConfig
     if (parsed && parsed.version === 1) {
-      return {
+      const cfg: ShortcutsConfig = {
         version: 1,
         paths: Array.isArray(parsed.paths) ? parsed.paths : [],
         accounts: Array.isArray(parsed.accounts) ? parsed.accounts : []
       }
+      if (typeof parsed.projectRoot === 'string' && parsed.projectRoot.trim()) {
+        cfg.projectRoot = parsed.projectRoot
+      }
+      if (Array.isArray(parsed.categories)) {
+        cfg.categories = parsed.categories.filter(
+          (c): c is string => typeof c === 'string' && isValidCategory(c)
+        )
+      }
+      return cfg
     }
   } catch {
     // missing or corrupt — start fresh
@@ -216,6 +227,74 @@ export function writeManagedBlock(file: string, block: string): string | null {
   }
 }
 
+// ---------- Pane startup (Windows) ----------
+
+const SAFE_NAME = /^[A-Za-z_][A-Za-z0-9_-]*$/
+
+/**
+ * The shortcuts as one line of PowerShell for a pane's `-Command` startup.
+ *
+ * A fresh Windows install has the execution policy `Restricted`, which stops
+ * `$PROFILE` from loading at all — so the functions saved there never exist,
+ * and to the user it looks as if the save did nothing. `-Command` text is not
+ * a script file and no policy applies to it, so defining them here makes them
+ * work in every Light Code pane whatever the policy is. On a machine where the
+ * profile does load, this simply redefines the same functions.
+ *
+ * Read from shortcuts.json at each spawn, so a new pane always has the latest
+ * save. Entries that would not pass validateConfig are skipped, never quoted
+ * into a command: a hand-edited file must not be able to inject code.
+ */
+export function psStartupShortcuts(cfg: ShortcutsConfig): string {
+  const ok = (name: unknown): name is string =>
+    typeof name === 'string' && SAFE_NAME.test(name) && !RESERVED.has(name.toLowerCase())
+  const defs: string[] = []
+  for (const p of cfg.paths) {
+    if (ok(p.name) && typeof p.path === 'string' && p.path.trim()) {
+      defs.push(`function global:${p.name} { Set-Location -LiteralPath ${psQuote(p.path)} }`)
+    }
+  }
+  for (const a of cfg.accounts) {
+    if (ok(a.name) && typeof a.configDir === 'string' && a.configDir.trim()) {
+      defs.push(
+        `function global:${a.name} { $env:CLAUDE_CONFIG_DIR = ${psQuote(a.configDir)}; & claude @args }`
+      )
+    }
+  }
+  return defs.join('; ')
+}
+
+/**
+ * The effective PowerShell execution policy, or null when it cannot be read.
+ * Only asked on save (it starts a PowerShell, ~0.3s), never on the hot path.
+ */
+export function effectiveExecutionPolicy(): string | null {
+  if (!IS_WIN) return null
+  try {
+    const out = execFileSync(
+      'powershell.exe',
+      ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command', 'Get-ExecutionPolicy'],
+      { encoding: 'utf8', windowsHide: true, timeout: 5000, stdio: ['ignore', 'pipe', 'ignore'] }
+    )
+    return out.trim() || null
+  } catch {
+    return null
+  }
+}
+
+/** A warning when the policy keeps $PROFILE from loading, else null. */
+export function profilePolicyWarning(policy: string | null): string | null {
+  if (!policy) return null
+  const p = policy.toLowerCase()
+  if (p !== 'restricted' && p !== 'allsigned' && p !== 'undefined') return null
+  const shown = p === 'undefined' ? 'Restricted' : policy
+  return (
+    `PowerShell's execution policy is ${shown}, so other terminals will not load $PROFILE and ` +
+    `will not see these shortcuts (Light Code panes get them anyway). To use them everywhere, ` +
+    `run once: Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`
+  )
+}
+
 // ---------- Validation ----------
 
 /** PowerShell resolves aliases before functions — these names would never run. */
@@ -254,7 +333,49 @@ export function validateConfig(cfg: ShortcutsConfig): string[] {
       errors.push(`"${name}": ${kind === 'path' ? 'folder' : 'config dir'} is empty`)
     }
   }
+  for (const c of cfg.categories ?? []) {
+    if (!isValidCategory(c)) errors.push(`category "${c}": not a valid folder name`)
+  }
+  for (const p of cfg.paths) {
+    if (p.category && !isValidCategory(p.category)) {
+      errors.push(`"${p.name}": category "${p.category}" is not a valid folder name`)
+    }
+  }
   return errors
+}
+
+/**
+ * Create the folders a save points at but which do not exist yet — only the
+ * ones this feature owns: projects under the main projects folder and
+ * `.claude-*` account dirs under home. A hand-typed path elsewhere is never
+ * created, so a typo cannot scatter empty folders around the disk.
+ */
+export function createMissingFolders(
+  cfg: ShortcutsConfig,
+  home: string
+): { created: string[]; warnings: string[] } {
+  const created: string[] = []
+  const warnings: string[] = []
+  const wanted: string[] = []
+  if (cfg.projectRoot) {
+    for (const p of cfg.paths) {
+      if (isInside(cfg.projectRoot, p.path, IS_WIN)) wanted.push(p.path)
+    }
+  }
+  for (const a of cfg.accounts) {
+    const base = a.configDir.replace(/[\\/]+$/, '').split(/[\\/]/).pop() ?? ''
+    if (base.startsWith('.claude-') && isInside(home, a.configDir, IS_WIN)) wanted.push(a.configDir)
+  }
+  for (const dir of wanted) {
+    if (existsSync(dir)) continue
+    try {
+      mkdirSync(dir, { recursive: true })
+      created.push(dir)
+    } catch (err) {
+      warnings.push(`could not create ${dir}: ${err instanceof Error ? err.message : String(err)}`)
+    }
+  }
+  return { created, warnings }
 }
 
 // ---------- Import parser ----------
@@ -365,6 +486,9 @@ export function saveShortcuts(cfg: ShortcutsConfig): ShortcutsSaveResult {
   if (errors.length > 0) return { ok: false, profilesWritten: [], errors }
 
   saveShortcutsJson(cfg)
+  const { created, warnings } = createMissingFolders(cfg, homedir())
+  const policyWarning = profilePolicyWarning(effectiveExecutionPolicy())
+  if (policyWarning) warnings.push(policyWarning)
 
   const block = renderBlock(cfg)
   const written: string[] = []
@@ -373,5 +497,5 @@ export function saveShortcuts(cfg: ShortcutsConfig): ShortcutsSaveResult {
     if (err) errors.push(err)
     else written.push(file)
   }
-  return { ok: errors.length === 0, profilesWritten: written, errors }
+  return { ok: errors.length === 0, profilesWritten: written, errors, created, warnings }
 }

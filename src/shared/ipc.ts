@@ -16,6 +16,7 @@ export const IPC = {
   PtyExit: 'pty:exit',
   PtyCwd: 'pty:cwd',
   PtyClaudeActive: 'pty:claude-active',
+  PtyAgent: 'pty:agent',
   StateLoad: 'state:load',
   StateSave: 'state:save',
   StateOwned: 'state:owned',
@@ -47,6 +48,12 @@ export const IPC = {
   GitFetch: 'git:fetch',
   GitSquadPrepare: 'git:squad-prepare',
   RolesList: 'roles:list',
+  AgentResult: 'agent:result',
+  AgentAvailable: 'agent:available',
+  SquadWatch: 'squad:watch',
+  SquadUnwatch: 'squad:unwatch',
+  SquadReadReport: 'squad:read-report',
+  SquadReport: 'squad:report',
   LcRequest: 'lc:request',
   LcReply: 'lc:reply',
   LcSetEnabled: 'lc:set-enabled',
@@ -72,6 +79,18 @@ export interface SpawnOptions {
    * every launch, for the life of the pane.
    */
   role?: PaneRole
+  /**
+   * The crew this pane was spawned into, if any.
+   *
+   * Exported as LIGHTCODE_CREW, LIGHTCODE_HANDLE and LIGHTCODE_LEAD so an agent
+   * can tell from its own environment that it conducts or plays in an
+   * orchestra, and under what name. A hint, read once at spawn: a pane linked
+   * or unlinked later keeps the environment it started with, and `lc`, which
+   * asks the app, is the answer that stays current.
+   */
+  crew?: { id: string; handle: string; lead: boolean }
+  /** The agent this pane was opened for, as LIGHTCODE_AGENT. Absent: none named. */
+  agent?: string
 }
 
 /** What a pane is told about the role it holds. See shared/roles.ts. */
@@ -81,6 +100,35 @@ export interface PaneRole {
   prompt: string
   /** Where this squad leaves its reports, shared by every pane in it. */
   squadDir: string
+}
+
+/** One report in a squad folder's `reports/`, as the watcher lists it. */
+export interface SquadReportFile {
+  /** The file name, `<role id>.md`. Nothing else in the folder is listed. */
+  name: string
+  size: number
+  /** Last modified, in ms. */
+  mtime: number
+}
+
+/**
+ * Pushed when a squad folder's reports change: every report there now, and
+ * which of them are new or rewritten since the last look. A report deleted
+ * shows up as a shorter list with nothing in `changed`.
+ */
+export interface SquadReportUpdate {
+  squadDir: string
+  reports: SquadReportFile[]
+  changed: string[]
+}
+
+/** A report's text, read for the viewer. Cut off at 256 KB, and says so. */
+export interface SquadReportText {
+  name: string
+  text: string
+  /** The file is larger than what was read. */
+  truncated: boolean
+  mtime: number
 }
 
 export interface SpawnResult {
@@ -135,6 +183,13 @@ export interface StatusUpdate {
   lastTool: string | null
   /** Timestamp (ms) of the last transcript change for this session. */
   lastActivity: number
+  /**
+   * Where it came from. Absent means Claude's hooks or transcript, as always.
+   * `heuristic` is a guess from an agent's terminal going quiet (see
+   * main/quietStatus.ts): shown as ≈, never `waiting-approval`, and nothing
+   * acts on it unattended — not the babysitter, not an approve.
+   */
+  source?: 'hook' | 'transcript' | 'heuristic'
 }
 
 /** Where a pane's directory stands, git-wise. See main/git.ts. */
@@ -336,6 +391,11 @@ export interface LightClaudeApi {
     onCwd(cb: (paneId: string, cwd: string) => void): () => void
     /** True while a Claude CLI session is bound to this pane (not at the shell). */
     claudeActive(paneId: string): Promise<boolean>
+    /**
+     * The agent this pane now runs, when it changed after the pane was spawned
+     * ("Agent ▸"). Main guesses at the status of an agent without hooks.
+     */
+    setAgent(paneId: string, agent: string | null): void
   }
   state: {
     load(): Promise<PersistedState | null>
@@ -384,6 +444,30 @@ export interface LightClaudeApi {
   roles: {
     /** Built-in squad roles, with `.lightcode/roles.json` applied when present. */
     list(cwd: string): Promise<RolesResult>
+  }
+  agent: {
+    /**
+     * The last answer of the Claude session bound to this pane, from its
+     * transcript. Null when no session is bound or it has said nothing yet.
+     */
+    result(paneId: string): Promise<string | null>
+    /**
+     * Which agents' commands are on PATH, by adapter id. An agent with no
+     * command (the shell) is always available. Read once and cached by main.
+     */
+    available(): Promise<Record<string, boolean>>
+  }
+  /**
+   * The reports a squad files into its folder. Main refuses any folder that
+   * is not one a squad uses (see main/squadReports.ts), so these answer null
+   * rather than read an arbitrary directory.
+   */
+  squad: {
+    /** Start watching a squad folder's reports; the current list, or null if refused. */
+    watch(squadDir: string): Promise<SquadReportFile[] | null>
+    unwatch(squadDir: string): void
+    readReport(squadDir: string, name: string): Promise<SquadReportText | null>
+    onReport(cb: (update: SquadReportUpdate) => void): () => void
   }
   shortcuts: {
     load(): Promise<ShortcutsConfig>

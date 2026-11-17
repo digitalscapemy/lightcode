@@ -4,6 +4,7 @@ import { IPC } from '../shared/ipc'
 import type {
   LightClaudeApi,
   SpawnOptions,
+  SquadReportUpdate,
   StatusUpdate,
   UpdateAvailableInfo,
   UpdateProgressInfo,
@@ -34,7 +35,8 @@ const api: LightClaudeApi = {
       ipcRenderer.on(IPC.PtyCwd, listener)
       return () => ipcRenderer.removeListener(IPC.PtyCwd, listener)
     },
-    claudeActive: (paneId) => ipcRenderer.invoke(IPC.PtyClaudeActive, paneId)
+    claudeActive: (paneId) => ipcRenderer.invoke(IPC.PtyClaudeActive, paneId),
+    setAgent: (paneId, agent) => ipcRenderer.send(IPC.PtyAgent, paneId, agent)
   },
   state: {
     load: (): Promise<PersistedState | null> => ipcRenderer.invoke(IPC.StateLoad),
@@ -83,6 +85,21 @@ const api: LightClaudeApi = {
   },
   roles: {
     list: (cwd: string) => ipcRenderer.invoke(IPC.RolesList, cwd)
+  },
+  agent: {
+    result: (paneId: string) => ipcRenderer.invoke(IPC.AgentResult, paneId),
+    available: () => ipcRenderer.invoke(IPC.AgentAvailable)
+  },
+  squad: {
+    watch: (squadDir: string) => ipcRenderer.invoke(IPC.SquadWatch, squadDir),
+    unwatch: (squadDir: string) => ipcRenderer.send(IPC.SquadUnwatch, squadDir),
+    readReport: (squadDir: string, name: string) =>
+      ipcRenderer.invoke(IPC.SquadReadReport, squadDir, name),
+    onReport: (cb) => {
+      const listener = (_e: IpcRendererEvent, update: SquadReportUpdate): void => cb(update)
+      ipcRenderer.on(IPC.SquadReport, listener)
+      return () => ipcRenderer.removeListener(IPC.SquadReport, listener)
+    }
   },
   // Electron 32 removed File.path, so webUtils is the only route from a dropped
   // File to its real path. Returns '' for a File the OS gave no path (dragged

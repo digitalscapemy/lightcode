@@ -3,6 +3,9 @@ import { persist } from './store'
 
 const MIN_SIZE = 0.1
 
+/** Fired on a tab view when a divider drag has finished resizing its panes. */
+export const LAYOUT_RESIZED = 'layoutresized'
+
 /**
  * Render a tab's layout tree into its view element. Pane elements are owned
  * by their TerminalPane and are re-appended (reparented) — never recreated —
@@ -51,6 +54,11 @@ function makeGutter(node: SplitNode, index: number, splitEl: HTMLElement): HTMLE
     const wraps = Array.from(splitEl.children).filter((c) =>
       c.classList.contains('split-child')
     ) as HTMLElement[]
+    // While a divider moves, anything drawn across the tab in fractions of it
+    // (an orchestra's link lines) would point at where the panes were. The
+    // class hides it for the drag; the event says when to draw it again.
+    const view = splitEl.closest<HTMLElement>('.tab-view')
+    view?.classList.add('gutter-drag')
 
     const onMove = (ev: PointerEvent): void => {
       if (total <= 0) return
@@ -73,6 +81,8 @@ function makeGutter(node: SplitNode, index: number, splitEl: HTMLElement): HTMLE
     const onUp = (): void => {
       gutter.removeEventListener('pointermove', onMove)
       gutter.removeEventListener('pointerup', onUp)
+      view?.classList.remove('gutter-drag')
+      view?.dispatchEvent(new Event(LAYOUT_RESIZED))
       persist()
     }
     gutter.addEventListener('pointermove', onMove)

@@ -30,7 +30,13 @@ import type { LayoutNode } from '../../shared/types'
  */
 export async function createWorktreesSerially(
   cwd: string,
-  names: string[]
+  names: string[],
+  /**
+   * Told why, when one could not be made. A dialog by default; `lc spawn`
+   * passes its own, since its answer goes back down the socket to an agent
+   * rather than up on the screen of a person who did not ask for it.
+   */
+  report: (message: string) => void | Promise<void> = (message) => alertDialog(message)
 ): Promise<string[] | null> {
   const created: string[] = []
   for (const name of names) {
@@ -42,7 +48,7 @@ export async function createWorktreesSerially(
     for (const path of created) {
       await window.lightclaude.git.removeWorktree(cwd, path, true)
     }
-    await alertDialog(`Could not create ${name}: ${result.error}`)
+    await report(`Could not create ${name}: ${result.error}`)
     return null
   }
   return created

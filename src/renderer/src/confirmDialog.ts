@@ -21,8 +21,15 @@
  * make one of the answers unreachable.
  *
  * The last button is the primary one; dismissing is never destructive.
+ *
+ * `notes`, when given, holds a caveat per button (null for none). A button with
+ * one is dimmed and carries it as its tooltip, but can still be chosen.
  */
-export function choiceDialog(message: string, labels: string[]): Promise<number | null> {
+export function choiceDialog(
+  message: string,
+  labels: string[],
+  notes?: (string | null)[]
+): Promise<number | null> {
   return new Promise((resolve) => {
     const overlay = document.createElement('div')
     overlay.id = 'shortcuts-overlay'
@@ -58,6 +65,11 @@ export function choiceDialog(message: string, labels: string[]): Promise<number 
       const btn = document.createElement('button')
       btn.className = i === labels.length - 1 ? 'shortcuts-primary' : 'shortcuts-secondary'
       btn.textContent = label
+      const note = notes?.[i]
+      if (note) {
+        btn.title = note
+        btn.classList.add('choice-caveat')
+      }
       btn.addEventListener('click', () => finish(i))
       footer.appendChild(btn)
     })
@@ -135,6 +147,8 @@ export function promptDialog(opts: {
   placeholder?: string
   confirmLabel?: string
   validate?: (value: string) => string | null
+  /** Filled in and selected, for a suggestion that is usually right. */
+  initial?: string
 }): Promise<string | null> {
   return new Promise((resolve) => {
     const overlay = document.createElement('div')
@@ -150,6 +164,7 @@ export function promptDialog(opts: {
     const input = document.createElement('input')
     input.className = 'prompt-input'
     input.placeholder = opts.placeholder ?? ''
+    input.value = opts.initial ?? ''
     input.spellcheck = false
     const hint = document.createElement('div')
     hint.className = 'prompt-hint'
@@ -212,6 +227,7 @@ export function promptDialog(opts: {
     document.body.appendChild(overlay)
     revalidate()
     input.focus()
+    if (opts.initial) input.select()
   })
 }
 

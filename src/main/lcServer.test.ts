@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { parseRequest, socketOwnerPid, timeoutFor } from './lcServer'
-import { LC_SOCKET_PREFIX, LC_SOCKET_SUFFIX } from '../shared/lc'
+import { LcServer, parseRequest, resolveCaller, socketOwnerPid, timeoutFor } from './lcServer'
+import { LC_COMMANDS, LC_SOCKET_PREFIX, LC_SOCKET_SUFFIX } from '../shared/lc'
 import type { LcRequest } from '../shared/lc'
 
 /**
@@ -30,6 +30,11 @@ describe('parseRequest', () => {
   ])('refuses %s without throwing', (_label, line) => {
     const out = parseRequest(line)
     expect(out).toHaveProperty('error')
+  })
+
+  // The list the server checks and the list the protocol publishes are one.
+  it.each(LC_COMMANDS)('accepts every published command: %s', (cmd) => {
+    expect(parseRequest(JSON.stringify({ cmd }))).toEqual({ req: { cmd } })
   })
 
   // Naming the command back is what makes a typo fixable from the message alone.
@@ -92,9 +97,118 @@ describe('timeoutFor', () => {
     expect(timeoutFor(forever)).toBe(15 * 60_000)
   })
 
+  it.each(['idle', 'exit', 'approval', 'working', 'any'] as const)(
+    'outlives a wait for %s the same way',
+    (f) => {
+      expect(timeoutFor(req({ cmd: 'wait', panes: ['p'], for: f, timeoutMs: 1_000 }))).toBe(6_000)
+    }
+  )
+
   it('gives a fan-out room to create worktrees and start agents', () => {
     expect(timeoutFor(req({ cmd: 'fan', task: 't', count: 2, prompt: 'p', plan: false }))).toBe(
       15 * 60_000
     )
+  })
+
+  it('gives spawn and ask the long deadline', () => {
+    expect(timeoutFor(req({ cmd: 'spawn', plan: false, prompt: null }))).toBe(15 * 60_000)
+    expect(timeoutFor(req({ cmd: 'ask', pane: 'p', text: 'q', timeoutMs: 1_000 }))).toBe(15 * 60_000)
+  })
+
+  // A long-poll is a wait by another name.
+  it('outlives an events long-poll the way it outlives a wait', () => {
+    expect(timeoutFor(req({ cmd: 'events', since: 3, timeoutMs: 30_000 }))).toBe(35_000)
+    expect(timeoutFor(req({ cmd: 'events', since: 3, timeoutMs: 999 * 60_000 }))).toBe(15 * 60_000)
+  })
+
+  it.each(['result', 'approve', 'interrupt'] as const)('gives %s the short deadline', (cmd) => {
+    const r =
+      cmd === 'approve'
+        ? req({ cmd, pane: 'p', answer: 'yes' })
+        : req({ cmd, pane: 'p' })
+    expect(timeoutFor(r)).toBe(15_000)
+  })
+})
+
+/**
+ * Who a request is from decides what it may do — not least whether it is
+ * typing into its own pane. The pane id is printed by `lc ls` for anyone to
+ * copy; only the token was put in one pane's environment and nowhere else.
+ */
+describe('resolveCaller', () => {
+  const tokens = new Map([['t_good', 'p_real']])
+  const lookup = (t: string): string | null => tokens.get(t) ?? null
+
+  it('names the caller from its token', () => {
+    const out = resolveCaller({ cmd: 'ls', token: 't_good' }, lookup)
+    expect(out).toEqual({ cmd: 'ls', from: 'p_real' })
+  })
+
+  it('ignores a forged from when the token says otherwise', () => {
+    const out = resolveCaller({ cmd: 'send', pane: 'p_x', text: 'hi', enter: true, token: 't_good', from: 'p_x' }, lookup)
+    expect(out.from).toBe('p_real')
+    expect(out.unverified).toBeUndefined()
+  })
+
+  it('keeps the claimed from without a token, and flags it', () => {
+    expect(resolveCaller({ cmd: 'ls', from: 'p_a' }, lookup)).toEqual({
+      cmd: 'ls',
+      from: 'p_a',
+      unverified: true
+    })
+  })
+
+  it('treats a token it never issued as no token at all', () => {
+    expect(resolveCaller({ cmd: 'ls', token: 't_forged', from: 'p_a' }, lookup)).toEqual({
+      cmd: 'ls',
+      from: 'p_a',
+      unverified: true
+    })
+  })
+
+  // The flag is the server's to set; whatever the client sent is recomputed.
+  it("decides unverified itself rather than taking the client's word", () => {
+    expect(resolveCaller({ cmd: 'ls', token: 't_good', unverified: true }, lookup)).toEqual({
+      cmd: 'ls',
+      from: 'p_real'
+    })
+    expect(resolveCaller({ cmd: 'ls', unverified: true }, lookup)).toEqual({ cmd: 'ls' })
+  })
+
+  // The renderer never needs the secret, so it never gets it.
+  it('drops the token before the request goes any further', () => {
+    expect(resolveCaller({ cmd: 'ls', token: 't_good' }, lookup)).not.toHaveProperty('token')
+    expect(resolveCaller({ cmd: 'ls', token: 't_forged' }, lookup)).not.toHaveProperty('token')
+  })
+})
+
+describe('LcServer tokens', () => {
+  it('issues a token that names its pane, until it is revoked', () => {
+    const server = new LcServer()
+    const token = server.issueToken('p_a')
+    expect(token).toMatch(/^[0-9a-f]{32}$/)
+    expect(server.paneOfToken(token)).toBe('p_a')
+    server.revokeToken('p_a')
+    expect(server.paneOfToken(token)).toBeNull()
+  })
+
+  // A respawned shell is a new caller; the old shell's token dies with it.
+  it("replaces a pane's token when it is issued another", () => {
+    const server = new LcServer()
+    const first = server.issueToken('p_a')
+    const second = server.issueToken('p_a')
+    expect(second).not.toBe(first)
+    expect(server.paneOfToken(first)).toBeNull()
+    expect(server.paneOfToken(second)).toBe('p_a')
+  })
+
+  it("keeps every pane's token apart", () => {
+    const server = new LcServer()
+    const a = server.issueToken('p_a')
+    const b = server.issueToken('p_b')
+    server.revokeToken('p_a')
+    expect(server.paneOfToken(a)).toBeNull()
+    expect(server.paneOfToken(b)).toBe('p_b')
+    server.revokeToken('p_nobody') // nothing to revoke is not an error
   })
 })

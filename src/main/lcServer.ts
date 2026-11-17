@@ -1,5 +1,6 @@
 import { app } from 'electron'
 import type { WebContents } from 'electron'
+import { randomBytes } from 'crypto'
 import { chmodSync, mkdirSync, readdirSync, readFileSync, unlinkSync, writeFileSync } from 'fs'
 import { createServer } from 'net'
 import type { Server, Socket } from 'net'
@@ -7,13 +8,14 @@ import { join } from 'path'
 import { IPC } from '../shared/ipc'
 import { atomicWrite, isPidAlive } from './instance'
 import {
+  LC_COMMANDS,
   LC_OFF_MESSAGE,
   LC_PIPE_PREFIX,
   LC_PROTOCOL,
   LC_SOCKET_PREFIX,
   LC_SOCKET_SUFFIX
 } from '../shared/lc'
-import type { LcRequest, LcResponse } from '../shared/lc'
+import type { LcErrorKind, LcRequest, LcResponse } from '../shared/lc'
 
 /**
  * The door `lc` comes through.
@@ -111,8 +113,8 @@ function reply(res: LcResponse): string {
   return `${JSON.stringify(res)}\n`
 }
 
-function fail(error: string): string {
-  return reply({ ok: false, protocol: LC_PROTOCOL, error })
+function fail(error: string, kind: LcErrorKind): string {
+  return reply({ ok: false, protocol: LC_PROTOCOL, error, kind })
 }
 
 /**
@@ -131,18 +133,50 @@ export function parseRequest(line: string): { req: LcRequest } | { error: string
   if (typeof raw !== 'object' || raw === null) return { error: 'Request was not an object.' }
   const cmd = (raw as { cmd?: unknown }).cmd
   if (typeof cmd !== 'string') return { error: 'Request had no cmd.' }
-  const known = ['ls', 'read', 'send', 'close', 'wait', 'fan']
-  if (!known.includes(cmd)) {
-    return { error: `Unknown command "${cmd}". Known: ${known.join(', ')}.` }
+  if (!(LC_COMMANDS as readonly string[]).includes(cmd)) {
+    return { error: `Unknown command "${cmd}". Known: ${LC_COMMANDS.join(', ')}.` }
   }
   return { req: raw as LcRequest }
 }
 
+/**
+ * Who is really asking.
+ *
+ * The client says which pane it is in, but anything that can reach the socket
+ * can say anything, and the self-send guard and every later rule about who may
+ * drive whom hang off that answer. The token cannot be claimed: the app put it
+ * in one pane's environment and nowhere else, so a token it recognises names
+ * the caller, and whatever `from` arrived beside it is ignored.
+ *
+ * No token, or one this app never issued, keeps the client's own `from` and
+ * says so with `unverified` — refusing would break an older client for no
+ * gain, since the request was always going to be answered on its word.
+ *
+ * The token itself never goes further than this. The renderer has no use for
+ * it, and a secret that is not passed along cannot leak from there.
+ */
+export function resolveCaller(req: LcRequest, paneOfToken: (token: string) => string | null): LcRequest {
+  const { token, from, unverified: _claimed, ...rest } = req
+  const pane = typeof token === 'string' ? paneOfToken(token) : null
+  if (pane !== null) return { ...rest, from: pane } as LcRequest
+  if (typeof from !== 'string') return rest as LcRequest
+  return { ...rest, from, unverified: true } as LcRequest
+}
+
 /** Commands that hold the line open while something happens elsewhere. */
 export function timeoutFor(req: LcRequest): number {
-  if (req.cmd === 'wait') return Math.min(req.timeoutMs + 5_000, LONG_TIMEOUT_MS)
-  if (req.cmd === 'fan') return LONG_TIMEOUT_MS
-  return RENDERER_TIMEOUT_MS
+  switch (req.cmd) {
+    case 'wait':
+    case 'events':
+      return Math.min(req.timeoutMs + 5_000, LONG_TIMEOUT_MS)
+    // Worktrees to create and agents to start, or a whole turn to sit through.
+    case 'fan':
+    case 'spawn':
+    case 'ask':
+      return LONG_TIMEOUT_MS
+    default:
+      return RENDERER_TIMEOUT_MS
+  }
 }
 
 export class LcServer {
@@ -155,6 +189,35 @@ export class LcServer {
   private queue: Promise<void> = Promise.resolve()
   private nextId = 1
   private pending = new Map<number, (res: LcResponse) => void>()
+  /** token → pane, and the reverse so a pane's token can be revoked by id. */
+  private tokens = new Map<string, string>()
+  private tokenOf = new Map<string, string>()
+
+  /**
+   * Mint the secret a pane's shell carries as LIGHTCODE_LC_TOKEN.
+   *
+   * One per pty, replacing any the pane held before: a respawned shell is a
+   * new caller, and the old one's token must stop working with it.
+   */
+  issueToken(paneId: string): string {
+    this.revokeToken(paneId)
+    const token = randomBytes(16).toString('hex')
+    this.tokens.set(token, paneId)
+    this.tokenOf.set(paneId, token)
+    return token
+  }
+
+  /** The pty is gone; a request still carrying its token is no longer anyone. */
+  revokeToken(paneId: string): void {
+    const token = this.tokenOf.get(paneId)
+    if (token === undefined) return
+    this.tokenOf.delete(paneId)
+    this.tokens.delete(token)
+  }
+
+  paneOfToken(token: string): string | null {
+    return this.tokens.get(token) ?? null
+  }
 
   setTarget(wc: WebContents): void {
     this.target = wc
@@ -262,7 +325,7 @@ export class LcServer {
     this.server?.close()
     this.server = null
     for (const settle of this.pending.values()) {
-      settle({ ok: false, protocol: LC_PROTOCOL, error: LC_OFF_MESSAGE })
+      settle({ ok: false, protocol: LC_PROTOCOL, error: LC_OFF_MESSAGE, kind: 'transport' })
     }
     this.pending.clear()
     // Only a path this process is known to have bound. Cleaning up after a bind
@@ -287,7 +350,7 @@ export class LcServer {
       buf += chunk
       if (buf.length > MAX_REQUEST_BYTES) {
         answered = true
-        conn.end(fail('Request too large.'))
+        conn.end(fail('Request too large.', 'usage'))
         return
       }
       const nl = buf.indexOf('\n')
@@ -298,22 +361,28 @@ export class LcServer {
   }
 
   private async dispatch(line: string): Promise<string> {
-    if (!this.enabled) return fail(LC_OFF_MESSAGE)
+    if (!this.enabled) return fail(LC_OFF_MESSAGE, 'transport')
     const parsed = parseRequest(line)
-    if ('error' in parsed) return fail(parsed.error)
+    if ('error' in parsed) return fail(parsed.error, 'usage')
+    const req = resolveCaller(parsed.req, (token) => this.paneOfToken(token))
 
     const target = this.target
-    if (!target || target.isDestroyed()) return fail('The app window is not ready.')
+    if (!target || target.isDestroyed()) return fail('The app window is not ready.', 'transport')
 
     const id = this.nextId++
     const answer = new Promise<LcResponse>((resolve) => {
       this.pending.set(id, resolve)
       setTimeout(() => {
         if (!this.pending.delete(id)) return
-        resolve({ ok: false, protocol: LC_PROTOCOL, error: 'The app did not answer in time.' })
-      }, timeoutFor(parsed.req))
+        resolve({
+          ok: false,
+          protocol: LC_PROTOCOL,
+          error: 'The app did not answer in time.',
+          kind: 'transport'
+        })
+      }, timeoutFor(req))
     })
-    target.send(IPC.LcRequest, id, parsed.req)
+    target.send(IPC.LcRequest, id, req)
     return reply(await answer)
   }
 }

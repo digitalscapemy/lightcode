@@ -78,6 +78,10 @@ body {
   white-space: nowrap;
   color: var(--fg-muted);
   position: relative;
+  /* Tabs squeeze down to this and no further; past it #tabs scrolls. Without
+     a floor they shrank to nothing and the close buttons piled on each other. */
+  flex: 0 1 auto;
+  min-width: 84px;
   /* Without this, #tabs' horizontal pan swallows touch/pen drags. */
   touch-action: none;
 }
@@ -109,12 +113,15 @@ body.tab-dragging * {
 }
 
 .tab-label {
+  flex: 1 1 auto;
+  min-width: 0;
   max-width: 160px;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .tab-close {
+  flex: 0 0 auto;
   border: none;
   background: transparent;
   color: inherit;
@@ -155,9 +162,68 @@ body.tab-dragging * {
   cursor: pointer;
 }
 
-#add-tab:hover {
+#add-tab:hover,
+#tab-list-btn:hover {
   background: var(--tab-hover);
   color: var(--fg);
+}
+
+/* Only shown while the strip overflows: a list to jump to any tab. */
+#tab-list-btn {
+  flex: 0 0 auto;
+  align-self: center;
+  width: 22px;
+  height: 26px;
+  margin-left: 2px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--fg-muted);
+  font-size: 11px;
+  cursor: pointer;
+  -webkit-app-region: no-drag;
+}
+
+#tab-list-btn[hidden] {
+  display: none;
+}
+
+#tab-list-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+/* Everything right of the strip keeps its size; only #tabs gives way (and
+   scrolls). Otherwise a long strip crushed the toolbar icons together. */
+#tabbar > :not(#tabs):not(.spacer) {
+  flex-shrink: 0;
+}
+
+.tab-list-menu {
+  max-width: 320px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
+.tab-list-menu .pane-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tab-list-menu .pane-menu-item.active {
+  background: var(--tab-hover);
+  font-weight: 600;
+}
+
+.tab-list-menu .tab-list-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .spacer {
@@ -453,6 +519,369 @@ body.tab-dragging * {
   max-width: 16ch;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* ---------- Orchestra ----------
+   A crew: one lead conducting, workers it drives. Every rule here keys off
+   data-crew-role or .crew-linked, which only a pane in a crew ever gets, so a
+   window that never opens an orchestra looks exactly as it did.
+
+   --crew-hue is set per pane from the crew id, so two orchestras in one window
+   are told apart at a glance and keep their colours across a restart. Outlines
+   rather than borders or ::after: they cost no layout (the terminal's cell
+   grid does not shift by a pixel when a pane joins a crew), they paint over the
+   terminal canvas, and ::before/::after already belong to the drop target and
+   the focus ring. */
+/* Which agent a pane runs, when it is not Claude Code. Plain, like the role. */
+.pane-agent {
+  flex: 0 0 auto;
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  color: var(--fg-muted);
+  white-space: nowrap;
+}
+
+.pane-agent[hidden] {
+  display: none;
+}
+
+.pane-crew {
+  flex: 0 0 auto;
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 8px;
+  border: 1px solid hsl(var(--crew-hue, 210) 60% 45%);
+  color: hsl(var(--crew-hue, 210) 70% 72%);
+  white-space: nowrap;
+  max-width: 18ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* The lead is framed in its crew's colour; workers carry a stripe of it down
+   the left of their header, which reads as "belongs to" without a frame each. */
+.pane[data-crew-role='lead'] {
+  outline: 2px solid hsl(var(--crew-hue, 210) 60% 50%);
+  outline-offset: -2px;
+}
+
+.pane[data-crew-role='worker'] > .pane-header {
+  box-shadow: inset 3px 0 0 hsl(var(--crew-hue, 210) 60% 50%);
+}
+
+/* The focused pane's crew-mates, so the panes that belong together are plain
+   while you are in one of them. Dashed, so it never reads as a second focus. */
+.pane.crew-linked[data-crew-role='worker'] {
+  outline: 1px dashed hsl(var(--crew-hue, 210) 60% 55%);
+  outline-offset: -1px;
+}
+
+/* Driven from outside its crew, or a worker driving its lead. Amber, as for
+   the shared-folder warning: worth a look, not a stop. */
+.pane-driven[data-scope='out'] {
+  background: #9e6a03;
+}
+
+/* On a lead's header: workers stuck on a permission prompt. The approval red,
+   because nothing in the crew moves past it until somebody answers. */
+.pane-crew-alert {
+  flex: 0 0 auto;
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 8px;
+  border: 1px solid var(--status-waiting-approval);
+  color: var(--status-waiting-approval);
+  white-space: nowrap;
+  cursor: pointer;
+  animation: status-pulse 1.6s ease-in-out infinite;
+}
+
+/* The lead's worker strip docks between its header and its terminal. */
+.pane-strip-host {
+  flex: 0 0 auto;
+}
+
+.pane-strip-host[hidden] {
+  display: none;
+}
+
+.crew-strip {
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-panel);
+  font-size: 11px;
+  color: var(--fg-muted);
+}
+
+.crew-strip-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 22px;
+  padding: 0 4px 0 10px;
+  user-select: none;
+}
+
+.crew-strip-title {
+  color: hsl(var(--crew-hue, 210) 70% 72%);
+  white-space: nowrap;
+}
+
+.crew-strip-summary {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.crew-strip-gap {
+  flex: 1 1 auto;
+}
+
+.crew-strip-btn,
+.crew-card-btn {
+  flex: 0 0 auto;
+  font: inherit;
+  font-size: 11px;
+  padding: 0 6px;
+  height: 18px;
+  color: var(--fg-muted);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.crew-strip-btn:hover,
+.crew-card-btn:hover {
+  color: var(--fg);
+  border-color: var(--fg-muted);
+}
+
+.crew-strip-toggle {
+  border-color: transparent;
+}
+
+/* Paused: the person has the baton. Said in the header, where the lead's own
+   output would otherwise suggest it is still conducting. */
+.crew-strip.paused .crew-strip-summary,
+.crew-strip.paused .crew-strip-pause {
+  color: #d29922;
+}
+
+/* One row of cards, scrolled sideways rather than wrapped: the strip must not
+   take more of the lead's terminal as the crew grows. */
+.crew-strip-cards {
+  display: flex;
+  gap: 6px;
+  padding: 0 8px 6px;
+  overflow-x: auto;
+}
+
+.crew-strip.collapsed .crew-strip-cards {
+  display: none;
+}
+
+.crew-strip-empty {
+  padding: 2px 2px 0;
+}
+
+.crew-card {
+  flex: 0 0 220px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding: 4px 6px;
+  border: 1px solid var(--border);
+  border-left: 3px solid hsl(var(--crew-hue, 210) 60% 50%);
+  border-radius: 4px;
+  background: var(--term-bg);
+  cursor: pointer;
+}
+
+.crew-card:hover {
+  border-color: var(--fg-muted);
+  border-left-color: hsl(var(--crew-hue, 210) 60% 60%);
+}
+
+.crew-card[data-status='waiting-approval'] {
+  border-color: var(--status-waiting-approval);
+}
+
+.crew-card[data-status='exited'] {
+  opacity: 0.6;
+}
+
+/* Back after a restart with nothing running in it: muted, and the state says
+   why rather than leaving "no agent" to suggest it never had one. */
+.crew-card[data-status='restored'] .crew-card-state {
+  font-style: italic;
+}
+
+.crew-card-top {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.crew-card-dot {
+  flex: 0 0 auto;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--fg-muted);
+}
+
+.crew-card-dot[data-status='working'] {
+  background: var(--status-working);
+}
+
+.crew-card-dot[data-status='waiting-input'] {
+  background: var(--status-waiting-input);
+}
+
+.crew-card-dot[data-status='waiting-approval'] {
+  background: var(--status-waiting-approval);
+  animation: status-pulse 1.6s ease-in-out infinite;
+}
+
+.crew-card-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--fg);
+}
+
+.crew-card-agent,
+.crew-card-lc {
+  flex: 0 0 auto;
+  padding: 0 4px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+}
+
+.crew-card-state {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.crew-card-report {
+  flex: 0 0 auto;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.crew-card-agent[hidden],
+.crew-card-lc[hidden],
+.crew-card-report[hidden],
+.crew-card-btn[hidden] {
+  display: none;
+}
+
+.crew-card-line,
+.crew-card-sent,
+.crew-card-rolenote,
+.crew-card-note {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.crew-card-line {
+  font-family: 'Cascadia Mono', Consolas, monospace;
+  font-size: 10px;
+}
+
+.crew-card-sent {
+  font-style: italic;
+}
+
+.crew-card-note {
+  color: #d29922;
+}
+
+/* A fact about how the role reached the agent, not a problem: muted. */
+.crew-card-rolenote {
+  font-size: 10px;
+  color: var(--fg-muted);
+}
+
+.crew-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 2px;
+}
+
+.crew-card-approve {
+  color: var(--status-working);
+  border-color: var(--status-working);
+}
+
+.crew-card-btn.on {
+  border-color: var(--accent);
+}
+
+.crew-card-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 18px;
+  padding: 0 5px;
+  font: inherit;
+  font-size: 11px;
+  color: var(--fg);
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  outline: none;
+}
+
+.crew-card-input:focus {
+  border-color: hsl(var(--crew-hue, 210) 60% 55%);
+}
+
+/* The lead-to-worker lines, over the whole tab. Under the focus ring and the
+   drop outline (z-index 3 and 4), and never in the way of a click. Hidden for
+   a divider drag, when they would point at where the panes used to be. */
+.crew-overlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.crew-overlay line {
+  stroke: hsl(var(--crew-hue, 210) 65% 60%);
+  stroke-width: 1px;
+  stroke-dasharray: 4 6;
+  opacity: 0.45;
+}
+
+/* A worker mid-turn: its line marches, lead to worker. */
+.crew-overlay line.working {
+  opacity: 0.7;
+  animation: crew-link-march 1s linear infinite;
+}
+
+@keyframes crew-link-march {
+  to {
+    stroke-dashoffset: -10;
+  }
+}
+
+.tab-view.gutter-drag .crew-overlay {
+  display: none;
 }
 
 /* Fan-out asks three things at once, so it needs more room than a one-line
@@ -980,10 +1409,15 @@ body.tab-dragging * {
   margin-bottom: 6px;
 }
 
+/* Ten rows tall, then it scrolls: 10 × 26px rows + 9 × 4px gaps. */
 .shortcuts-list {
+  --shortcuts-row-h: 26px;
   display: flex;
   flex-direction: column;
   gap: 4px;
+  max-height: calc(10 * var(--shortcuts-row-h) + 9 * 4px);
+  overflow-y: auto;
+  padding-right: 2px;
 }
 
 .shortcuts-empty {
@@ -993,12 +1427,16 @@ body.tab-dragging * {
 }
 
 .shortcuts-row {
+  flex: 0 0 var(--shortcuts-row-h);
+  height: var(--shortcuts-row-h);
   display: flex;
   gap: 4px;
   align-items: center;
 }
 
 .shortcuts-row input {
+  box-sizing: border-box;
+  height: var(--shortcuts-row-h);
   font: inherit;
   font-size: 12px;
   color: var(--fg);
@@ -1025,6 +1463,127 @@ body.tab-dragging * {
 .shortcuts-target {
   flex: 1;
   min-width: 0;
+}
+
+/* A folder still following the name: quieter, so it reads as "filled in for you". */
+.shortcuts-row input.shortcuts-target.auto {
+  color: var(--fg-muted);
+  font-style: italic;
+}
+
+.shortcuts-manager {
+  width: 680px;
+}
+
+.shortcuts-row select.shortcuts-category {
+  flex: 0 0 120px;
+  min-width: 0;
+  height: var(--shortcuts-row-h);
+  font: inherit;
+  font-size: 12px;
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0 4px;
+  outline: none;
+}
+
+.shortcuts-row select.shortcuts-category:focus {
+  border-color: var(--accent);
+}
+
+/* ---- Main folder + categories bar (projects) ---- */
+.shortcuts-setup {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.shortcuts-setup-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.shortcuts-setup-label {
+  flex: 0 0 80px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--fg-muted);
+}
+
+.shortcuts-setup-path {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--fg);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.shortcuts-setup-path.muted {
+  color: var(--fg-muted);
+  font-style: italic;
+}
+
+.shortcuts-chips {
+  flex: 1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+  min-width: 0;
+}
+
+.shortcuts-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 11px;
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1px 2px 1px 8px;
+}
+
+.shortcuts-chip button {
+  border: none;
+  background: transparent;
+  color: var(--fg-muted);
+  cursor: pointer;
+  font-size: 11px;
+  width: 16px;
+  height: 16px;
+  border-radius: 8px;
+  padding: 0;
+}
+
+.shortcuts-chip button:hover {
+  background: var(--tab-hover);
+  color: var(--fg);
+}
+
+.shortcuts-cat-input {
+  width: 110px;
+  font: inherit;
+  font-size: 11px;
+  color: var(--fg);
+  background: transparent;
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+  padding: 2px 8px;
+  outline: none;
+}
+
+.shortcuts-cat-input:focus {
+  border-style: solid;
+  border-color: var(--accent);
 }
 
 .shortcuts-icon-btn {
@@ -1171,28 +1730,33 @@ body.tab-dragging * {
 
 /* Minimalist grey scrollbar (no arrows) for modal scroll areas. */
 .about-changelog::-webkit-scrollbar,
-.shortcuts-body::-webkit-scrollbar {
+.shortcuts-body::-webkit-scrollbar,
+.shortcuts-list::-webkit-scrollbar {
   width: 6px;
 }
 
 .about-changelog::-webkit-scrollbar-track,
-.shortcuts-body::-webkit-scrollbar-track {
+.shortcuts-body::-webkit-scrollbar-track,
+.shortcuts-list::-webkit-scrollbar-track {
   background: transparent;
 }
 
 .about-changelog::-webkit-scrollbar-thumb,
-.shortcuts-body::-webkit-scrollbar-thumb {
+.shortcuts-body::-webkit-scrollbar-thumb,
+.shortcuts-list::-webkit-scrollbar-thumb {
   background: #3a3a3a;
   border-radius: 3px;
 }
 
 .about-changelog::-webkit-scrollbar-thumb:hover,
-.shortcuts-body::-webkit-scrollbar-thumb:hover {
+.shortcuts-body::-webkit-scrollbar-thumb:hover,
+.shortcuts-list::-webkit-scrollbar-thumb:hover {
   background: #555555;
 }
 
 .about-changelog::-webkit-scrollbar-button,
-.shortcuts-body::-webkit-scrollbar-button {
+.shortcuts-body::-webkit-scrollbar-button,
+.shortcuts-list::-webkit-scrollbar-button {
   display: none;
 }
 
@@ -1443,6 +2007,22 @@ body.tab-dragging * {
   text-transform: uppercase;
   letter-spacing: 0.04em;
   padding: 8px 6px 4px;
+}
+
+.mission-crew {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px 2px 12px;
+  font-size: 11px;
+  color: hsl(var(--crew-hue, 210) 70% 72%);
+}
+
+.mission-crew-swatch {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  background: hsl(var(--crew-hue, 210) 60% 50%);
 }
 
 .mission-row {
@@ -1934,6 +2514,247 @@ body.tab-dragging * {
   border-color: var(--accent);
 }
 
+/* ---------- Orchestra panel ----------
+   Every crew in the window, docked beside the panes like the git tree and
+   borrowing its header and body. It reuses the strip's worker cards, stacked
+   rather than in a row: the panel is narrow and tall where a strip is wide. */
+#orch-panel {
+  flex: 0 0 280px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-panel);
+  border-left: 1px solid var(--border);
+  overflow: hidden;
+  font-size: 11px;
+  color: var(--fg-muted);
+}
+
+/* The same trap as #git-panel[hidden]: an id selector's display beats the
+   browser's own [hidden] rule, so without this the panel never goes away. */
+#orch-panel[hidden] {
+  display: none;
+}
+
+.orch-clickable {
+  cursor: pointer;
+}
+
+.orch-empty {
+  padding: 12px 10px;
+  line-height: 1.5;
+}
+
+.orch-empty p {
+  margin: 0 0 10px;
+}
+
+.orch-start {
+  padding: 4px 12px;
+  font: inherit;
+  font-size: 12px;
+  color: var(--accent);
+  background: transparent;
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.orch-start:hover {
+  color: var(--fg);
+}
+
+.orch-empty .orch-hint {
+  margin: 10px 0 0;
+}
+
+.orch-crew {
+  padding: 6px 8px 8px;
+  border-bottom: 1px solid var(--border);
+  border-left: 3px solid hsl(var(--crew-hue, 210) 60% 50%);
+}
+
+.orch-crew-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.orch-crew-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 12px;
+  color: hsl(var(--crew-hue, 210) 70% 72%);
+}
+
+.orch-crew-tab {
+  margin-left: auto;
+  flex: 0 0 auto;
+  max-width: 40%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.orch-crew-head.orch-clickable:hover .orch-crew-name {
+  text-decoration: underline;
+}
+
+.orch-crew-meta {
+  margin: 2px 0 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.orch-settings {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 10px;
+  margin-bottom: 6px;
+}
+
+.orch-setting {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.orch-setting input {
+  margin: 0;
+  accent-color: hsl(var(--crew-hue, 210) 60% 55%);
+  cursor: pointer;
+}
+
+.orch-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.orch-cards .crew-card {
+  flex: 0 0 auto;
+}
+
+.orch-none {
+  padding: 2px 0;
+}
+
+.orch-reports {
+  margin-top: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.orch-report {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 4px;
+  border-radius: 4px;
+}
+
+.orch-report:hover {
+  background: var(--bg-raised, rgba(255, 255, 255, 0.04));
+  color: var(--fg);
+}
+
+.orch-report-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--fg);
+}
+
+.orch-report-time {
+  margin-left: auto;
+  flex: 0 0 auto;
+}
+
+.orch-event {
+  display: flex;
+  gap: 6px;
+  padding: 2px 10px;
+  white-space: nowrap;
+  border-left: 3px solid hsl(var(--crew-hue, 210) 60% 50%);
+}
+
+.orch-event.orch-clickable:hover {
+  background: var(--bg-raised, rgba(255, 255, 255, 0.04));
+}
+
+.orch-event-time {
+  flex: 0 0 auto;
+  font-variant-numeric: tabular-nums;
+}
+
+.orch-event-who {
+  flex: 0 0 auto;
+  color: hsl(var(--crew-hue, 210) 70% 72%);
+}
+
+.orch-event-what {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* The report viewer: the file as its author wrote it, not rendered. */
+.report-modal {
+  width: 760px;
+}
+
+.report-header {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 12px 16px 8px;
+  border-bottom: 1px solid var(--border);
+  min-width: 0;
+}
+
+.report-title {
+  flex: 0 0 auto;
+  font-size: 13px;
+  color: var(--fg);
+}
+
+.report-where {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  color: var(--fg-muted);
+}
+
+.report-text {
+  flex: 1 1 auto;
+  margin: 0;
+  padding: 12px 16px;
+  overflow: auto;
+  font-family: 'Cascadia Mono', Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--fg);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+
+.report-note {
+  padding: 6px 16px;
+  font-size: 11px;
+  color: #d29922;
+  border-top: 1px solid var(--border);
+}
+
 /* ---------- Squad dialog ---------- */
 .squad-roles {
   display: flex;
@@ -1962,6 +2783,21 @@ body.tab-dragging * {
   margin-left: auto;
   font-size: 11px;
   color: var(--fg-muted);
+}
+
+.squad-agent {
+  font-size: 11px;
+  background: var(--bg);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 1px 2px;
+}
+
+/* An agent whose command was not found: still pickable, visibly in doubt. */
+.squad-agent option.agent-missing,
+.choice-caveat {
+  opacity: 0.55;
 }
 
 /* A statement of fact about this window, not an error: everything except

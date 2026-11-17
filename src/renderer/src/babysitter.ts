@@ -9,7 +9,9 @@ import { paneStatus } from './store'
  * Safety, by design:
  *  - Opt-in per pane; off by default.
  *  - Only fires on `waiting-input` (the turn genuinely ended). It NEVER acts on
- *    `waiting-approval` — permission prompts always need a human.
+ *    `waiting-approval` — permission prompts always need a human — nor on a
+ *    status estimated from an agent's terminal (source `heuristic`, the ≈):
+ *    quiet is not proof the turn ended, and a guess must not type.
  *  - Caps at MAX_NUDGES consecutive auto-nudges, then stands down until the
  *    user intervenes (types in the pane) or re-toggles it.
  */
@@ -70,7 +72,7 @@ export function toggleBabysitter(paneId: string, on?: boolean): boolean {
   s.on = on ?? !s.on
   s.count = 0
   clearTimer(s)
-  if (s.on && paneStatus.get(paneId)?.status === 'waiting-input') arm(paneId, s)
+  if (s.on && settledTurn(paneId)) arm(paneId, s)
   notify()
   return s.on
 }
@@ -114,17 +116,23 @@ function arm(paneId: string, s: Sitter): void {
     s.timer = null
     if (!s.on || s.count >= MAX_NUDGES) return
     // Re-check: only nudge if still genuinely waiting for input.
-    if (paneStatus.get(paneId)?.status !== 'waiting-input') return
+    if (!settledTurn(paneId)) return
     window.lightclaude.pty.write(paneId, s.nudge + '\r')
     s.count++
     notify()
   }, IDLE_THRESHOLD_MS)
 }
 
+/** Claude says its turn ended. An estimate (≈) never counts. */
+function settledTurn(paneId: string): boolean {
+  const u = paneStatus.get(paneId)
+  return u?.status === 'waiting-input' && u.source !== 'heuristic'
+}
+
 /** Status sink hook — called by app.applyStatus on every transition. */
-export function handleStatusChange(paneId: string, next: PaneStatus): void {
+export function handleStatusChange(paneId: string, next: PaneStatus, estimated = false): void {
   const s = sitters.get(paneId)
   if (!s || !s.on) return
-  if (next === 'waiting-input') arm(paneId, s)
+  if (next === 'waiting-input' && !estimated) arm(paneId, s)
   else clearTimer(s) // working / waiting-approval / idle → stand down
 }

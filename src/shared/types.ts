@@ -5,6 +5,42 @@ export interface PaneNodeRole {
   squadDir: string
 }
 
+/**
+ * Which agent a pane runs, by adapter id ('claude', 'codex', 'gemini', 'shell').
+ * A string rather than a union so a state file written by a later version
+ * still loads; an id nobody knows is treated as no agent named at all.
+ */
+export type AgentKind = string
+
+/**
+ * The crew a pane belongs to: an orchestra lead and the workers it drives.
+ *
+ * Linked by a crew id and a handle, never by pane id. Pane ids are minted
+ * afresh on every restart (see regenPaneIds), so a link stored as one would
+ * point at nothing the next morning; an id and a handle on each member's own
+ * node come back with the node and need no remapping at all.
+ */
+export interface PaneNodeCrew {
+  /** Stable across restarts. Every member of one crew carries the same id. */
+  id: string
+  /** How the crew addresses this pane: `lc send @developer …`. Unique per crew. */
+  handle: string
+  /** The pane conducting. One per crew; normaliseCrews settles any dispute. */
+  lead?: true
+  /** The lead's worker strip is folded to one line. */
+  stripCollapsed?: true
+}
+
+/** What the person has allowed a crew, set from the Orchestra panel. */
+export interface CrewSettings {
+  /** The lead may answer its workers' permission prompts with `lc approve`. */
+  leadMayApprove?: boolean
+  /** Driving outside the crew is refused rather than warned about. */
+  strict?: boolean
+  /** The lead's commands to its workers are held. */
+  paused?: boolean
+}
+
 export type Orientation = 'row' | 'column'
 
 export interface PaneNode {
@@ -23,6 +59,10 @@ export interface PaneNode {
    * the agent has never been told, and nothing on screen disagrees.
    */
   role?: PaneNodeRole
+  /** The orchestra this pane conducts or plays in. Absent: an ordinary pane. */
+  crew?: PaneNodeCrew
+  /** The agent this pane was opened for. Absent: whatever the user types. */
+  agent?: AgentKind
 }
 
 export interface SplitNode {
@@ -65,12 +105,21 @@ export interface PersistedState {
    * "in sync" about a remote it last saw yesterday is worse than one that asks.
    */
   gitAutoFetch?: boolean
+  /** Orchestra panel docked open. Absent means closed. */
+  orchPanelOpen?: boolean
+  /**
+   * Per-crew permissions, keyed by crew id. Absent, or absent for a crew, means
+   * every setting off — the defaults are the cautious ones.
+   */
+  crewSettings?: Record<string, CrewSettings>
 }
 
 /** `function <name> { Set-Location -LiteralPath '<path>' }` */
 export interface PathShortcut {
   name: string
   path: string
+  /** Grouping label; also the sub-folder under `projectRoot` for new projects. */
+  category?: string
 }
 
 /** `function <name> { $env:CLAUDE_CONFIG_DIR = '<dir>'; & claude.exe @args }` */
@@ -83,12 +132,20 @@ export interface ShortcutsConfig {
   version: 1
   paths: PathShortcut[]
   accounts: AccountShortcut[]
+  /** Main projects folder. Optional: without it every path is typed by hand. */
+  projectRoot?: string
+  /** Project categories, each a sub-folder of `projectRoot`. */
+  categories?: string[]
 }
 
 export interface ShortcutsSaveResult {
   ok: boolean
   profilesWritten: string[]
   errors: string[]
+  /** Folders that did not exist and were created on save. */
+  created?: string[]
+  /** Non-blocking problems (a folder that could not be created, …). */
+  warnings?: string[]
 }
 
 export interface ShortcutsImportResult {
