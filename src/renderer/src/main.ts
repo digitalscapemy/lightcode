@@ -5,7 +5,7 @@ import { initAboutUi } from './about'
 import { isBabysitterOn, onBabysitterChange, toggleBabysitter } from './babysitter'
 import { noteCrewOutput } from './crewStrip'
 import { closeTabWithWorktrees, openFanOut } from './fanOutUi'
-import { MOD_LABEL, initShortcuts } from './keys'
+import { initShortcuts } from './keys'
 import { initLc } from './lcHandlers'
 import { initGitTree, toggleGitTree } from './gitTree'
 import { initLayoutPicker } from './layoutPicker'
@@ -18,21 +18,19 @@ import { initUpdateToast } from './toast'
 import { initTooltips } from './ui/tooltip'
 import { registerCommands, type Command } from './commands'
 import { openPalette, openShortcutHelp, togglePalette } from './palette'
+import { initToolbar } from './toolbar'
 import { flushPersist, notifyStatus, persist, state } from './store'
 import { initTabBar } from './tabbar'
 
 async function boot(): Promise<void> {
   document.body.classList.add(`platform-${window.lightclaude.platform}`)
   // The HTML spells shortcuts the Windows way; rewrite them for macOS. Anything
-  // built in JS should use MOD_LABEL directly instead of relying on this.
+  // built in JS should use keys.ts (MOD_LABEL / shortcutLabel) instead.
   if (window.lightclaude.platform === 'darwin') {
     for (const key of document.querySelectorAll('.empty-card .hint .key')) {
       key.textContent = (key.textContent ?? '').replace('Ctrl', '⌘')
     }
   }
-  document.getElementById('mission-btn')!.title = `Mission Control (${MOD_LABEL}+Shift+M)`
-  document.getElementById('git-btn')!.title = `Git tree (${MOD_LABEL}+Shift+G)`
-  document.getElementById('orch-btn')!.title = `Orchestra (${MOD_LABEL}+Shift+O)`
 
   initTabBar({
     onActivate: (id) => app.activateTab(id),
@@ -142,6 +140,7 @@ async function boot(): Promise<void> {
   })
 
   registerCommands(buildCommands())
+  initToolbar()
 
   document.getElementById('fanout-btn')!.addEventListener('click', () => void openFanOut())
   document.getElementById('squad-btn')!.addEventListener('click', () => void openSquad())

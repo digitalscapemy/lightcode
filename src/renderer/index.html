@@ -18,45 +18,39 @@
           <svg width="10" height="10" viewBox="0 0 10 10"><path d="M2 3.5 L5 6.5 L8 3.5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" /></svg>
         </button>
         <div class="spacer"></div>
-        <button id="version-btn" class="tabbar-btn version-btn" title="About Light Code"></button>
-        <div class="tabbar-divider"></div>
-        <button id="layout-btn" class="tabbar-btn" title="Pane layout">
-          <svg width="12" height="12" viewBox="0 0 12 12"><rect x="0.5" y="0.5" width="11" height="11" rx="1.5" fill="none" stroke="currentColor" stroke-width="1" /><path d="M6 0.5 V11.5 M0.5 6 H11.5" stroke="currentColor" stroke-width="1" /></svg>
+        <!-- The toolbar. Icons, labels and tooltips are filled in by toolbar.ts
+             from the icon set and the command registry, so a button can never
+             describe a shortcut that does not work. Ids are what main.ts and
+             the feature modules bind to. -->
+        <button id="search-btn" class="search-pill" data-tip="Command palette" data-tip-desc="Find any command, tab or project by name">
+          <span class="search-pill-icon" data-icon="search"></span>
+          <span class="search-pill-text">Search or run a command</span>
+          <span class="kbd" data-shortcut="command-palette"></span>
         </button>
-        <div class="tabbar-divider"></div>
-        <button id="fanout-btn" class="tabbar-btn" title="Fan a task out to several agents, each in its own worktree">
-          <svg width="12" height="12" viewBox="0 0 12 12"><path d="M1.5 6 H4 M4 6 C6 6 6 1.5 9 1.5 M4 6 H10.5 M4 6 C6 6 6 10.5 9 10.5" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" /><circle cx="1.5" cy="6" r="1" fill="currentColor" /><circle cx="10.5" cy="1.5" r="1" fill="currentColor" /><circle cx="10.5" cy="6" r="1" fill="currentColor" /><circle cx="10.5" cy="10.5" r="1" fill="currentColor" /></svg>
-        </button>
-        <div class="tabbar-divider"></div>
-        <!-- A squad: one conductor and its players. Distinct from the fan-out
-             icon beside it, which branches one line into three equal ones —
-             here the lines are different lengths because the roles are. -->
-        <button id="squad-btn" class="tabbar-btn" title="Open a squad: an orchestrator directing specialist agents">
-          <svg width="12" height="12" viewBox="0 0 12 12"><circle cx="2" cy="6" r="1.4" fill="currentColor" /><path d="M3.6 6 H6" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" /><path d="M6 6 V2 H10 M6 6 H10 M6 6 V10 H10" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" /><rect x="9.2" y="1.3" width="1.6" height="1.4" fill="currentColor" /><rect x="9.2" y="5.3" width="1.6" height="1.4" fill="currentColor" /><rect x="9.2" y="9.3" width="1.6" height="1.4" fill="currentColor" /></svg>
-        </button>
-        <div class="tabbar-divider"></div>
-        <!-- The git tree: what every branch and worktree is doing right now. -->
-        <button id="git-btn" class="tabbar-btn" title="Git tree (Ctrl+Shift+G)">
-          <svg width="12" height="12" viewBox="0 0 12 12"><path d="M3 2.5 V9.5 M3 5 H7 A2 2 0 0 1 9 7 V8" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" /><circle cx="3" cy="1.8" r="1.2" fill="none" stroke="currentColor" stroke-width="1" /><circle cx="3" cy="10.2" r="1.2" fill="none" stroke="currentColor" stroke-width="1" /><circle cx="9" cy="9" r="1.2" fill="none" stroke="currentColor" stroke-width="1" /></svg>
-        </button>
-        <div class="tabbar-divider"></div>
-        <!-- The Orchestra panel: every crew in the window, its cards and its
-             reports. A note with its stem, for the one who conducts. -->
-        <button id="orch-btn" class="tabbar-btn" title="Orchestra (Ctrl+Shift+O)">
-          <svg width="12" height="12" viewBox="0 0 12 12"><ellipse cx="3.6" cy="9.4" rx="2.1" ry="1.6" fill="none" stroke="currentColor" stroke-width="1" /><path d="M5.7 9.2 V1.5 C7.2 2.6 9.6 3.2 10 5.2" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" /></svg>
-        </button>
-        <div class="tabbar-divider"></div>
-        <button id="mission-btn" class="tabbar-btn" title="Mission Control (Ctrl+Shift+M)">
-          <svg width="12" height="12" viewBox="0 0 12 12"><circle cx="6" cy="6" r="5" fill="none" stroke="currentColor" stroke-width="1" /><circle cx="6" cy="6" r="2" fill="none" stroke="currentColor" stroke-width="1" /><path d="M6 1 V3 M6 9 V11 M1 6 H3 M9 6 H11" stroke="currentColor" stroke-width="1" /></svg>
-        </button>
-        <div class="tabbar-divider"></div>
-        <button id="projects-btn" class="tabbar-btn" title="Project shortcuts">
-          <svg width="11" height="11" viewBox="0 0 11 11"><path d="M6.5 0.5 L2 6.5 H5 L4.5 10.5 L9 4.5 H6 Z" fill="none" stroke="currentColor" stroke-width="1" stroke-linejoin="round" /></svg>
-        </button>
-        <button id="accounts-btn" class="tabbar-btn" title="Claude accounts">
-          <svg width="12" height="12" viewBox="0 0 12 12"><circle cx="6" cy="4" r="2.2" fill="none" stroke="currentColor" stroke-width="1" /><path d="M1.8 10.5 c0.6 -2.4 2.4 -3.4 4.2 -3.4 s3.6 1 4.2 3.4" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" /></svg>
-        </button>
-        <div class="tabbar-divider"></div>
+        <div class="tb-group" role="group" aria-label="Layout">
+          <button id="layout-btn" class="tabbar-btn" data-icon="layout" data-command="layout"></button>
+        </div>
+        <div class="tb-group tb-agents" role="group" aria-label="Agents">
+          <button id="fanout-btn" class="tabbar-btn tb-labelled" data-icon="fanOut" data-label="Fan-out" data-command="fan-out"
+            data-desc="One task, several agents, each in its own worktree"></button>
+          <button id="squad-btn" class="tabbar-btn tb-labelled" data-icon="squad" data-label="Squad" data-command="squad"
+            data-desc="An orchestrator directing developer, reviewer, devops and security roles"></button>
+          <button id="orch-btn" class="tabbar-btn tb-labelled" data-icon="orchestra" data-label="Orchestra" data-command="orchestra"
+            data-desc="Every lead and its workers, their state and reports" data-panel="orch-panel"></button>
+        </div>
+        <div class="tb-group" role="group" aria-label="Panels">
+          <button id="git-btn" class="tabbar-btn" data-icon="worktrees" data-command="worktrees"
+            data-desc="Every branch and worktree, and which pane is in it" data-panel="git-panel"></button>
+          <button id="mission-btn" class="tabbar-btn" data-icon="mission" data-command="mission"
+            data-desc="All Claude sessions at once; broadcast to many"></button>
+        </div>
+        <div class="tb-group" role="group" aria-label="Setup">
+          <button id="projects-btn" class="tabbar-btn" data-icon="projects" data-command="projects"
+            data-desc="Named folders you can jump to from any pane"></button>
+          <button id="accounts-btn" class="tabbar-btn" data-icon="accounts" data-command="accounts"
+            data-desc="Several Claude logins, one per config folder"></button>
+        </div>
+        <button id="version-btn" class="tabbar-btn version-btn" data-tip="About Light Code" data-tip-desc="Version, what is new, check for updates"></button>
         <div id="win-controls">
           <button id="win-min" title="Minimize">
             <svg width="10" height="10" viewBox="0 0 10 10"><rect y="4.5" width="10" height="1" fill="currentColor" /></svg>

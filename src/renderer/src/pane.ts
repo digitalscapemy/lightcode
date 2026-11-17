@@ -6,7 +6,8 @@ import { openTerminalLink, webLinkProvider } from './terminalLinks'
 import { isBabysitterOn, toggleBabysitter } from './babysitter'
 import { promptDialog } from './confirmDialog'
 import { dismissCoexist, isCoexistDismissed } from './coexist'
-import { MOD_LABEL, isAppShortcut } from './keys'
+import { MOD_LABEL, isAppShortcut, shortcutLabel, type ShortcutAction } from './keys'
+import { icon, type IconName } from './ui/icons'
 import { lastMeaningfulLine } from './lcPolicy'
 import { shellArgs } from './paths'
 import { state } from './store'
@@ -32,6 +33,12 @@ interface MenuItem {
   label: string
   action: () => void
   disabled?: boolean
+  /** Shown in front of the label. */
+  icon?: IconName
+  /** Its shortcut, shown at the end so the menu teaches the key. */
+  shortcut?: ShortcutAction
+  /** Draw a line above this item. */
+  separatorBefore?: boolean
 }
 
 /** What the pane menu can ask of a pane's crew. The app decides which apply. */
@@ -452,17 +459,32 @@ export class TerminalPane {
     }
     this.openMenu(
       [
-        { label: 'Rename', action: () => this.beginRename() },
-        { label: 'Add Right', action: () => this.callbacks.onSplit(this.id, 'row', false) },
-        { label: 'Add Left', action: () => this.callbacks.onSplit(this.id, 'row', true) },
-        { label: 'Add Above', action: () => this.callbacks.onSplit(this.id, 'column', true) },
-        { label: 'Add Below', action: () => this.callbacks.onSplit(this.id, 'column', false) },
+        { label: 'Rename', icon: 'rename', action: () => this.beginRename() },
+        {
+          label: 'Split Right',
+          icon: 'splitRight',
+          shortcut: 'split-right',
+          separatorBefore: true,
+          action: () => this.callbacks.onSplit(this.id, 'row', false)
+        },
+        {
+          label: 'Split Down',
+          icon: 'splitDown',
+          shortcut: 'split-down',
+          action: () => this.callbacks.onSplit(this.id, 'column', false)
+        },
+        { label: 'Split Left', action: () => this.callbacks.onSplit(this.id, 'row', true) },
+        { label: 'Split Up', action: () => this.callbacks.onSplit(this.id, 'column', true) },
         {
           label: this.callbacks.isMaximized(this.id) ? 'Restore Pane' : 'Maximize Pane',
+          icon: 'maximize',
+          shortcut: 'pane-maximize',
+          separatorBefore: true,
           action: () => this.callbacks.onToggleMaximize(this.id)
         },
         {
           label: isBabysitterOn(this.id) ? 'Auto-continue: On' : 'Auto-continue: Off',
+          icon: 'repeat',
           action: () => void toggleBabysitter(this.id)
         },
         // Only offered where it means something. A pane outside a repository has
@@ -472,6 +494,8 @@ export class TerminalPane {
           ? [
               {
                 label: 'Open Worktree…',
+                icon: 'worktrees' as IconName,
+                separatorBefore: true,
                 action: () => void this.openWorktree()
               }
             ]
@@ -484,8 +508,10 @@ export class TerminalPane {
               }
             ]
           : []),
-        ...(this.callbacks.crewMenu?.(this.id) ?? []).map(({ label, action }) => ({
+        ...(this.callbacks.crewMenu?.(this.id) ?? []).map(({ label, action }, i) => ({
           label,
+          icon: i === 0 ? ('orchestra' as IconName) : undefined,
+          separatorBefore: i === 0,
           action: () => this.callbacks.onCrewAction?.(this.id, action)
         }))
       ],
@@ -570,10 +596,27 @@ export class TerminalPane {
     this.closeMenu()
     const menu = document.createElement('div')
     menu.className = 'pane-menu'
-    for (const { label, action, disabled } of items) {
+    for (const { label, action, disabled, icon: iconName, shortcut, separatorBefore } of items) {
+      if (separatorBefore && menu.childElementCount > 0) {
+        const sep = document.createElement('div')
+        sep.className = 'pane-menu-sep'
+        menu.appendChild(sep)
+      }
       const item = document.createElement('button')
       item.className = 'pane-menu-item'
-      item.textContent = label
+      const ic = document.createElement('span')
+      ic.className = 'mi-icon'
+      if (iconName) ic.innerHTML = icon(iconName, 14) // constant SVG only
+      const text = document.createElement('span')
+      text.className = 'mi-label'
+      text.textContent = label
+      item.append(ic, text)
+      if (shortcut) {
+        const k = document.createElement('span')
+        k.className = 'kbd'
+        k.textContent = shortcutLabel(shortcut)
+        item.appendChild(k)
+      }
       if (disabled) {
         item.disabled = true
       } else {

@@ -354,6 +354,8 @@ textarea.field {
 #add-tab,
 .tabbar-btn,
 .tabbar-btn *,
+.search-pill,
+.search-pill *,
 #win-controls,
 #win-controls * {
   -webkit-app-region: no-drag;
@@ -547,27 +549,121 @@ body.tab-dragging * {
   -webkit-app-region: no-drag;
 }
 
+/* Toolbar buttons: compact, rounded, grouped by what they are for. */
 .tabbar-btn {
-  width: 34px;
+  align-self: center;
+  height: 28px;
+  min-width: 28px;
   border: none;
+  border-radius: var(--radius-md);
   background: transparent;
   color: var(--fg-muted);
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: 6px;
   cursor: pointer;
-  padding: 0;
+  padding: 0 6px;
+  font: inherit;
+  font-size: var(--fs-sm);
+  transition:
+    background var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease);
 }
 
 .tabbar-btn:hover {
-  background: var(--tab-hover);
+  background: var(--bg-hover);
   color: var(--fg);
 }
 
+/* A panel that is open keeps its button pressed. */
+.tabbar-btn.on {
+  background: var(--accent-soft);
+  color: var(--accent-hover);
+}
+
+.tb-group {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: var(--space-2);
+}
+
+/* Words beside the agent icons, when there is room for them. */
+.tb-label {
+  display: none;
+}
+
+@media (min-width: 1180px) {
+  .tb-labelled {
+    padding: 0 var(--space-2);
+  }
+
+  .tb-labelled .tb-label {
+    display: inline;
+  }
+}
+
+/* The way into everything: opens the command palette. */
+.search-pill {
+  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: 28px;
+  width: 260px;
+  min-width: 0;
+  flex: 0 1 260px;
+  margin-left: var(--space-3);
+  padding: 0 var(--space-1) 0 var(--space-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--bg);
+  color: var(--fg-subtle);
+  font: inherit;
+  font-size: var(--fs-sm);
+  cursor: pointer;
+  transition:
+    border-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease);
+  -webkit-app-region: no-drag;
+}
+
+.search-pill:hover {
+  border-color: var(--fg-subtle);
+  color: var(--fg-muted);
+}
+
+.search-pill-icon {
+  display: inline-flex;
+}
+
+.search-pill-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+}
+
+/* Narrow windows keep just the icon and the key. */
+@media (max-width: 900px) {
+  .search-pill {
+    width: auto;
+    flex: 0 0 auto;
+  }
+
+  .search-pill-text {
+    display: none;
+  }
+}
+
 .version-btn {
-  width: auto;
-  padding: 0 10px;
-  font-size: 11px;
+  margin-left: var(--space-3);
+  padding: 0 var(--space-2);
+  color: var(--fg-subtle);
+  font-size: var(--fs-xs);
   font-family: var(--font-mono);
 }
 
