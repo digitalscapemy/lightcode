@@ -4133,3 +4133,143 @@ body.page-hidden .lc-logo-animated {
   font-family: var(--font-mono);
   font-size: var(--fs-xs);
 }
+
+/* ---------- Token usage (usageView.ts) ---------- */
+
+.usage-modal {
+  width: 680px;
+}
+
+.usage-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.usage-empty {
+  padding: var(--space-5);
+  text-align: center;
+  color: var(--fg-muted);
+}
+
+.usage-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--bg);
+}
+
+.usage-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.usage-head > div:first-child {
+  min-width: 0;
+}
+
+.usage-name {
+  font-weight: 600;
+  color: var(--fg);
+}
+
+.usage-dir {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--fg-subtle);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+}
+
+.usage-when {
+  flex: 0 0 auto;
+  color: var(--fg-subtle);
+  font-size: var(--fs-sm);
+}
+
+.usage-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+.usage-stat-label {
+  color: var(--fg-subtle);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.usage-stat-value {
+  margin-top: 2px;
+  color: var(--fg);
+  font-size: 22px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.usage-stat-sub {
+  color: var(--fg-muted);
+  font-size: var(--fs-sm);
+}
+
+.usage-chart {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: var(--space-2);
+  height: 92px;
+}
+
+.usage-col {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.usage-track {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: flex-end;
+  border-radius: var(--radius-sm);
+  background: var(--bg-raised);
+  overflow: hidden;
+}
+
+.usage-bar {
+  width: 100%;
+  background: var(--border-strong);
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+}
+
+.usage-col.today .usage-bar {
+  background: var(--accent);
+}
+
+.usage-col-label {
+  text-align: center;
+  color: var(--fg-subtle);
+  font-size: var(--fs-xs);
+}
+
+.usage-col.today .usage-col-label {
+  color: var(--fg);
+}
+
+.usage-note {
+  color: var(--fg-subtle);
+  font-size: var(--fs-sm);
+  line-height: 1.5;
+}
+
+.usage-updated {
+  color: var(--fg-subtle);
+  font-size: var(--fs-sm);
+}

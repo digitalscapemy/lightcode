@@ -49,6 +49,8 @@ const P = {
   maximize: '<path d="M9.5 2.5h4v4M6.5 13.5h-4v-4M13.5 2.5L9 7M2.5 13.5L7 9"/>',
   rename: '<path d="M10.5 2.75l2.75 2.75L6 12.75 2.75 13.25 3.25 10z"/>',
   external: '<path d="M9 2.5h4.5V7M13.5 2.5L7.5 8.5M11.5 9.5v3a1 1 0 0 1-1 1h-7a1 1 0 0 1-1-1v-7a1 1 0 0 1 1-1h3"/>',
+  /** Token usage: bars of different heights. */
+  usage: '<path d="M3 13V9M6.5 13V5M10 13V7.5M13.5 13V3"/>',
   sparkle: '<path d="M8 2v3M8 11v3M2 8h3M11 8h3M4 4l2 2M10 10l2 2M12 4l-2 2M6 10l-2 2"/>'
 } as const
 

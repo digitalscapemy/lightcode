@@ -46,6 +46,7 @@ export function initToolbar(): void {
   }
 
   document.getElementById('search-btn')?.addEventListener('click', () => void openPalette())
+  document.getElementById('usage-btn')?.addEventListener('click', () => byId.get('usage')?.run())
   const search = document.getElementById('search-btn')
   if (search) {
     const key = shortcutLabel('command-palette')

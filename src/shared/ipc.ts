@@ -8,6 +8,7 @@ import type {
 } from './types'
 import type { PermissionCheck, SystemPage } from './guides'
 import type { ToolStatus } from './tools'
+import type { AccountUsage } from './accountUsage'
 
 export const IPC = {
   PtySpawn: 'pty:spawn',
@@ -32,6 +33,7 @@ export const IPC = {
   OpenExternal: 'app:open-external',
   ToolsCheck: 'tools:check',
   PermissionsCheck: 'permissions:check',
+  AccountUsage: 'usage:accounts',
   OpenSystemPage: 'app:open-system-page',
   AppVersion: 'app:version',
   RendererReady: 'app:renderer-ready',
@@ -496,6 +498,8 @@ export interface LightClaudeApi {
   checkTools(): Promise<ToolStatus[]>
   /** What Light Code may write, and what it needs installed. */
   checkPermissions(): Promise<PermissionCheck[]>
+  /** Token usage per Claude account, today and the last 7 days. */
+  accountUsage(): Promise<AccountUsage[]>
   /** Open one of a fixed set of OS settings pages, for a guide step. */
   openSystemPage(page: SystemPage): void
   appVersion(): Promise<string>

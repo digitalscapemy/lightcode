@@ -45,6 +45,7 @@ import { UsageWatcher } from './usageWatcher'
 import { checkTools } from './toolCheck'
 import { systemPageUri } from '../shared/guides'
 import { checkPermissions } from './permissionCheck'
+import { accountUsage } from './accountUsage'
 
 // Keep the pre-rename app name so userData stays %APPDATA%\lightclaude —
 // renaming it would silently abandon existing state.json and shortcuts.json.
@@ -117,6 +118,7 @@ function registerIpc(): void {
     if (isSafeExternalUrl(url)) void shell.openExternal(url)
   })
   ipcMain.handle(IPC.PermissionsCheck, () => checkPermissions())
+  ipcMain.handle(IPC.AccountUsage, () => accountUsage())
   ipcMain.handle(IPC.ToolsCheck, async () => {
     const result = await checkTools()
     resetAgentAvailability() // the pickers should see a fresh install too
