@@ -1289,30 +1289,48 @@ body.tab-dragging * {
 /* Fan-out asks three things at once, so it needs more room than a one-line
    prompt and a little structure between the fields. */
 .fanout-modal {
-  min-width: 420px;
+  width: 520px;
 }
 
+/* Section titles inside Fan-out and Squad: quiet, consistent. */
+.fanout-modal .confirm-text > div:not([class]),
 .fanout-label {
-  margin-top: 14px;
+  margin-top: var(--space-4);
+  color: var(--fg-muted);
+  font-size: var(--fs-sm);
+  font-weight: 600;
 }
 
+.fanout-modal .confirm-text > div:not([class]):first-child {
+  margin-top: 0;
+}
+
+/* Agent count and mode: a segmented control, one choice lit. */
 .fanout-counts {
-  display: flex;
-  gap: 6px;
-  margin-top: 8px;
+  display: inline-flex;
+  gap: 2px;
+  margin-top: var(--space-2);
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg);
 }
 
 .fanout-count {
   flex: 0 0 auto;
   min-width: 40px;
-  padding: 5px 0;
+  height: 26px;
+  padding: 0;
   font: inherit;
-  font-size: 13px;
+  font-size: var(--fs-md);
   color: var(--fg-muted);
   background: transparent;
-  border: 1px solid var(--border);
-  border-radius: 4px;
+  border: none;
+  border-radius: var(--radius-sm);
   cursor: pointer;
+  transition:
+    background var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease);
 }
 
 .fanout-count:hover {
@@ -1320,8 +1338,8 @@ body.tab-dragging * {
 }
 
 .fanout-count.active {
-  color: var(--accent);
-  border-color: var(--accent);
+  color: var(--fg);
+  background: var(--bg-active);
 }
 
 /* Two choices rather than a count, so they get room to say what they are. */
@@ -1334,15 +1352,20 @@ body.tab-dragging * {
 /* Says what the button is about to do to the filesystem. Muted, because it is a
    consequence to notice rather than a warning to argue with. */
 .fanout-cost {
-  margin-top: 12px;
-  font-size: 11px;
+  margin-top: var(--space-4);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--bg);
+  font-size: var(--fs-sm);
   color: var(--fg-muted);
 }
 
 .fanout-prompt {
+  height: auto;
   resize: vertical;
-  min-height: 58px;
-  line-height: 1.4;
+  min-height: 72px;
+  padding: var(--space-2);
+  line-height: 1.45;
 }
 
 .prompt-input {
@@ -3847,4 +3870,69 @@ body.page-hidden .lc-logo-animated {
     animation: none !important;
     stroke-dashoffset: 0;
   }
+}
+
+/* ---------- Fan-out / Squad dialog polish ---------- */
+
+/* Tighter rhythm: a section title sits close to what it labels. */
+.fanout-modal .shortcuts-body {
+  gap: var(--space-2);
+}
+
+.fanout-modal .prompt-input {
+  margin-top: 0;
+  flex: 0 0 auto;
+}
+
+/* Choices sized to their content, not stretched across the dialog. */
+.fanout-counts {
+  align-self: flex-start;
+}
+
+.squad-roles {
+  gap: 2px;
+  margin: 0;
+  padding: var(--space-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg);
+}
+
+.squad-role {
+  min-height: 32px;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-sm);
+  font-size: var(--fs-md);
+}
+
+.squad-role:hover {
+  background: var(--bg-hover);
+}
+
+.squad-role input[type='checkbox'] {
+  accent-color: var(--accent);
+}
+
+.squad-agent {
+  height: 24px;
+  padding: 0 var(--space-1);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--bg-raised);
+  color: var(--fg);
+  font: inherit;
+  font-size: var(--fs-sm);
+  color-scheme: dark;
+}
+
+/* Role rows stay on one line; the note gives way first. */
+.squad-role {
+  font-size: var(--fs-sm);
+  white-space: nowrap;
+}
+
+.squad-role-note {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
 }

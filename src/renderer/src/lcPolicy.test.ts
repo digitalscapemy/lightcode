@@ -215,7 +215,7 @@ describe('sendExpectsReply', () => {
     expect(expects({ status: undefined, expecting: true })).toBe(true)
   })
 
-  it('expects nothing without Enter — nothing was submitted', () => {
+  it('expects nothing without Enter, nothing was submitted', () => {
     expect(expects({ enter: false, status: 'waiting-input' })).toBe(false)
   })
 
@@ -276,7 +276,7 @@ describe('interruptKeystroke', () => {
 describe('lastMeaningfulLine', () => {
   it("skips a TUI's furniture to the last line that says something", () => {
     const screen = [
-      '⏺ Edited src/auth.ts — 3 additions',
+      '⏺ Edited src/auth.ts, 3 additions',
       '',
       '✻ Reticulating… (12s · esc to interrupt)',
       '╭──────────────────────────────╮',

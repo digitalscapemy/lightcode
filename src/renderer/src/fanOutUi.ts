@@ -13,6 +13,7 @@ import { expectingAgent, newId, pendingCommand, state } from './store'
 import { askRemove, removeAll, worktreesInTab } from './worktrees'
 import { paneNodes } from './splitTree'
 import type { LayoutNode } from '../../shared/types'
+import { modalHeader } from './ui/modal'
 
 
 /**
@@ -108,7 +109,7 @@ function askFanOut(): Promise<FanOutRequest | null> {
     body.className = 'shortcuts-body confirm-text'
 
     const taskLabel = document.createElement('div')
-    taskLabel.textContent = 'Task name — each agent gets a branch from it'
+    taskLabel.textContent = 'Task name, each agent gets a branch from it'
     const task = document.createElement('input')
     task.className = 'prompt-input'
     task.placeholder = 'auth-refactor'
@@ -136,7 +137,7 @@ function askFanOut(): Promise<FanOutRequest | null> {
 
     const promptLabel = document.createElement('div')
     promptLabel.className = 'fanout-label'
-    promptLabel.textContent = 'Prompt — sent to every agent'
+    promptLabel.textContent = 'Prompt, sent to every agent'
     const prompt = document.createElement('textarea')
     prompt.className = 'prompt-input fanout-prompt'
     prompt.rows = 3
@@ -198,7 +199,15 @@ function askFanOut(): Promise<FanOutRequest | null> {
     const accept = document.createElement('button')
     accept.className = 'shortcuts-primary'
     footer.append(cancel, accept)
-    modal.append(body, footer)
+    modal.append(
+      modalHeader({
+        title: 'Fan-out',
+        subtitle: 'One task, several agents, each on its own branch. Keep the best answer.',
+        icon: 'fanOut'
+      }),
+      body,
+      footer
+    )
     overlay.appendChild(modal)
 
     let settled = false
@@ -218,7 +227,7 @@ function askFanOut(): Promise<FanOutRequest | null> {
       const stem = task.value.trim() || 'task'
       const names = branchNamesFor(stem, count)
       cost.textContent =
-        `${count} worktrees beside the repo — ${names[0]} … ${names[names.length - 1]}` +
+        `${count} worktrees beside the repo: ${names[0]} … ${names[names.length - 1]}` +
         (plan ? ' · planning only, no files changed' : '')
       accept.textContent = `Fan out to ${count}`
       accept.disabled = task.value.trim() === '' || prompt.value.trim() === '' || issue !== null
@@ -261,7 +270,7 @@ function askFanOut(): Promise<FanOutRequest | null> {
 export async function openFanOut(): Promise<void> {
   const cwd = currentRepoCwd()
   if (cwd === null) {
-    await alertDialog('Open a pane inside a git repository first — a fan-out needs somewhere to branch from.')
+    await alertDialog('Open a pane inside a git repository first, a fan-out needs somewhere to branch from.')
     return
   }
   const req = await askFanOut()

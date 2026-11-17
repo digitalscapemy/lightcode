@@ -59,7 +59,7 @@ function announce(version: string): void {
   if (!Notification.isSupported()) return
 
   const note = new Notification({
-    title: `Update available — v${version}`,
+    title: `Update available: v${version}`,
     body: 'Open Light Code to see what changed and install it.'
   })
   note.on('click', () => {

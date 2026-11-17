@@ -150,7 +150,7 @@ export async function removeAll(found: Worktree[]): Promise<string[]> {
     notes.push(
       `Kept ${keptWorktree.length} worktree${keptWorktree.length === 1 ? '' : 's'} still ` +
         `holding edits or untracked files: ${keptWorktree.join(', ')}. Remove one from its own ` +
-        'pane menu if you meant to discard it — that is where it names what it deletes.'
+        'pane menu if you meant to discard it, that is where it names what it deletes.'
     )
   }
   if (keptBranch.length > 0) {

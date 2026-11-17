@@ -414,7 +414,7 @@ class Card implements WorkerCard {
     const roleOnce = this.worker.role !== null && adapter?.rolePromptVia === 'first-message' && adapter.bin !== ''
     this.roleNoteEl.hidden = !roleOnce
     if (roleOnce) {
-      this.roleNoteEl.textContent = 'role given in its first message — /clear forgets it'
+      this.roleNoteEl.textContent = 'role given in its first message, /clear forgets it'
       this.roleNoteEl.title =
         `${adapter.label} has no wrapper to re-apply the role at every launch, so it was told it once.`
     }
@@ -424,7 +424,7 @@ class Card implements WorkerCard {
     this.stateEl.textContent = exited
       ? 'exited'
       : restored
-        ? 'restored — agent not running'
+        ? 'restored, agent not running'
         : !status
           ? 'no agent'
           : (estimated ? '≈ ' : '') +
@@ -465,9 +465,9 @@ class Card implements WorkerCard {
     this.babyBtn.textContent = on && count > 0 ? `🤖 ${count}` : '🤖'
     this.babyBtn.title = on
       ? babysitterCapped(id)
-        ? 'Babysitter paused — nudge limit reached; type in the pane to resume'
-        : 'Auto-continue ON — click to disable'
-      : 'Auto-continue OFF — click to keep the agent going when it finishes'
+        ? 'Babysitter paused, nudge limit reached; type in the pane to resume'
+        : 'Auto-continue ON, click to disable'
+      : 'Auto-continue OFF, click to keep the agent going when it finishes'
     // It never types on a guess, so say so where the guess is all there is.
     if (estimated) this.babyBtn.title += ' (never acts on an estimated ≈ status)'
   }

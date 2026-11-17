@@ -80,7 +80,7 @@ export function sendGate(o: {
     return {
       allow: false,
       error:
-        `${o.target} is your own pane — sending to it would type into the turn that sent it. ` +
+        `${o.target} is your own pane, sending to it would type into the turn that sent it. ` +
         '`lc ls` marks your pane with an asterisk.'
     }
   }
@@ -101,7 +101,7 @@ export function sendGate(o: {
       allow: false,
       error:
         `${o.target}'s status is only estimated, so a permission prompt there would be invisible ` +
-        `to Light Code — and "${(o.text ?? '').trim() || 'Enter'}" is the kind of reply that ` +
+        `to Light Code, and "${(o.text ?? '').trim() || 'Enter'}" is the kind of reply that ` +
         'would answer one. Start the message with a word that is not y…, n…, a… or a digit ' +
         '(“Please …” works), or add --force if answering is what you mean.'
     }
@@ -385,7 +385,7 @@ export function spawnGate(o: { recent: number[]; now: number; workers: number })
       allow: false,
       error:
         `${inWindow.length} workers were opened in the last ${SPAWN_WINDOW_MS / 1000}s. ` +
-        `Try again in ${wait}s — and check whether the ones you have are doing what you meant.`
+        `Try again in ${wait}s, and check whether the ones you have are doing what you meant.`
     }
   }
   return { allow: true }

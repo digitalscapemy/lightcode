@@ -73,7 +73,7 @@ function openModal(): void {
   if (entry) {
     const head = document.createElement('div')
     head.className = 'about-entry-head'
-    head.textContent = `v${entry.version} — ${entry.date}`
+    head.textContent = `v${entry.version} · ${entry.date}`
     const list = document.createElement('ul')
     list.className = 'about-entry-notes'
     for (const note of entry.notes) {
@@ -105,7 +105,7 @@ function openModal(): void {
         case 'available':
           // The check re-emits update-available, so the toast is back on screen
           // by now even if it had been snoozed — this points at something real.
-          status.textContent = `Update v${r.version} available — see the notification, bottom right.`
+          status.textContent = `Update v${r.version} available, see the notification, bottom right.`
           break
         case 'error':
           status.textContent = `Check failed: ${r.message}`

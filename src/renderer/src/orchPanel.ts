@@ -317,7 +317,7 @@ function leadText(crew: PanelCrew): string {
   if (state.crewSettings[crew.id]?.paused) parts.push('paused')
   const status = paneStatus.get(lead.id)
   if (panes.get(lead.id)?.exited) parts.push('lead exited')
-  else if (!status && restoredQuiet.has(lead.id)) parts.push('restored — agent not running')
+  else if (!status && restoredQuiet.has(lead.id)) parts.push('restored, agent not running')
   else {
     const text = metaText(status?.status, paneUsage.get(lead.id))
     if (text) parts.push(`lead ${text}`)
@@ -377,7 +377,7 @@ async function setLeadMayApprove(crew: PanelCrew, on: boolean): Promise<void> {
     const lead = crew.lead ? (panes.get(crew.lead.id)?.label() ?? 'the lead') : 'the lead'
     const ok = await confirmDialog(
       `Let ${lead} answer its workers' permission prompts? It will be able to say yes to any tool a ` +
-        'worker in this orchestra asks to run — edits, commands, all of it. You can untick this at any time.',
+        'worker in this orchestra asks to run, edits, commands, all of it. You can untick this at any time.',
       'Allow'
     )
     if (!ok) {
@@ -585,7 +585,7 @@ export async function openReport(squadDir: string, name: string): Promise<void> 
   const text = document.createElement('pre')
   text.className = 'report-text'
   text.textContent =
-    got === null ? 'This report could not be read — it may have been moved or deleted since.' : got.text
+    got === null ? 'This report could not be read, it may have been moved or deleted since.' : got.text
   modal.append(header, text)
   if (got?.truncated) {
     const note = document.createElement('div')

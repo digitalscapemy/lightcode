@@ -17,7 +17,7 @@ export function initTabBar(callbacks: TabBarCallbacks): void {
   cb = callbacks
   const add = document.getElementById('add-tab')!
   // The HTML ships the Windows label; macOS gets the glyph it actually uses.
-  add.title = `New terminal tab (${MOD_LABEL}+Shift+T) — right-click to open several`
+  add.title = `New terminal tab (${MOD_LABEL}+Shift+T), right-click to open several`
   add.addEventListener('click', () => cb.onAdd())
 
   // The strip hides its scrollbar, so a mouse wheel (vertical) has to be

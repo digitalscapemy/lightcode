@@ -93,7 +93,7 @@ function build(): void {
     const note = document.createElement('div')
     note.className = 'mission-note'
     note.textContent =
-      'Layout is not being saved — another Light Code window owns it. Everything else works normally.'
+      'Layout is not being saved, another Light Code window owns it. Everything else works normally.'
     header.after(note)
   })
 
@@ -129,8 +129,8 @@ function build(): void {
     lcText.textContent = 'Agent CLI'
     lcBtn.classList.toggle('active', enabled)
     lcBtn.title = enabled
-      ? 'On — an agent can run `lc` and drive other panes. Panes it drives are marked.'
-      : 'Off — `lc` is not listening at all. Click to let agents drive panes.'
+      ? 'On, an agent can run `lc` and drive other panes. Panes it drives are marked.'
+      : 'Off, `lc` is not listening at all. Click to let agents drive panes.'
   }
   // Off until main says otherwise, and main is asked every time this opens —
   // what it reports is whether the socket is actually there, so a listener that
@@ -145,7 +145,7 @@ function build(): void {
       // this the button just refuses to move and looks broken rather than
       // honest.
       if (next && !s.enabled) {
-        lcBtn.title = 'Could not open the socket — the agent CLI is still off.'
+        lcBtn.title = 'Could not open the socket, the agent CLI is still off.'
       }
     })
   })
@@ -235,7 +235,7 @@ function render(): void {
   if (!any) {
     const empty = document.createElement('div')
     empty.className = 'mission-empty'
-    empty.textContent = 'No active Claude sessions yet — run claude in a pane.'
+    empty.textContent = 'No active Claude sessions yet, run claude in a pane.'
     listEl.appendChild(empty)
   }
   updateSend()
@@ -311,9 +311,9 @@ function buildRow(tab: TabState, id: string, now: number): HTMLElement {
   baby.textContent = on ? (count > 0 ? `🤖 ${count}` : '🤖') : '🤖'
   baby.title = on
     ? babysitterCapped(id)
-      ? 'Babysitter paused — nudge limit reached; type in the pane to resume'
-      : 'Auto-continue ON — click to disable'
-    : 'Auto-continue OFF — click to keep Claude going when it finishes'
+      ? 'Babysitter paused, nudge limit reached; type in the pane to resume'
+      : 'Auto-continue ON, click to disable'
+    : 'Auto-continue OFF, click to keep Claude going when it finishes'
   baby.addEventListener('click', (e) => {
     e.stopPropagation()
     toggleBabysitter(id)

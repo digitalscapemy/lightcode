@@ -299,5 +299,5 @@ export const LC_OFF_MESSAGE =
  */
 export const LC_SYSTEM_HINT =
   'You are running inside a Light Code pane. The `lc` command lists and drives ' +
-  'the other panes in this window — run `lc --help` to see what it does. ' +
+  'the other panes in this window, run `lc --help` to see what it does. ' +
   'Never send commands to your own pane; `lc ls` marks it with an asterisk.'

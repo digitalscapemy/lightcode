@@ -27,7 +27,7 @@ const CONTROL = /[\u0000-\u001f\u007f]/
 export function branchNameError(name: string): string | null {
   if (name.trim() === '') return 'Give the branch a name.'
   if (name !== name.trim()) return 'Branch names cannot start or end with a space.'
-  if (/\s/.test(name)) return 'Branch names cannot contain spaces — try dashes.'
+  if (/\s/.test(name)) return 'Branch names cannot contain spaces, try dashes.'
   if (/[~^:?*[\\]/.test(name)) return 'Branch names cannot contain ~ ^ : ? * [ or \\'
   if (CONTROL.test(name)) return 'Branch names cannot contain control characters.'
   if (name.startsWith('-')) return 'Branch names cannot start with a dash.'
@@ -105,6 +105,6 @@ export function pendingWorkWarning(pending: PendingWork): string | null {
   }
   return (
     `${head} The branch keeps every commit, but the untracked ${one ? 'file was' : 'files were'} ` +
-    `never committed to anything — nothing brings ${them} back.`
+    `never committed to anything, nothing brings ${them} back.`
   )
 }

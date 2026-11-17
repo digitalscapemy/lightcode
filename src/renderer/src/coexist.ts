@@ -75,7 +75,7 @@ function warningText(total: number, automated: number): string {
     automated === total
       ? `${total} auto-mode panes share this folder`
       : `${total} panes share this folder, ${automated} on auto`
-  return `${subject} — they can overwrite each other. Give one its own worktree (⋮ → Open Worktree…).`
+  return `${subject}: they can overwrite each other. Give one its own worktree (⋮ → Open Worktree…).`
 }
 
 /**

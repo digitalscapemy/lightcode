@@ -118,7 +118,7 @@ function posixClaudeWrapper(): string {
     '  claude() {',
     '    # Checked here, not when this file was read: the agent CLI switch can be',
     '    # flipped while a pane sits at its prompt, and the socket only exists',
-    '    # while it is on — so its presence IS the switch, read at launch time.',
+    '    # while it is on, so its presence IS the switch, read at launch time.',
     '    if [ -S "$LIGHTCODE_LC_SOCKET" ] && [ -n "$LIGHTCODE_LC_HINT" ]; then',
     '      set -- --append-system-prompt "$LIGHTCODE_LC_HINT" "$@"',
     '    fi',

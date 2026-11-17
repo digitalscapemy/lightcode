@@ -68,7 +68,7 @@ export interface Role {
  */
 export const SQUAD_PREAMBLE =
   'You are one terminal in a Light Code squad working on a single task. ' +
-  'Stay inside your own role: do not do another role\'s job even when you can see it needs doing — ' +
+  'Stay inside your own role: do not do another role\'s job even when you can see it needs doing' +
   'report it instead. When you finish, write your result as markdown to ' +
   '$LIGHTCODE_SQUAD_DIR/reports/<your role id>.md before you stop; that file, not your terminal ' +
   'output, is what the orchestrator reads.'
@@ -88,7 +88,7 @@ export const BUILTIN_ROLES: Role[] = [
     writes: false,
     orchestrator: true,
     prompt:
-      'You are the orchestrator. You do not edit code yourself — you decide what needs doing, ' +
+      'You are the orchestrator. You do not edit code yourself, you decide what needs doing, ' +
       'delegate it to the other panes, and judge what comes back. `lc ls --crew` shows your ' +
       'crew; address a member as @<handle> (quote it in PowerShell). Delegate with ' +
       '`lc ask @<handle> -` and the task on stdin (a heredoc): it waits for the turn to end and ' +
@@ -108,7 +108,7 @@ export const BUILTIN_ROLES: Role[] = [
     prompt:
       'You are the developer. You own the implementation on this branch: write the code, write ' +
       'the tests, keep it building. Match the surrounding code rather than importing a style of ' +
-      'your own. You are the only role that changes application logic — if design, deployment or ' +
+      'your own. You are the only role that changes application logic, if design, deployment or ' +
       'security work is needed, say so in your report and leave it to the role that owns it.'
   },
   {
@@ -129,7 +129,7 @@ export const BUILTIN_ROLES: Role[] = [
     emoji: '🚢',
     writes: true,
     prompt:
-      'You are the devops engineer. You own build, packaging, CI and release plumbing — not ' +
+      'You are the devops engineer. You own build, packaging, CI and release plumbing, not ' +
       'application logic. Keep the build reproducible and the pipeline honest about failure. ' +
       'If a change would alter what ships to users or how they get it, say so explicitly in ' +
       'your report; that is the part nobody else on the squad can see.'
@@ -144,7 +144,7 @@ export const BUILTIN_ROLES: Role[] = [
       'unsafe deserialisation, secrets in source or logs, missing authorisation, and unsafe ' +
       'defaults. For each finding give the file and line, the concrete input or state that ' +
       'triggers it, and the fix. Say clearly when you find nothing rather than padding the ' +
-      'report — a fabricated finding costs the squad more than a short one.'
+      'report, a fabricated finding costs the squad more than a short one.'
   }
 ]
 
@@ -210,7 +210,7 @@ export function roleError(value: unknown): string | null {
     return `Role "${r.id}" needs a prompt saying what it is for.`
   }
   if (typeof r.writes !== 'boolean') {
-    return `Role "${r.id}" needs "writes": true or false — whether it gets its own branch.`
+    return `Role "${r.id}" needs "writes": true or false, whether it gets its own branch.`
   }
   if (r.emoji !== undefined && typeof r.emoji !== 'string') {
     return `Role "${r.id}" has an emoji that is not text.`

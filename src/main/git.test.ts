@@ -73,7 +73,7 @@ describe('branchNameError', () => {
     ['aster*isk', '*'],
     ['brack[et', '['],
     ['back\\slash', '\\']
-  ])('rejects %j — %s', (name) => {
+  ])('rejects %j, %s', (name) => {
     expect(branchNameError(name)).not.toBeNull()
   })
 

@@ -198,7 +198,7 @@ export function writeManagedBlock(file: string, block: string): string | null {
 
     const { stripped, corrupted } = stripManagedRegions(text)
     if (corrupted) {
-      return `managed markers look corrupted in ${file} — fix the file manually`
+      return `managed markers look corrupted in ${file}. Fix the file manually.`
     }
 
     let next = stripped.replace(/\s+$/, '')
@@ -323,7 +323,7 @@ export function validateConfig(cfg: ShortcutsConfig): string[] {
     }
     const lower = name.toLowerCase()
     if (RESERVED.has(lower)) {
-      errors.push(`"${name}": reserved PowerShell command/alias — pick another name`)
+      errors.push(`"${name}": reserved PowerShell command/alias, pick another name`)
     }
     if (seen.has(lower)) {
       errors.push(`"${name}": duplicate name`)
@@ -529,7 +529,7 @@ export function saveShortcuts(cfg: ShortcutsConfig): ShortcutsSaveResult {
   const written: string[] = []
   for (const file of profileTargets()) {
     const err = writeManagedBlock(file, block)
-    if (err) warnings.push(`${err} — Light Code panes still have these shortcuts.`)
+    if (err) warnings.push(`${err}. Light Code panes still have these shortcuts.`)
     else written.push(file)
   }
   return { ok: true, profilesWritten: written, errors: [], created, warnings }

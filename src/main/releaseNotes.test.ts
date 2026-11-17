@@ -8,7 +8,7 @@ import { parseNotes } from './releaseNotes'
  * electron-updater falls back to for releases that predate the embedding.
  */
 
-describe('parseNotes — the embedded markdown (normal path)', () => {
+describe('parseNotes, the embedded markdown (normal path)', () => {
   it('turns bullets into one plain line each', () => {
     expect(parseNotes('- Drag files in\n- Mac picks its own installer\n')).toEqual([
       'Drag files in',
@@ -21,13 +21,13 @@ describe('parseNotes — the embedded markdown (normal path)', () => {
   })
 
   it('keeps prose that merely contains a dash', () => {
-    expect(parseNotes('- Quoted — only when the shell needs it')).toEqual([
-      'Quoted — only when the shell needs it'
+    expect(parseNotes('- Quoted, only when the shell needs it')).toEqual([
+      'Quoted, only when the shell needs it'
     ])
   })
 })
 
-describe('parseNotes — the GitHub release body (fallback path)', () => {
+describe('parseNotes, the GitHub release body (fallback path)', () => {
   it('strips tags rather than showing them as text', () => {
     expect(parseNotes('<ul><li>Drag files in</li><li>Faster startup</li></ul>')).toEqual([
       'Drag files in',
@@ -60,7 +60,7 @@ describe('parseNotes — the GitHub release body (fallback path)', () => {
       '<h3>Download</h3>\n' +
       '<table><thead><tr><th>Your machine</th><th>File</th></tr></thead>\n' +
       '<tbody><tr><td>Windows 10/11</td><td><a href="…"><code>LightCode-Setup.exe</code></a></td></tr>\n' +
-      '<tr><td>Mac — Intel</td><td><a href="…"><code>LightCode-x64.dmg</code></a></td></tr></tbody></table>\n' +
+      '<tr><td>Mac, Intel</td><td><a href="…"><code>LightCode-x64.dmg</code></a></td></tr></tbody></table>\n' +
       '<p>Not sure which Mac you have? <strong>Apple menu → About This Mac</strong></p>\n' +
       "<h3>What's new in 0.4.0</h3>\n" +
       '<ul>\n<li>Drag a file or folder onto a pane and its path is typed at the prompt.</li>\n' +
@@ -89,7 +89,7 @@ describe('parseNotes — the GitHub release body (fallback path)', () => {
     ])
   })
 
-  it("does not double-decode — &amp;lt; is the text '&lt;', not a tag", () => {
+  it("does not double-decode, &amp;lt; is the text '&lt;', not a tag", () => {
     expect(parseNotes('&amp;lt;script&amp;gt;')).toEqual(['&lt;script&gt;'])
   })
 
@@ -98,7 +98,7 @@ describe('parseNotes — the GitHub release body (fallback path)', () => {
   })
 })
 
-describe('parseNotes — nothing to show', () => {
+describe('parseNotes, nothing to show', () => {
   it.each([
     ['null', null],
     ['undefined', undefined],
@@ -114,7 +114,7 @@ describe('parseNotes — nothing to show', () => {
   })
 })
 
-describe('parseNotes — length', () => {
+describe('parseNotes, length', () => {
   it('caps at 8: a toast is not a changelog viewer', () => {
     const many = Array.from({ length: 20 }, (_, i) => `- note ${i}`).join('\n')
     const notes = parseNotes(many)

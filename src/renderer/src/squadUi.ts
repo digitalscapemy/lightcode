@@ -13,6 +13,7 @@ import { branchForRole, taskNameError } from '../../shared/roles'
 import type { Role } from '../../shared/roles'
 import type { LayoutNode } from '../../shared/types'
 import { toast } from './ui/toast'
+import { modalHeader } from './ui/modal'
 
 /**
  * Opening a squad: one orchestrator and a set of specialists, each in its own
@@ -108,7 +109,7 @@ function askSquad(roles: Role[], available: Record<string, boolean>): Promise<Sq
     body.className = 'shortcuts-body confirm-text'
 
     const taskLabel = document.createElement('div')
-    taskLabel.textContent = 'Task name — the branches and the squad folder take their name from it'
+    taskLabel.textContent = 'Task name, the branches and the squad folder take their name from it'
     const task = document.createElement('input')
     task.className = 'prompt-input'
     task.placeholder = 'auth-refactor'
@@ -173,7 +174,7 @@ function askSquad(roles: Role[], available: Record<string, boolean>): Promise<Sq
 
     const promptLabel = document.createElement('div')
     promptLabel.className = 'fanout-label'
-    promptLabel.textContent = 'Brief — goes to the orchestrator, which delegates it'
+    promptLabel.textContent = 'Brief, goes to the orchestrator, which delegates it'
     const prompt = document.createElement('textarea')
     prompt.className = 'prompt-input fanout-prompt'
     prompt.rows = 3
@@ -194,7 +195,15 @@ function askSquad(roles: Role[], available: Record<string, boolean>): Promise<Sq
     const accept = document.createElement('button')
     accept.className = 'shortcuts-primary'
     footer.append(cancel, accept)
-    modal.append(body, footer)
+    modal.append(
+      modalHeader({
+        title: 'New orchestra',
+        subtitle: 'A lead that delegates to specialist roles. Builders get a branch; reviewers write reports.',
+        icon: 'squad'
+      }),
+      body,
+      footer
+    )
     overlay.appendChild(modal)
 
     let settled = false
@@ -260,7 +269,7 @@ export async function openSquad(): Promise<void> {
   const cwd = currentRepoCwd()
   if (cwd === null) {
     await alertDialog(
-      'Open a pane inside a git repository first — a squad needs somewhere to branch from.'
+      'Open a pane inside a git repository first, a squad needs somewhere to branch from.'
     )
     return
   }

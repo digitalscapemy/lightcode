@@ -31,7 +31,7 @@ export function initUpdateToast(): void {
     // The offer stands — a failed download is a reason to ask again, not to
     // give up on the version.
     settled = false
-    showMessage('Update failed — you can try again shortly.')
+    showMessage('Update failed, you can try again shortly.')
     window.setTimeout(() => {
       dismiss()
       snooze()
@@ -84,7 +84,7 @@ function showOffer(): void {
 
   const text = document.createElement('div')
   text.className = 'toast-text'
-  text.textContent = `Update available — v${offered.version}`
+  text.textContent = `Update available: v${offered.version}`
   el.appendChild(text)
 
   if (offered.notes.length > 0) el.appendChild(notesBlock(offered.notes))

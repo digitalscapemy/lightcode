@@ -210,7 +210,7 @@ export function activateTab(tabId: string): void {
   for (const [id, view] of tabViews) view.style.display = id === tabId ? '' : 'none'
   renderTabs()
   const tab = activeTab()
-  document.title = tab ? `Light Code — ${tab.name}` : 'Light Code'
+  document.title = tab ? `Light Code · ${tab.name}` : 'Light Code'
   requestAnimationFrame(() => {
     const current = activeTab()
     if (!current || current.id !== tabId) return
@@ -285,7 +285,7 @@ export function renameTab(tabId: string, name: string): void {
   if (!tab) return
   tab.name = name
   renderTabs()
-  if (tab.id === state.activeTabId) document.title = `Light Code — ${tab.name}`
+  if (tab.id === state.activeTabId) document.title = `Light Code · ${tab.name}`
   persist()
 }
 
@@ -838,7 +838,7 @@ async function addWorker(leadId: string): Promise<void> {
   if (!crew?.lead) return
   const taken = (): string[] => crewMembers(allNodes(), crew.id).map((n) => n.crew!.handle)
   const handle = await promptDialog({
-    message: 'New worker — the lead addresses it as @<handle>',
+    message: 'New worker, the lead addresses it as @<handle>',
     initial: nextHandle('worker', taken()),
     confirmLabel: 'Add worker',
     validate: (v) => handleError(v, taken())
@@ -1303,7 +1303,7 @@ function maybeNotify(prev: PaneStatus | undefined, u: StatusUpdate): void {
 
   const name = paneLabel(u.paneId)
   const title =
-    u.status === 'waiting-approval' ? `${name} — needs approval` : `${name} — waiting for you`
+    u.status === 'waiting-approval' ? `${name}: needs approval` : `${name}: waiting for you`
   // An estimated status (≈) comes from an agent that is not Claude, and only
   // ever says a turn seems to have ended.
   const body =

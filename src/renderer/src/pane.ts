@@ -529,7 +529,7 @@ export class TerminalPane {
   private async openWorktree(): Promise<void> {
     const cwd = this.liveCwd
     const name = await promptDialog({
-      message: 'New worktree — branch name',
+      message: 'New worktree, branch name',
       placeholder: 'auth-fix',
       confirmLabel: 'Create',
       validate: branchNameError
@@ -581,7 +581,7 @@ export class TerminalPane {
         }))
       ]
     } else if (cfg.paths.length === 0) {
-      items = [{ label: '— no projects saved —', disabled: true, action: () => {} }]
+      items = [{ label: 'No projects saved yet', disabled: true, action: () => {} }]
     } else {
       items = cfg.paths.map((p) => ({
         label: p.name,
@@ -1070,7 +1070,7 @@ export class TerminalPane {
         ...(this.agent ? { agent: this.agent } : {})
       })
       if (result.cwdFallback) {
-        this.write(`\x1b[33mProject folder not found — opened in ${result.cwd}\x1b[0m\r\n`)
+        this.write(`\x1b[33mProject folder not found, opened in ${result.cwd}\x1b[0m\r\n`)
       }
     } catch {
       const text = this.loading?.querySelector('span')
@@ -1098,7 +1098,7 @@ export class TerminalPane {
         this.roleEmoji = found.emoji
         this.roleEl.hidden = false
         this.roleEl.textContent = `${found.emoji} ${found.label}`
-        this.roleEl.title = `Squad role: ${found.label}${found.writes ? '' : ' — reads and reports, does not edit code'}`
+        this.roleEl.title = `Squad role: ${found.label}${found.writes ? '' : ' (reads and reports, does not edit code)'}`
       }
     } catch {
       // main is gone; the pane still opens, just without a brief

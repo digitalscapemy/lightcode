@@ -69,7 +69,7 @@ describe('paneRects', () => {
   })
 })
 
-describe('neighbour — 3x3 grid', () => {
+describe('neighbour, 3x3 grid', () => {
   // p0 p1 p2
   // p3 p4 p5
   // p6 p7 p8
@@ -97,7 +97,7 @@ describe('neighbour — 3x3 grid', () => {
   })
 })
 
-describe('neighbour — layouts with no second row or column', () => {
+describe('neighbour, layouts with no second row or column', () => {
   it('returns null vertically in a single row', () => {
     const rects = paneRects(layoutOf('3-cols'))
     expect(neighbour(rects, 'p1', 'up')).toBeNull()
@@ -113,7 +113,7 @@ describe('neighbour — layouts with no second row or column', () => {
   })
 })
 
-describe('neighbour — uneven layout (one tall pane facing a stack)', () => {
+describe('neighbour, uneven layout (one tall pane facing a stack)', () => {
   // 3-left is { row: [p0, { col: [p1, p2] }] } — p0 is full height on the left,
   // p1 and p2 are stacked on the right. Both are equally far from p0, so the
   // tie-break decides, and either stacked pane must find its way back to p0.

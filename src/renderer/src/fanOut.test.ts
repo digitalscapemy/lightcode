@@ -64,7 +64,7 @@ describe('layoutIdFor', () => {
   })
 })
 
-describe('agentCommand — plan mode', () => {
+describe('agentCommand, plan mode', () => {
   // Three agents rewriting the code is expensive and awkward to compare; three
   // proposing an approach is cheap, touches nothing, and reads side by side.
   it('starts every agent in plan mode when asked', () => {

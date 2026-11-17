@@ -709,7 +709,7 @@ async function resultOf(paneId: string): Promise<{ result: LcResult; warning?: s
   }
   const lines = cleanLines(panes.get(paneId)?.recentLines(RESULT_SCREEN_LINES) ?? [])
   const warning = joinWarnings(
-    `${paneId} has no agent transcript to read, so this is its screen, cleaned — ` +
+    `${paneId} has no agent transcript to read, so this is its screen, cleaned: ` +
       'what it drew, which is not necessarily its answer.',
     busy
   )
@@ -732,7 +732,7 @@ async function ask(req: Extract<LcRequest, { cmd: 'ask' }>): Promise<LcResponse>
   // The send gate refuses this too, but only after the wait below — and the
   // turn that wait is for is the one running this command, so it never ends.
   if (req.from === pane) {
-    return no(`${pane} is your own pane — asking it would wait on the turn that asked.`, 'refused')
+    return no(`${pane} is your own pane, asking it would wait on the turn that asked.`, 'refused')
   }
   const scope = mayAct(req, pane)
   if (!scope.allow) return no(scope.error, 'refused')
@@ -893,7 +893,7 @@ export async function handleLcRequest(raw: LcRequest): Promise<LcResponse> {
     if (!panes.has(req.pane)) return no(`No such pane: ${req.pane}. Try: lc ls`, 'usage')
     // The same mistake the send gate refuses: the turn it would stop is this one.
     if (req.from === req.pane) {
-      return no(`${req.pane} is your own pane — interrupting it would stop the turn that asked.`, 'refused')
+      return no(`${req.pane} is your own pane, interrupting it would stop the turn that asked.`, 'refused')
     }
     const scope = mayAct(req, req.pane)
     if (!scope.allow) return no(scope.error, 'refused')
@@ -947,7 +947,7 @@ export async function handleLcRequest(raw: LcRequest): Promise<LcResponse> {
       prompt: req.prompt,
       plan: req.plan
     })
-    if (created === null) return no('Fan-out failed — see the app for the reason.', 'refused')
+    if (created === null) return no('Fan-out failed, see the app for the reason.', 'refused')
     return ok({ created })
   }
 

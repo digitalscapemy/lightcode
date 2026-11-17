@@ -114,10 +114,10 @@ export function handleError(
   lead = false
 ): string | null {
   if (!HANDLE.test(value)) {
-    return 'Lowercase letters, digits and dashes, starting with a letter or digit — up to 24.'
+    return 'Lowercase letters, digits and dashes, starting with a letter or digit, up to 24.'
   }
   if (!lead && value === LEAD_HANDLE) {
-    return "@lead always means the orchestra's lead — pick another name for a worker."
+    return "@lead always means the orchestra's lead, pick another name for a worker."
   }
   if (new Set([...taken].map((h) => h.toLowerCase())).has(value)) {
     return `@${value} is already in this orchestra.`

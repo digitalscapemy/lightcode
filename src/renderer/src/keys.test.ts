@@ -33,7 +33,7 @@ function key(code: string, mods: Record<string, boolean> = {}): KeyboardEvent {
 const ctrl = { ctrlKey: true }
 const ctrlShift = { ctrlKey: true, shiftKey: true }
 
-describe('matchShortcut — existing shortcuts still require Shift', () => {
+describe('matchShortcut, existing shortcuts still require Shift', () => {
   // Regression guard: the Shift gate moved below the zoom cases, so these are
   // the ones that would silently break if it ended up in the wrong place.
   it.each([
@@ -59,7 +59,7 @@ describe('matchShortcut — existing shortcuts still require Shift', () => {
   })
 })
 
-describe('matchShortcut — font zoom', () => {
+describe('matchShortcut, font zoom', () => {
   it('accepts + with or without Shift, because "+" IS Shift+Equal', () => {
     expect(matchShortcut(key('Equal', ctrl))).toBe('font-larger')
     expect(matchShortcut(key('Equal', ctrlShift))).toBe('font-larger')
@@ -70,7 +70,7 @@ describe('matchShortcut — font zoom', () => {
     expect(onMac(key('Minus', { metaKey: true }))).toBe('font-smaller')
   })
 
-  it('leaves Ctrl+Shift+Minus alone — that is Ctrl+_, which is undo in zsh', () => {
+  it('leaves Ctrl+Shift+Minus alone, that is Ctrl+_, which is undo in zsh', () => {
     // Windows-only collision in practice: there the platform modifier IS Ctrl,
     // so matching this would swallow the shell's undo. Asserted on both
     // platforms so the rule cannot drift apart later.
@@ -90,7 +90,7 @@ describe('matchShortcut — font zoom', () => {
   })
 })
 
-describe('matchShortcut — rejects everything else', () => {
+describe('matchShortcut, rejects everything else', () => {
   it('needs the platform modifier', () => {
     expect(matchShortcut(key('Equal'))).toBeNull()
     expect(matchShortcut(key('KeyE', { shiftKey: true }))).toBeNull()
@@ -112,13 +112,13 @@ describe('matchShortcut — rejects everything else', () => {
   })
 })
 
-describe('pane navigation — Ctrl+Tab is Ctrl on BOTH platforms', () => {
+describe('pane navigation, Ctrl+Tab is Ctrl on BOTH platforms', () => {
   it('cycles panes on Windows', () => {
     expect(matchShortcut(key('Tab', ctrl))).toBe('pane-next')
     expect(matchShortcut(key('Tab', ctrlShift))).toBe('pane-prev')
   })
 
-  it('cycles panes on macOS too — Cmd+Tab belongs to the OS', () => {
+  it('cycles panes on macOS too, Cmd+Tab belongs to the OS', () => {
     expect(onMac(key('Tab', ctrl))).toBe('pane-next')
     expect(onMac(key('Tab', ctrlShift))).toBe('pane-prev')
     // Cmd+Tab must never be claimed: macOS owns it for app switching.
@@ -131,7 +131,7 @@ describe('pane navigation — Ctrl+Tab is Ctrl on BOTH platforms', () => {
   })
 })
 
-describe('pane navigation — Mod+Alt+Arrow', () => {
+describe('pane navigation, Mod+Alt+Arrow', () => {
   const modAlt = { ctrlKey: true, altKey: true }
 
   it.each([
@@ -155,27 +155,27 @@ describe('pane navigation — Mod+Alt+Arrow', () => {
 
 describe('keys the shell must keep receiving', () => {
   // The whole feature is wrong if any of these stops reaching the terminal.
-  it('leaves bare Tab alone — shell and Claude Code need it for completion', () => {
+  it('leaves bare Tab alone, shell and Claude Code need it for completion', () => {
     expect(matchShortcut(key('Tab'))).toBeNull()
     expect(matchShortcut(key('Tab', { shiftKey: true }))).toBeNull()
     expect(onMac(key('Tab'))).toBeNull()
   })
 
-  it('leaves bare arrows alone — history and cursor motion', () => {
+  it('leaves bare arrows alone, history and cursor motion', () => {
     for (const code of ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight']) {
       expect(matchShortcut(key(code)), code).toBeNull()
       expect(matchShortcut(key(code, { shiftKey: true })), code).toBeNull()
     }
   })
 
-  it('leaves Alt+letter alone — Alt+B / Alt+F are word motions', () => {
+  it('leaves Alt+letter alone, Alt+B / Alt+F are word motions', () => {
     expect(matchShortcut(key('KeyB', { altKey: true }))).toBeNull()
     expect(matchShortcut(key('KeyF', { altKey: true }))).toBeNull()
     // Still nothing even with the platform modifier: only arrows may use Alt.
     expect(matchShortcut(key('KeyB', { ctrlKey: true, altKey: true }))).toBeNull()
   })
 
-  it('leaves Ctrl+letter alone on macOS — those are terminal control codes', () => {
+  it('leaves Ctrl+letter alone on macOS, those are terminal control codes', () => {
     expect(onMac(key('KeyC', { ctrlKey: true }))).toBeNull()
     expect(onMac(key('KeyD', { ctrlKey: true }))).toBeNull()
   })
@@ -194,7 +194,7 @@ describe('clampFontSize', () => {
   })
 })
 
-describe('matchShortcut — crew approve', () => {
+describe('matchShortcut, crew approve', () => {
   // Y for yes. Shift keeps it clear of Ctrl+Y, which is yank in readline.
   it('Ctrl+Shift+Y approves, on both platforms with their own modifier', () => {
     expect(matchShortcut(key('KeyY', ctrlShift))).toBe('crew-approve')
@@ -206,7 +206,7 @@ describe('matchShortcut — crew approve', () => {
   })
 })
 
-describe('matchShortcut — orchestra panel', () => {
+describe('matchShortcut, orchestra panel', () => {
   it('Ctrl+Shift+O toggles the panel, on both platforms with their own modifier', () => {
     expect(matchShortcut(key('KeyO', ctrlShift))).toBe('orch-panel')
     expect(onMac(key('KeyO', { metaKey: true, shiftKey: true }))).toBe('orch-panel')
@@ -218,7 +218,7 @@ describe('matchShortcut — orchestra panel', () => {
 })
 
 
-describe('SHORTCUT_KEYS — every label is a key that works', () => {
+describe('SHORTCUT_KEYS, every label is a key that works', () => {
   // Turns "Mod+Shift+P" into the KeyboardEvent that pressing it produces.
   const CODES: Record<string, string> = {
     '/': 'Slash', '=': 'Equal', '-': 'Minus', '0': 'Digit0', Enter: 'Enter', Tab: 'Tab',

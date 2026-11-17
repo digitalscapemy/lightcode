@@ -293,7 +293,7 @@ function renderHeader(): void {
     fetchBtn.disabled = fetching
     fetchBtn.classList.toggle('spinning', fetching)
     const when = tree?.lastFetch ? `last fetched ${relative(tree.lastFetch)}` : 'never fetched'
-    fetchBtn.title = fetching ? `Fetching from ${remote}…` : `Fetch from ${remote} — ${when}`
+    fetchBtn.title = fetching ? `Fetching from ${remote}…` : `Fetch from ${remote} (${when})`
   }
   if (autoBtn) {
     autoBtn.hidden = remote === null
@@ -330,7 +330,7 @@ function render(): void {
     body.appendChild(
       // Not "from origin": the fetch covers every remote, and the one that failed
       // is named in git's own sentence. The others were still brought up to date.
-      note(`Fetch failed — ${fetchError}`, 'Dismiss', () => {
+      note(`Fetch failed: ${fetchError}`, 'Dismiss', () => {
         fetchError = null
         render()
       })
@@ -408,7 +408,7 @@ function renderCounts(tree: GitTree, branch: string | null, row: GitBranchState)
     if (row.upstreamGone) {
       sync.textContent = 'gone'
       sync.classList.add('git-row-upstream-warn')
-      sync.title = `${row.upstream} was deleted on the remote — merged and cleaned up, usually`
+      sync.title = `${row.upstream} was deleted on the remote, merged and cleaned up, usually`
     } else if (row.upstream === null) {
       sync.textContent = 'local'
       sync.title = `Never pushed: there is no ${tree.remote}/${branch} yet`
@@ -474,7 +474,7 @@ function renderWorktree(tree: GitTree, row: GitWorktreeRow): HTMLElement {
     dot.title = notes.join(', ')
     top.appendChild(dot)
   }
-  if (row.locked) top.appendChild(badge('locked', 'git worktree lock — git will not remove it'))
+  if (row.locked) top.appendChild(badge('locked', 'git worktree lock, git will not remove it'))
   if (row.prunable) top.appendChild(badge('missing', 'The folder is gone. Prune to forget it.', true))
 
   top.appendChild(renderCounts(tree, row.branch, row))
@@ -677,7 +677,7 @@ async function newWorktree(): Promise<void> {
   const name = await promptDialog({
     // Branched from whatever the repository's own checkout is on, which is what
     // `git worktree add -b` does when it is run there.
-    message: 'New worktree — branch name',
+    message: 'New worktree, branch name',
     placeholder: 'auth-fix',
     confirmLabel: 'Create',
     validate: branchNameError
@@ -760,7 +760,7 @@ async function integrate(tree: GitTree, branch: string): Promise<void> {
   const target = basePane(tree)
   if (target === null) {
     await alertDialog(
-      `No pane is on ${tree.base}. Open one in the repository itself and check out ${tree.base} — the merge happens where you can see it.`
+      `No pane is on ${tree.base}. Open one in the repository itself and check out ${tree.base}, so the merge happens where you can see it.`
     )
     return
   }
@@ -769,7 +769,7 @@ async function integrate(tree: GitTree, branch: string): Promise<void> {
   const git = pane?.gitSnapshot() ?? null
   if (git?.dirty === true) {
     await alertDialog(
-      `The ${tree.base} pane has uncommitted changes. Commit or stash them first — merging over them is how work disappears.`
+      `The ${tree.base} pane has uncommitted changes. Commit or stash them first, merging over them is how work disappears.`
     )
     return
   }

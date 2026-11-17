@@ -192,7 +192,7 @@ function renderSetup(): void {
   rootLabel.textContent = 'Main folder'
   const rootPath = document.createElement('span')
   rootPath.className = 'shortcuts-setup-path'
-  rootPath.textContent = projectRoot || 'not set — new projects need a path typed in by hand'
+  rootPath.textContent = projectRoot || 'not set, new projects need a path typed in by hand'
   rootPath.classList.toggle('muted', !projectRoot)
   rootPath.title = projectRoot
   const choose = document.createElement('button')
@@ -275,8 +275,8 @@ async function chooseRoot(): Promise<void> {
   renderRows()
   setStatus(
     learned
-      ? `Main folder set. ${learned} project(s) sorted into categories from their folders — press Save to keep.`
-      : 'Main folder set — press Save to keep it.',
+      ? `Main folder set. ${learned} project(s) sorted into categories from their folders, press Save to keep.`
+      : 'Main folder set, press Save to keep it.',
     false
   )
 }
@@ -295,7 +295,7 @@ function addCategory(name: string): boolean {
   lastCategory = name
   renderSetup()
   renderRows()
-  setStatus(`Category "${name}" added — press Save to keep it.`, false)
+  setStatus(`Category "${name}" added, press Save to keep it.`, false)
   setupEl?.querySelector<HTMLInputElement>('.shortcuts-cat-input')?.focus()
   return true
 }
@@ -303,7 +303,7 @@ function addCategory(name: string): boolean {
 function removeCategory(name: string): void {
   const used = pathRows.filter((r) => r.category === name).length
   if (used > 0) {
-    setStatus(`"${name}" still has ${used} project(s) — move them to another category first.`, true)
+    setStatus(`"${name}" still has ${used} project(s), move them to another category first.`, true)
     return
   }
   categories = categories.filter((c) => c !== name)
@@ -334,7 +334,7 @@ function renderRows(): void {
   if (rows.length === 0) {
     const empty = document.createElement('div')
     empty.className = 'shortcuts-empty'
-    empty.textContent = '— no entries —'
+    empty.textContent = 'No entries yet'
     activeListEl.appendChild(empty)
     return
   }
@@ -354,7 +354,7 @@ function renderRows(): void {
         target.value = row.target
       }
       target.classList.toggle('auto', auto)
-      target.title = auto ? 'Filled in from the name — the folder is created on Save' : ''
+      target.title = auto ? 'Filled in from the name, the folder is created on Save' : ''
     }
 
     const name = document.createElement('input')
@@ -370,7 +370,7 @@ function renderRows(): void {
 
     target.placeholder =
       activeKind === 'paths' && projectRoot
-        ? 'type a name — the folder fills in'
+        ? 'type a name, the folder fills in'
         : targetKind === 'folder'
           ? 'C:\\path\\to\\project'
           : 'C:\\Users\\...\\.claude-1'
@@ -418,12 +418,12 @@ function renderRows(): void {
       for (const c of opts) {
         const o = document.createElement('option')
         o.value = c
-        o.textContent = c || '— none —'
+        o.textContent = c || 'None'
         select.appendChild(o)
       }
       select.value = row.category ?? ''
       select.title = row.fresh
-        ? 'Category — also the sub-folder the project goes in'
+        ? 'Category, also the sub-folder the project goes in'
         : 'Category (the folder of a saved project does not move)'
       select.addEventListener('change', () => {
         row.category = select.value || undefined
@@ -464,7 +464,7 @@ async function runImport(silentIfEmpty: boolean): Promise<void> {
   renderRows()
   const unreadable = result.unreadable ?? []
   if (added > 0) {
-    setStatus(`${added} imported from ${profileLabel} — press Save to keep them.`, false)
+    setStatus(`${added} imported from ${profileLabel}. Press Save to keep them.`, false)
   } else if (unreadable.length > 0) {
     setStatus(`Could not read ${unreadable.join(' · ')}`, true)
   } else if (!silentIfEmpty) {
@@ -472,7 +472,7 @@ async function runImport(silentIfEmpty: boolean): Promise<void> {
     // the import looked and failed.
     setStatus(
       result.found === 0
-        ? `There is no ${profileLabel} on this computer yet, so there is nothing to import — add shortcuts here and press Save.`
+        ? `There is no ${profileLabel} on this computer yet, so there is nothing to import, add shortcuts here and press Save.`
         : `No new entries found in ${profileLabel}.`,
       false
     )
@@ -512,7 +512,7 @@ async function save(): Promise<void> {
     if (created) parts.push(`${created} folder${created === 1 ? '' : 's'} created`)
     parts.push(`new panes get these automatically; existing panes: run ${reloadHint}`)
     const warnings = result.warnings ?? []
-    setStatus([parts.join(' — '), ...warnings].join(' · '), warnings.length > 0)
+    setStatus([parts.join(' · '), ...warnings].join(' · '), warnings.length > 0)
   } else {
     setStatus(result.errors.join(' · '), true)
     markInvalid(result.errors)

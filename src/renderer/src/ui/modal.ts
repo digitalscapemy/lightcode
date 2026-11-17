@@ -40,6 +40,38 @@ function focusables(root: HTMLElement): HTMLElement[] {
   ].filter((el) => el.offsetParent !== null)
 }
 
+/**
+ * The header every dialog shares: an icon in a tinted square, a title, and one
+ * line saying what the dialog is for. Exported for the few dialogs that build
+ * their own body (Fan-out, Squad) so they still look like the rest.
+ */
+export function modalHeader(opts: { title: string; subtitle?: string; icon?: IconName }): HTMLElement {
+  const header = document.createElement('div')
+  header.className = 'shortcuts-header modal-header'
+  const heading = document.createElement('div')
+  heading.className = 'modal-heading'
+  if (opts.icon) {
+    const ic = document.createElement('span')
+    ic.className = 'modal-icon'
+    ic.innerHTML = icon(opts.icon, 18) // constant SVG only
+    heading.appendChild(ic)
+  }
+  const text = document.createElement('div')
+  const title = document.createElement('div')
+  title.className = 'modal-title'
+  title.textContent = opts.title
+  text.appendChild(title)
+  if (opts.subtitle) {
+    const sub = document.createElement('div')
+    sub.className = 'modal-subtitle'
+    sub.textContent = opts.subtitle
+    text.appendChild(sub)
+  }
+  heading.appendChild(text)
+  header.appendChild(heading)
+  return header
+}
+
 export function openModal(opts: ModalOptions = {}): ModalHandle {
   const previous = document.activeElement as HTMLElement | null
 
@@ -51,29 +83,7 @@ export function openModal(opts: ModalOptions = {}): ModalHandle {
   modal.setAttribute('aria-modal', 'true')
 
   if (opts.title) {
-    const header = document.createElement('div')
-    header.className = 'shortcuts-header modal-header'
-    const heading = document.createElement('div')
-    heading.className = 'modal-heading'
-    if (opts.icon) {
-      const ic = document.createElement('span')
-      ic.className = 'modal-icon'
-      ic.innerHTML = icon(opts.icon, 18)
-      heading.appendChild(ic)
-    }
-    const text = document.createElement('div')
-    const title = document.createElement('div')
-    title.className = 'modal-title'
-    title.textContent = opts.title
-    text.appendChild(title)
-    if (opts.subtitle) {
-      const sub = document.createElement('div')
-      sub.className = 'modal-subtitle'
-      sub.textContent = opts.subtitle
-      text.appendChild(sub)
-    }
-    heading.appendChild(text)
-    header.appendChild(heading)
+    const header = modalHeader({ title: opts.title, subtitle: opts.subtitle, icon: opts.icon })
     if (opts.closeButton !== false) {
       const x = document.createElement('button')
       x.className = 'shortcuts-close'

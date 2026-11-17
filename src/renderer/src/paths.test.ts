@@ -8,7 +8,7 @@ function on(platform: string): void {
 
 afterEach(() => vi.unstubAllGlobals())
 
-describe('shellArg — POSIX', () => {
+describe('shellArg, POSIX', () => {
   it('leaves a plain path bare, the way dragging into Terminal does', () => {
     on('darwin')
     expect(shellArg('/Users/me/Desktop/lightcode')).toBe('/Users/me/Desktop/lightcode')
@@ -39,7 +39,7 @@ describe('shellArg — POSIX', () => {
   })
 })
 
-describe('shellArg — Windows', () => {
+describe('shellArg, Windows', () => {
   it('leaves a plain path bare', () => {
     on('win32')
     expect(shellArg('C:\\Users\\me\\lightcode')).toBe('C:\\Users\\me\\lightcode')
@@ -56,13 +56,13 @@ describe('shellArg — Windows', () => {
     expect(shellArg('C:\\a@b')).toBe('"C:\\a@b"')
   })
 
-  it('rejects a path containing a quote — illegal in a real path, so spoofed', () => {
+  it('rejects a path containing a quote, illegal in a real path, so spoofed', () => {
     on('win32')
     expect(shellArg('C:\\a" & calc.exe & "')).toBeNull()
   })
 })
 
-describe.each(['darwin', 'win32'])('shellArg — control chars (%s)', (platform) => {
+describe.each(['darwin', 'win32'])('shellArg, control chars (%s)', (platform) => {
   it.each([
     ['CR', '/tmp/a\rwhoami'],
     ['LF', '/tmp/a\nwhoami'],

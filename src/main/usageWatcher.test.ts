@@ -53,7 +53,7 @@ function play(...lines: string[]): { state: FileState; status: string } {
   return { state, status: deriveStatus(state) }
 }
 
-describe('deriveStatus — turn state', () => {
+describe('deriveStatus, turn state', () => {
   it('is idle before anything happens', () => {
     expect(play().status).toBe('idle')
   })
@@ -87,7 +87,7 @@ describe('deriveStatus — turn state', () => {
     expect(status).toBe('working')
   })
 
-  it('never reports waiting-approval — the transcript cannot know', () => {
+  it('never reports waiting-approval, the transcript cannot know', () => {
     const seen = [
       play(prompt()),
       play(prompt(), assistant({ stop: 'tool_use', tool: 'Bash' })),
@@ -138,7 +138,7 @@ describe('deriveStatus — turn state', () => {
  * (see the note on PaneStatus in shared/ipc.ts). The hook reports the prompt;
  * these counters are what retire it.
  */
-describe('ingest — tool results, for retiring a permission prompt', () => {
+describe('ingest, tool results, for retiring a permission prompt', () => {
   it('counts nothing before any tool has run', () => {
     const { state } = play(prompt(), assistant({ stop: 'tool_use', tool: 'Bash' }))
     expect(state.toolResults).toBe(0)
@@ -202,7 +202,7 @@ describe('ingest — tool results, for retiring a permission prompt', () => {
  * does append one tool_result though — approved or denied — so the rule is
  * arithmetic: as many answers as questions.
  */
-describe('approvalResolved — retiring the red dot', () => {
+describe('approvalResolved, retiring the red dot', () => {
   const pending = (over: Partial<Approval> = {}): Approval => ({
     toolName: 'Write',
     results: 0,
@@ -261,7 +261,7 @@ describe('approvalResolved — retiring the red dot', () => {
 /**
  * The precedence rule, which is where the hook signals and the transcript meet.
  */
-describe('statusFor — hooks over inference', () => {
+describe('statusFor, hooks over inference', () => {
   const prompting: Approval = { toolName: 'Write', results: 0, outstanding: 1 }
 
   /** A transcript mid-turn: inference alone would call this `working`. */
@@ -308,7 +308,7 @@ describe('statusFor — hooks over inference', () => {
   })
 })
 
-describe('ingest — token accounting', () => {
+describe('ingest, token accounting', () => {
   const usage = { input_tokens: 10, output_tokens: 5, cache_read_input_tokens: 100 }
 
   it('accumulates all four buckets', () => {
