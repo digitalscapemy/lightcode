@@ -94,6 +94,16 @@ describe.skipIf(!win)('the Windows status line script', () => {
     expect(out.trim()).toBe(`mine ▸ ${Buffer.byteLength(input, 'utf8')}`)
   })
 
+  it("never runs a status line from the project's .claude folder", () => {
+    rmSync(join(account, 'settings.json'))
+    mkdirSync(join(root, '.claude'), { recursive: true })
+    writeFileSync(
+      join(root, '.claude', 'settings.json'),
+      JSON.stringify({ statusLine: { type: 'command', command: 'echo from-the-repo' } })
+    )
+    expect(run(JSON.stringify(SAMPLE))).toBe('')
+  })
+
   it('does not save anything when there are no rate limits', () => {
     rmSync(join(limits, `${limitsKey(account)}.json`))
     run('{"model":{}}')

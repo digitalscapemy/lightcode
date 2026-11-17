@@ -15,9 +15,10 @@ import { loadShortcuts } from './shortcuts'
  *
  * The status line is Light Code's only while the pane was started by Light
  * Code (it rides in the same `claude --settings` file as the hooks). It must
- * never cost the person their own status line, so the script looks it up the
- * way Claude Code would have (project local, project, then the account's
- * settings), runs it with the same input, and prints its output byte for byte.
+ * never cost the person their own status line, so the script reads the one in
+ * the account's settings.json, runs it with the same input, and prints its
+ * output byte for byte. A project's .claude settings are deliberately not read:
+ * that would run a command from whatever repo the pane is in, trusted or not.
  * Any failure of ours is swallowed: the worst case is a missing number, never
  * a broken status line.
  */
@@ -53,7 +54,9 @@ export function windowsStatusLineScript(dir: string): string {
     '  }',
     '} catch { }',
     '$cmd = $null',
-    'foreach ($f in @(".claude\\settings.local.json", ".claude\\settings.json", (Join-Path $cfg "settings.json"))) {',
+    // Only the account's own settings: never a project's .claude folder, whose
+    // command would come from whatever repo the pane happens to be in.
+    'foreach ($f in @((Join-Path $cfg "settings.json"))) {',
     '  if (-not (Test-Path -LiteralPath $f)) { continue }',
     '  try {',
     '    $j = [System.IO.File]::ReadAllText((Resolve-Path -LiteralPath $f).Path, $utf8) | ConvertFrom-Json',
@@ -124,7 +127,7 @@ export function posixStatusLineScript(dir: string): string {
     '    ;;',
     'esac',
     'cmd=""',
-    'for f in .claude/settings.local.json .claude/settings.json "$cfg/settings.json"; do',
+    'for f in "$cfg/settings.json"; do', // account settings only, as on Windows
     '  [ -f "$f" ] || continue',
     '  if command -v plutil >/dev/null 2>&1; then',
     '    c=$(plutil -extract statusLine.command raw -o - "$f" 2>/dev/null)',
