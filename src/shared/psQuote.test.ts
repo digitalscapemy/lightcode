@@ -49,6 +49,13 @@ describe('psNativeArgSafe', () => {
     expect(psNativeArgSafe('')).toBe(' ')
   })
 
+  // JS's \s includes these; PowerShell does not treat them as whitespace.
+  it('does not count Unicode-only spaces as whitespace', () => {
+    for (const ch of ['﻿', ' ', ' ', '　', '​', '\u000B']) {
+      expect(psNativeArgSafe(`a&calc&${ch}`)).toBe(`a&calc&${ch} `)
+    }
+  })
+
   it('leaves ordinary text alone', () => {
     expect(psNativeArgSafe("don't & go | now 50%")).toBe("don't & go | now 50%")
   })

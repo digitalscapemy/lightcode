@@ -44,5 +44,7 @@ export function psNativeArgSafe(text: string): string {
     open = !open
     return c
   })
-  return /\\$/.test(swapped) || !/\s/.test(swapped) ? `${swapped} ` : swapped
+  // [ \t], not \s: JS calls U+FEFF, U+00A0 and friends whitespace and
+  // PowerShell does not, so `a&calc&` + U+FEFF skipped the space and ran calc.
+  return /\\$/.test(swapped) || !/[ \t]/.test(swapped) ? `${swapped} ` : swapped
 }
