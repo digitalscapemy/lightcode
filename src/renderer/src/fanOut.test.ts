@@ -99,7 +99,10 @@ describe('quotePrompt', () => {
   })
 
   it('doubles a single quote instead, PowerShell style', () => {
-    expect(quotePrompt("don't", true)).toBe("'don''t'")
+    expect(quotePrompt("don't stop", true)).toBe("'don''t stop'")
+    // No whitespace: a trailing space forces PowerShell to quote it for the
+    // agent binary (see psNativeArgSafe).
+    expect(quotePrompt("don't", true)).toBe("'don''t '")
   })
 
   // A newline would end the command line, submitting half a prompt and leaving

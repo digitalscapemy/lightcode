@@ -37,8 +37,16 @@ describe('psNativeArgSafe', () => {
   })
 
   it('keeps a trailing backslash away from the closing quote', () => {
-    expect(psNativeArgSafe(String.raw`C:\dir\ `.trimEnd())).toBe(String.raw`C:\dir\ `)
-    expect(psNativeArgSafe(String.raw`a\b`)).toBe(String.raw`a\b`)
+    expect(psNativeArgSafe(String.raw`look in C:\dir\ `.trimEnd())).toBe(String.raw`look in C:\dir\ `)
+    expect(psNativeArgSafe(String.raw`see a\b now`)).toBe(String.raw`see a\b now`)
+  })
+
+  // PowerShell quotes only arguments with whitespace; unquoted, a .cmd shim
+  // hands `a&whoami` to cmd.exe, which runs whoami (measured).
+  it('always contains whitespace so PowerShell must quote it', () => {
+    expect(psNativeArgSafe('a&whoami')).toBe('a&whoami ')
+    expect(psNativeArgSafe('a|b>c')).toMatch(/\s/)
+    expect(psNativeArgSafe('')).toBe(' ')
   })
 
   it('leaves ordinary text alone', () => {

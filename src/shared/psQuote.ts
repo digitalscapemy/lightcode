@@ -30,6 +30,12 @@ export function psSingleQuote(value: string): string {
  * `"` becomes “ / ” in turn — to an agent reading a prompt they mean the same —
  * and a trailing run of backslashes gets a space so it cannot reach the quote.
  * Backslashes elsewhere are literal once no `"` follows them.
+ *
+ * And it always contains whitespace. PowerShell only wraps an argument in "…"
+ * when it has some, and an npm-installed agent is a .cmd shim that cmd.exe
+ * parses: measured, a bare `a&whoami` ran whoami. Inside the quotes — which no
+ * `"` of ours can now close — cmd treats & | < > as text. So text with no
+ * whitespace gets a trailing space, which no agent reads as anything.
  */
 export function psNativeArgSafe(text: string): string {
   let open = true
@@ -38,5 +44,5 @@ export function psNativeArgSafe(text: string): string {
     open = !open
     return c
   })
-  return /\\$/.test(swapped) ? `${swapped} ` : swapped
+  return /\\$/.test(swapped) || !/\s/.test(swapped) ? `${swapped} ` : swapped
 }
