@@ -2251,9 +2251,8 @@ body.tab-dragging * {
 
 /* ---------- Update toast ---------- */
 
-/* The update offer: the same look as every other toast (ui/toast.ts), with
-   the accent stripe because it is information, not a problem. It lives in the
-   shared toast column (.toast-stack), so it never covers another notice. */
+/* The update offer: the same look as every other toast (ui/toast.ts). It lives
+   in the shared toast column (.toast-stack), so it never covers another notice. */
 #update-toast {
   pointer-events: auto;
   display: flex;
@@ -2264,7 +2263,6 @@ body.tab-dragging * {
   padding: var(--space-3);
   background: var(--bg-raised);
   border: 1px solid var(--border-strong);
-  border-left: 3px solid var(--accent);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-2);
   animation: appear var(--dur) var(--ease);
@@ -3500,7 +3498,6 @@ body.tab-dragging * {
   max-width: calc(100vw - 32px);
   padding: var(--space-3);
   border: 1px solid var(--border-strong);
-  border-left-width: 3px;
   border-radius: var(--radius-md);
   background: var(--bg-raised);
   box-shadow: var(--shadow-2);
@@ -3510,22 +3507,6 @@ body.tab-dragging * {
 
 .ui-toast.leaving {
   opacity: 0;
-}
-
-.ui-toast-info {
-  border-left-color: var(--accent);
-}
-
-.ui-toast-success {
-  border-left-color: var(--success);
-}
-
-.ui-toast-warning {
-  border-left-color: var(--warning);
-}
-
-.ui-toast-error {
-  border-left-color: var(--danger);
 }
 
 .ui-toast-icon {
