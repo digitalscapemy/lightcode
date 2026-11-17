@@ -9,6 +9,7 @@ import {
   zeroTotals,
   type AccountUsage
 } from '../shared/accountUsage'
+import { providerOf } from '../shared/accountProviders'
 import { loadShortcuts } from './shortcuts'
 
 /**
@@ -105,7 +106,8 @@ async function readNew(file: string): Promise<DayLedger> {
 function accounts(): { label: string; dir: string }[] {
   const list = [{ label: 'Default', dir: join(homedir(), '.claude') }]
   const seen = new Set([list[0]!.dir.toLowerCase()])
-  for (const a of loadShortcuts().accounts) {
+  // Only Claude accounts: the transcripts read here are Claude Code's.
+  for (const a of loadShortcuts().accounts.filter((x) => providerOf(x) === 'claude')) {
     const dir = a.configDir.replace(/[\\/]+$/, '')
     if (!dir || seen.has(dir.toLowerCase())) continue
     seen.add(dir.toLowerCase())

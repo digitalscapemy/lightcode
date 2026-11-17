@@ -23,6 +23,7 @@ import { initWelcome } from './welcome'
 import { flushPersist, notifyStatus, persist, state } from './store'
 import { initTabBar } from './tabbar'
 import { openSetup } from './setup'
+import { initSettingsUi, openSettings } from './settings'
 import { openUsage } from './usageView'
 
 async function boot(): Promise<void> {
@@ -45,6 +46,7 @@ async function boot(): Promise<void> {
   onBabysitterChange(app.refreshCoexistWarnings)
 
   initShortcutsUi()
+  initSettingsUi()
   initAboutUi()
   initLayoutPicker()
   initUpdateToast()
@@ -189,7 +191,8 @@ function buildCommands(): Command[] {
     { id: 'setup', title: 'Setup & tools: install Claude, Codex, Antigravity CLI', group: 'General', icon: 'sparkle', keywords: 'install agent cli check codex agy antigravity claude help guide', run: openSetup },
     { id: 'usage', title: 'Token usage per account (today, last 7 days)', group: 'General', icon: 'usage', keywords: 'tokens daily weekly usage account limit cost', run: openUsage },
     { id: 'projects', title: 'Project shortcuts', group: 'General', icon: 'projects', keywords: 'folders paths profile', run: click('projects-btn') },
-    { id: 'accounts', title: 'Claude accounts', group: 'General', icon: 'accounts', keywords: 'config dir login', run: click('accounts-btn') },
+    { id: 'accounts', title: 'Accounts: Claude, Codex, Antigravity', group: 'General', icon: 'accounts', keywords: 'config dir login profile codex agy antigravity claude', run: click('accounts-btn') },
+    { id: 'settings', title: 'Settings', group: 'General', icon: 'settings', keywords: 'preferences options font size install wsl docker', run: () => openSettings() },
     { id: 'open-project', title: 'Open project folder', group: 'General', icon: 'folder', keywords: 'new tab pick folder', run: () => void app.addTabViaPicker() },
     { id: 'about', title: 'About Light Code and what is new', group: 'General', icon: 'info', keywords: 'version changelog release notes', run: click('version-btn') },
     { id: 'updates', title: 'Check for updates', group: 'General', icon: 'sparkle', keywords: 'upgrade version', run: () => void window.lightclaude.updates.check() },

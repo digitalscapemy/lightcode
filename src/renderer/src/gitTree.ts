@@ -98,13 +98,7 @@ function build(): void {
   autoBtn = document.createElement('button')
   autoBtn.className = 'git-panel-chip'
   autoBtn.textContent = 'auto'
-  autoBtn.addEventListener('click', () => {
-    state.gitAutoFetch = !state.gitAutoFetch
-    persist()
-    syncAutoFetch()
-    renderHeader()
-    maybeAutoFetch()
-  })
+  autoBtn.addEventListener('click', () => setGitAutoFetch(!state.gitAutoFetch))
 
   const close = headerButton('×', 'Hide the worktree panel', toggleGitTree)
   close.classList.add('git-panel-close')
@@ -148,6 +142,15 @@ function subjectCwd(): string | null {
 const COALESCE_MS = 700
 let pending: number | null = null
 let lastRead = 0
+
+/** Turn the panel's background fetch on or off: its own chip, and Settings. */
+export function setGitAutoFetch(on: boolean): void {
+  state.gitAutoFetch = on
+  persist()
+  syncAutoFetch()
+  renderHeader()
+  maybeAutoFetch()
+}
 
 export function refreshGitTree(): void {
   if (!panel || panel.hidden || pending !== null) return

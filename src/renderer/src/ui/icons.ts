@@ -51,6 +51,9 @@ const P = {
   external: '<path d="M9 2.5h4.5V7M13.5 2.5L7.5 8.5M11.5 9.5v3a1 1 0 0 1-1 1h-7a1 1 0 0 1-1-1v-7a1 1 0 0 1 1-1h3"/>',
   /** Token usage: bars of different heights. */
   usage: '<path d="M3 13V9M6.5 13V5M10 13V7.5M13.5 13V3"/>',
+  /** Settings: a cog. */
+  settings:
+    '<circle cx="8" cy="8" r="2"/><path d="M6.9 1.75h2.2l.35 1.7 1.25.7 1.65-.55 1.1 1.9-1.3 1.15v1.4l1.3 1.15-1.1 1.9-1.65-.55-1.25.7-.35 1.7H6.9l-.35-1.7-1.25-.7-1.65.55-1.1-1.9 1.3-1.15v-1.4L2.55 5.5l1.1-1.9 1.65.55 1.25-.7z"/>',
   sparkle: '<path d="M8 2v3M8 11v3M2 8h3M11 8h3M4 4l2 2M10 10l2 2M12 4l-2 2M6 10l-2 2"/>'
 } as const
 

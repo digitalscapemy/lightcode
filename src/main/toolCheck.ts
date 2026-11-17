@@ -2,7 +2,7 @@ import { execFile } from 'child_process'
 import { existsSync, statSync } from 'fs'
 import { homedir } from 'os'
 import { delimiter, join } from 'path'
-import { TOOLS, type ToolStatus } from '../shared/tools'
+import { TOOLS, toolsFor, type ToolStatus } from '../shared/tools'
 
 /**
  * Which agent CLIs are installed, and keeping PATH current after an install.
@@ -146,12 +146,37 @@ function versionOf(file: string): Promise<string | undefined> {
   })
 }
 
-/** Installed or not, where, and which version — for every known tool. */
+/**
+ * WSL. `wsl.exe` ships with every Windows 10/11, installed or not, so finding
+ * it says nothing: `wsl --status` succeeds only once WSL is set up.
+ * WSL_UTF8 makes it answer in UTF-8 rather than UTF-16.
+ */
+function checkWsl(path: string): Promise<ToolStatus> {
+  const file = whichIn('wsl', path)
+  if (!file) return Promise.resolve({ id: 'wsl', installed: false })
+  const opts = { timeout: 8000, windowsHide: true, encoding: 'utf8' as const, env: { ...process.env, WSL_UTF8: '1' } }
+  return new Promise((resolve) => {
+    execFile(file, ['--status'], opts, (err) => {
+      if (err) return resolve({ id: 'wsl', installed: false })
+      execFile(file, ['--version'], opts, (_e, out) => {
+        const line = String(out ?? '')
+          .replace(/\0/g, '')
+          .split(/\r?\n/)
+          .map((l) => l.trim())
+          .find(Boolean)
+        resolve({ id: 'wsl', installed: true, path: file, version: line?.slice(0, 80) })
+      })
+    })
+  })
+}
+
+/** Installed or not, where, and which version — for every tool on this platform. */
 export async function checkTools(): Promise<ToolStatus[]> {
   await refreshProcessPath(true)
   const path = process.env[PATH_KEY] ?? ''
   return Promise.all(
-    TOOLS.map(async (t): Promise<ToolStatus> => {
+    toolsFor(process.platform).map(async (t): Promise<ToolStatus> => {
+      if (t.id === 'wsl') return checkWsl(path)
       const file = whichIn(t.bin, path)
       if (!file) return { id: t.id, installed: false }
       return { id: t.id, installed: true, path: file, version: await versionOf(file) }

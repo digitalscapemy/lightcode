@@ -123,10 +123,15 @@ export interface PathShortcut {
   category?: string
 }
 
-/** `function <name> { $env:CLAUDE_CONFIG_DIR = '<dir>'; & claude.exe @args }` */
+/**
+ * `function <name> { $env:CLAUDE_CONFIG_DIR = '<dir>'; & claude @args }`, or
+ * the Codex / Antigravity equivalent (shared/accountProviders.ts).
+ */
 export interface AccountShortcut {
   name: string
   configDir: string
+  /** Which CLI it logs in to. Absent: Claude, as every entry before 1.1 was. */
+  provider?: 'claude' | 'codex' | 'antigravity'
 }
 
 export interface ShortcutsConfig {

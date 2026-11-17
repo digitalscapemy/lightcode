@@ -4273,3 +4273,547 @@ body.page-hidden .lc-logo-animated {
   color: var(--fg-subtle);
   font-size: var(--fs-sm);
 }
+
+/* ---------- Projects & accounts: the card picker ---------- */
+
+.profiles-modal {
+  width: 820px;
+  height: min(680px, calc(100vh - 80px));
+}
+
+.shortcuts-body.pf-body {
+  overflow: hidden;
+  gap: var(--space-3);
+  min-height: 0;
+}
+
+.pf-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: 0 0 auto;
+}
+
+.pf-search {
+  flex: 1 1 auto;
+  min-width: 120px;
+  height: 28px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--bg);
+  color: var(--fg);
+  font: inherit;
+  font-size: var(--fs-md);
+  outline: none;
+}
+
+.pf-search:focus {
+  border-color: var(--accent);
+}
+
+.pf-seg {
+  display: inline-flex;
+  padding: 2px;
+  gap: 2px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--bg);
+}
+
+.pf-seg-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 22px;
+  padding: 0 var(--space-2);
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--fg-muted);
+  font: inherit;
+  font-size: var(--fs-sm);
+  cursor: pointer;
+}
+
+.pf-seg-btn:hover {
+  color: var(--fg);
+}
+
+.pf-seg-btn.on {
+  background: var(--bg-active);
+  color: var(--fg);
+}
+
+.pf-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.pf-setup {
+  flex: 0 0 auto;
+}
+
+.pf-setup[hidden] {
+  display: none;
+}
+
+/* The grid scrolls on its own; the toolbar above it stays put. */
+.pf-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  margin: 0 calc(-1 * var(--space-4));
+  padding: 2px var(--space-4) var(--space-2);
+}
+
+.pf-group-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: var(--space-4) 0 var(--space-2);
+  color: var(--fg-subtle);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.pf-group-head:first-child {
+  margin-top: 0;
+}
+
+.pf-group-count {
+  font-weight: 400;
+}
+
+.pf-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: var(--space-3);
+}
+
+.pf-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  padding: var(--space-3) var(--space-3) var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--bg-raised);
+  color: var(--fg);
+  font: inherit;
+  text-align: center;
+  cursor: pointer;
+  transition:
+    background var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease);
+}
+
+.pf-card:hover {
+  background: var(--bg-hover);
+  border-color: var(--border-strong);
+}
+
+.pf-card:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.pf-card-top {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--fg);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+}
+
+.pf-avatar,
+.pf-add-circle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 64px;
+  margin: var(--space-1) 0;
+  border-radius: 50%;
+  color: #fff;
+  font-size: 22px;
+  font-weight: 600;
+}
+
+.pf-card-name {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fs-md);
+}
+
+/* A long path keeps its end, the part that tells two projects apart. */
+.pf-card-sub {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  direction: rtl;
+  color: var(--fg-subtle);
+  font-size: var(--fs-xs);
+}
+
+.pf-card-tools {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: flex;
+  gap: 2px;
+  opacity: 0;
+  transition: opacity var(--dur-fast) var(--ease);
+}
+
+.pf-card:hover .pf-card-tools,
+.pf-card:focus-within .pf-card-tools {
+  opacity: 1;
+}
+
+.pf-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--fg-muted);
+  cursor: pointer;
+}
+
+.pf-icon-btn:hover {
+  background: var(--bg-active);
+  color: var(--fg);
+}
+
+.pf-add {
+  border-style: dashed;
+  background: transparent;
+}
+
+.pf-add-circle {
+  background: var(--bg-active);
+  color: var(--fg-muted);
+}
+
+.pf-add:hover .pf-add-circle {
+  color: var(--fg);
+}
+
+/* Editor */
+.pf-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  width: 100%;
+  max-width: 520px;
+  margin: 0 auto;
+  overflow-y: auto;
+}
+
+.pf-form-head {
+  color: var(--fg);
+  font-size: var(--fs-lg);
+  font-weight: 600;
+}
+
+.pf-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.pf-field-label {
+  color: var(--fg-muted);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+}
+
+.pf-field-hint {
+  color: var(--fg-subtle);
+  font-size: var(--fs-sm);
+  line-height: 1.45;
+}
+
+.pf-input {
+  height: 30px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--bg);
+  color: var(--fg);
+  font: inherit;
+  font-size: var(--fs-md);
+  outline: none;
+}
+
+.pf-input:focus {
+  border-color: var(--accent);
+}
+
+.pf-folder-row {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.pf-folder-row .pf-input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.pf-folder-row .btn {
+  height: 30px;
+}
+
+.pf-provider {
+  align-self: flex-start;
+}
+
+.pf-provider .pf-seg-btn {
+  height: 26px;
+  padding: 0 var(--space-3);
+}
+
+.pf-error {
+  min-height: 1em;
+  color: var(--danger-text);
+  font-size: var(--fs-sm);
+}
+
+.pf-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+/* ---------- Settings ---------- */
+
+.settings-modal {
+  width: 860px;
+  height: min(640px, calc(100vh - 80px));
+}
+
+.shortcuts-body.set-body {
+  padding: 0;
+  overflow: hidden;
+}
+
+.set-layout {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.set-nav {
+  flex: 0 0 190px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-3) var(--space-2);
+  border-right: 1px solid var(--border);
+}
+
+.set-nav-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: 30px;
+  padding: 0 var(--space-2);
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--fg-muted);
+  font: inherit;
+  font-size: var(--fs-md);
+  text-align: left;
+  cursor: pointer;
+}
+
+.set-nav-item:hover {
+  background: var(--bg-hover);
+  color: var(--fg);
+}
+
+.set-nav-item.on {
+  background: var(--bg-active);
+  color: var(--fg);
+}
+
+.set-nav-icon {
+  display: inline-flex;
+}
+
+.set-pane {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-y: auto;
+  padding: var(--space-4);
+}
+
+.set-heading {
+  margin: 0 0 var(--space-3);
+  color: var(--fg);
+  font-size: var(--fs-lg);
+  font-weight: 600;
+}
+
+.set-section,
+.install-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.set-section-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.set-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg);
+}
+
+.set-text {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.set-title {
+  color: var(--fg);
+  font-size: var(--fs-md);
+}
+
+.set-detail {
+  margin-top: 2px;
+  color: var(--fg-muted);
+  font-size: var(--fs-sm);
+  line-height: 1.45;
+}
+
+.set-update-status:empty {
+  display: none;
+}
+
+.set-stepper {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.set-value {
+  min-width: 40px;
+  color: var(--fg);
+  font-size: var(--fs-sm);
+  text-align: center;
+  white-space: nowrap;
+}
+
+.set-path {
+  max-width: 280px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--fg-muted);
+  font-size: var(--fs-sm);
+}
+
+.set-switch {
+  position: relative;
+  flex: 0 0 auto;
+  width: 34px;
+  height: 20px;
+  padding: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  background: var(--bg-active);
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease);
+}
+
+.set-switch::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--fg-muted);
+  transition:
+    transform var(--dur-fast) var(--ease),
+    background var(--dur-fast) var(--ease);
+}
+
+.set-switch.on {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+
+.set-switch.on::after {
+  transform: translateX(14px);
+  background: var(--on-accent);
+}
+
+/* The same minimalist scrollbar for the card picker, Settings and the welcome page:
+   thin, no arrows, a grey thumb that only brightens on hover. */
+.pf-scroll::-webkit-scrollbar,
+.pf-form::-webkit-scrollbar,
+.set-pane::-webkit-scrollbar,
+.set-nav::-webkit-scrollbar,
+#empty-state::-webkit-scrollbar {
+  width: 6px;
+}
+
+.pf-scroll::-webkit-scrollbar-track,
+.pf-form::-webkit-scrollbar-track,
+.set-pane::-webkit-scrollbar-track,
+.set-nav::-webkit-scrollbar-track,
+#empty-state::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.pf-scroll::-webkit-scrollbar-thumb,
+.pf-form::-webkit-scrollbar-thumb,
+.set-pane::-webkit-scrollbar-thumb,
+.set-nav::-webkit-scrollbar-thumb,
+#empty-state::-webkit-scrollbar-thumb {
+  background: var(--scrollbar);
+  border-radius: 3px;
+}
+
+.pf-scroll::-webkit-scrollbar-thumb:hover,
+.pf-form::-webkit-scrollbar-thumb:hover,
+.set-pane::-webkit-scrollbar-thumb:hover,
+.set-nav::-webkit-scrollbar-thumb:hover,
+#empty-state::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-hover);
+}
+
+.pf-scroll::-webkit-scrollbar-button,
+.pf-form::-webkit-scrollbar-button,
+.set-pane::-webkit-scrollbar-button,
+.set-nav::-webkit-scrollbar-button,
+#empty-state::-webkit-scrollbar-button {
+  display: none;
+}

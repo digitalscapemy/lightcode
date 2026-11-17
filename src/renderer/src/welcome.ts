@@ -7,7 +7,7 @@ import { state } from './store'
 import { icon, type IconName } from './ui/icons'
 import { logoSvg } from './ui/logo'
 import { openSetup, refreshTools, toolRow } from './setup'
-import { TOOLS, type ToolStatus } from '../../shared/tools'
+import { toolsFor, type ToolStatus } from '../../shared/tools'
 
 /**
  * The welcome page: what the window shows when no tab is open — on the very
@@ -103,7 +103,7 @@ async function render(root: HTMLElement): Promise<void> {
   agentsHead.appendChild(setupBtn)
   const agentList = el('div', 'tool-list wl-tools')
   const paint = (s: ToolStatus[] | null): void => {
-    agentList.replaceChildren(...TOOLS.map((t) => toolRow(t, s?.find((x) => x.id === t.id), true)))
+    agentList.replaceChildren(...toolsFor(window.lightclaude.platform, 'agent').map((t) => toolRow(t, s?.find((x) => x.id === t.id), true)))
   }
   paint(null)
   void refreshTools().then(paint)

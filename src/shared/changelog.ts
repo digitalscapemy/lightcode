@@ -9,6 +9,17 @@ export const DEVELOPER = 'Digital Scape MY'
 /** Newest first. Add an entry on every release (see release procedure). */
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '1.1.0',
+    date: '2026-11-17',
+    notes: [
+      'Projects as cards. The Projects button now shows every project as a card, grouped by category, like a profile picker. Click a card to open the project in a new tab. Search, add, edit and delete right in the grid, and the grid scrolls when you have many. Every change is saved as you make it.',
+      'Accounts for Claude, Codex and Antigravity. Pick the agent when you add an account, and each one gets its own folder. Click an account card to start it in a new tab, or type its name in any pane as before. Claude and Codex keep each login fully apart. Antigravity keeps settings and conversations apart, but its Google login is shared, because Antigravity keeps it in the system credential store. Your existing Claude accounts carry on exactly as they were.',
+      'Settings. A new gear in the toolbar gathers everything in one place: terminal text size, automatic git fetch, the lc agent CLI, your projects and accounts, updates, and what is installed.',
+      'WSL and Docker. Installation now also checks Docker and, on Windows, WSL, next to Claude Code, Codex and the Antigravity CLI, and shows their versions. All of them are optional, and a missing one installs with one click. Installing WSL asks for administrator approval and a restart.',
+      'A tidier toolbar. Fan-out, Squad and Orchestra are icons now, with their names in the tooltip. Scrollbars in Settings and the pickers are thin and quiet.'
+    ]
+  },
+  {
     version: '1.0.0',
     date: '2026-11-17',
     notes: [

@@ -1,7 +1,7 @@
 import { createTab } from './app'
 import { newId, pendingCommand, state } from './store'
 import { GUIDES, type GuideId } from '../../shared/guides'
-import { TOOLS, installCommand, toolById, type ToolDef, type ToolStatus } from '../../shared/tools'
+import { TOOLS, installCommand, toolById, toolsFor, type ToolDef, type ToolStatus } from '../../shared/tools'
 import type { LayoutNode } from '../../shared/types'
 import { openGuide } from './ui/guide'
 import { icon } from './ui/icons'
@@ -121,7 +121,8 @@ export function toolRow(tool: ToolDef, status: ToolStatus | undefined, compact =
   if (!compact) {
     const blurb = document.createElement('div')
     blurb.className = 'tool-blurb'
-    blurb.textContent = tool.blurb
+    blurb.textContent =
+      status && !status.installed && tool.installNote ? `${tool.blurb} ${tool.installNote}` : tool.blurb
     text.appendChild(blurb)
   }
   row.appendChild(text)
@@ -148,36 +149,47 @@ export function toolRow(tool: ToolDef, status: ToolStatus | undefined, compact =
   return row
 }
 
-/** The Setup & tools dialog: every tool, plus the guides for fixes that are the user's to make. */
-export function openSetup(): void {
-  const m = openModal({
-    title: 'Setup & tools',
-    subtitle: 'The agent CLIs Light Code can run, and help with what it cannot change for you.',
-    icon: 'sparkle',
-    className: 'setup-modal'
-  })
-  const list = document.createElement('div')
-  list.className = 'tool-list'
-  const render = (s: ToolStatus[] | null): void => {
-    list.replaceChildren(...TOOLS.map((t) => toolRow(t, s?.find((x) => x.id === t.id))))
+/**
+ * The installation section: agent CLIs, system tools (WSL, Docker), the
+ * permission checks and the guides. Built once here and placed both in the
+ * Setup & tools dialog and in Settings, so the two can never disagree.
+ * Every tool is optional; a missing one only offers its Install button.
+ */
+export function buildInstallSection(): { el: HTMLElement; recheck: () => void; dispose: () => void } {
+  const el = document.createElement('div')
+  el.className = 'install-section'
+  const plat = window.lightclaude.platform
+
+  const listFor = (group: 'agent' | 'system'): { list: HTMLElement; render: (s: ToolStatus[] | null) => void } => {
+    const list = document.createElement('div')
+    list.className = 'tool-list'
+    const render = (s: ToolStatus[] | null): void => {
+      list.replaceChildren(...toolsFor(plat, group).map((t) => toolRow(t, s?.find((x) => x.id === t.id))))
+    }
+    return { list, render }
   }
-  render(lastStatus)
-  const off = onToolsChange(render)
+  const agents = listFor('agent')
+  const system = listFor('system')
+  const renderAll = (s: ToolStatus[] | null): void => {
+    agents.render(s)
+    system.render(s)
+  }
+  renderAll(lastStatus)
+  const off = onToolsChange(renderAll)
   void refreshTools()
 
-  const toolsHead = document.createElement('h3')
-  toolsHead.className = 'setup-head'
-  toolsHead.textContent = 'Agent CLIs'
+  const head = (text: string): HTMLElement => {
+    const h = document.createElement('h3')
+    h.className = 'setup-head'
+    h.textContent = text
+    return h
+  }
   const note = document.createElement('p')
   note.className = 'setup-note'
   note.textContent =
-    'Install opens a new tab and runs the official command from the vendor, so you can watch it and stop it. ' +
-    'No admin rights are needed.'
+    'All optional. Install opens a new tab and runs the official command from the vendor, so you can watch it and stop it.'
 
   // Permissions: can Light Code write what its features need?
-  const permHead = document.createElement('h3')
-  permHead.className = 'setup-head'
-  permHead.textContent = 'Permissions'
   const permList = document.createElement('div')
   permList.className = 'tool-list perm-list'
   const renderPerms = (checks: PermissionCheck[] | null): void => {
@@ -200,9 +212,6 @@ export function openSetup(): void {
   }
   void runPerms()
 
-  const guidesHead = document.createElement('h3')
-  guidesHead.className = 'setup-head'
-  guidesHead.textContent = 'Help with things Light Code cannot change'
   const guides = document.createElement('div')
   guides.className = 'guide-links'
   const ids: GuideId[] = isWin
@@ -221,29 +230,57 @@ export function openSetup(): void {
     guides.appendChild(b)
   }
 
-  m.body.append(toolsHead, list, note, permHead, permList, guidesHead, guides)
+  el.append(
+    head('Agent CLIs'),
+    agents.list,
+    note,
+    head(isWin ? 'WSL and Docker' : 'Docker'),
+    system.list,
+    head('Permissions'),
+    permList,
+    head('Help with things Light Code cannot change'),
+    guides
+  )
+  return {
+    el,
+    recheck: () => {
+      void refreshTools()
+      void runPerms()
+    },
+    dispose: off
+  }
+}
+
+/** The Setup & tools dialog: the installation section on its own. */
+export function openSetup(): void {
+  const m = openModal({
+    title: 'Setup & tools',
+    subtitle: 'The tools Light Code can run, and help with what it cannot change for you.',
+    icon: 'sparkle',
+    className: 'setup-modal'
+  })
+  const section = buildInstallSection()
+  m.body.appendChild(section.el)
 
   const recheck = document.createElement('button')
   recheck.className = 'shortcuts-secondary'
   recheck.textContent = 'Check again'
-  recheck.addEventListener('click', () => {
-    void refreshTools()
-    void runPerms()
-  })
+  recheck.addEventListener('click', section.recheck)
   const done = document.createElement('button')
   done.className = 'shortcuts-primary'
   done.textContent = 'Done'
-  done.addEventListener('click', () => {
-    off()
-    m.close()
-  })
+  done.addEventListener('click', () => m.close())
   const spacer = document.createElement('div')
   spacer.style.flex = '1'
   m.footer.append(recheck, spacer, done)
-  // Stop listening however the dialog closes.
+  disposeWhenGone(m.overlay, section.dispose)
+}
+
+/** Run `fn` once `node` has left the page, however it was closed. */
+export function disposeWhenGone(node: HTMLElement, fn: () => void): void {
   new MutationObserver((_r, obs) => {
-    if (!m.overlay.isConnected) {
-      off()
+    if (!node.isConnected) {
+      fn()
       obs.disconnect()
     }
   }).observe(document.body, { childList: true })

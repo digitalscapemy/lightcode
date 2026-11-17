@@ -3,9 +3,11 @@ import { execFileSync } from 'child_process'
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'fs'
 import { homedir } from 'os'
 import { dirname, join } from 'path'
+import { PROVIDERS, providerOf, psAccountBody, shAccountBody } from '../shared/accountProviders'
 import { psSingleQuote } from '../shared/psQuote'
 import { isInside, isValidCategory } from '../shared/shortcutPaths'
 import type {
+  AccountShortcut,
   ShortcutsConfig,
   ShortcutsImportResult,
   ShortcutsSaveResult
@@ -36,6 +38,10 @@ export function loadShortcuts(): ShortcutsConfig {
         version: 1,
         paths: Array.isArray(parsed.paths) ? parsed.paths : [],
         accounts: Array.isArray(parsed.accounts) ? parsed.accounts : []
+      }
+      // An unknown provider (a later version's, or a hand edit) reads as Claude.
+      for (const a of cfg.accounts) {
+        if (a && a.provider !== undefined && providerOf(a) !== a.provider) delete a.provider
       }
       if (typeof parsed.projectRoot === 'string' && parsed.projectRoot.trim()) {
         cfg.projectRoot = parsed.projectRoot
@@ -148,16 +154,14 @@ export function renderBlock(cfg: ShortcutsConfig): string {
       // `claude` rather than `claude.exe`: inside Light Code that resolves to
       // the wrapper carrying the agent-hook settings, and outside it PowerShell
       // finds claude.exe on PATH through PATHEXT exactly as before.
-      lines.push(
-        `function ${a.name} { $env:CLAUDE_CONFIG_DIR = ${psQuote(a.configDir)}; & claude @args }`
-      )
+      lines.push(`function ${a.name} { ${psAccountBody(providerOf(a), psQuote(a.configDir))} }`)
     }
   } else {
     for (const p of cfg.paths) {
       lines.push(`${p.name}() { cd ${shQuote(p.path)}; }`)
     }
     for (const a of cfg.accounts) {
-      lines.push(`${a.name}() { CLAUDE_CONFIG_DIR=${shQuote(a.configDir)} claude "$@"; }`)
+      lines.push(`${a.name}() { ${shAccountBody(providerOf(a), shQuote(a.configDir))} }`)
     }
   }
   lines.push(END_MARKER)
@@ -257,9 +261,7 @@ export function psStartupShortcuts(cfg: ShortcutsConfig): string {
   }
   for (const a of cfg.accounts) {
     if (ok(a.name) && typeof a.configDir === 'string' && a.configDir.trim()) {
-      defs.push(
-        `function global:${a.name} { $env:CLAUDE_CONFIG_DIR = ${psQuote(a.configDir)}; & claude @args }`
-      )
+      defs.push(`function global:${a.name} { ${psAccountBody(providerOf(a), psQuote(a.configDir))} }`)
     }
   }
   return defs.join('; ')
@@ -306,7 +308,7 @@ const RESERVED = new Set(
     'cd chdir sl dir ls gci cat gc type cp copy cpi mv move mi rm del ri erase echo write ' +
     'pwd gl cls clear set sv start saps kill spps sleep sort where ft fl fw gm gp h history ' +
     'icm iex man md mkdir ni popd pushd ps r rd rmdir select tee help measure group compare ' +
-    'diff fc gi gv nv ii ipmo gal gcm ghy pd curl wget claude'
+    'diff fc gi gv nv ii ipmo gal gcm ghy pd curl wget claude codex agy'
   ).split(/\s+/)
 )
 
@@ -365,7 +367,7 @@ export function createMissingFolders(
   }
   for (const a of cfg.accounts) {
     const base = a.configDir.replace(/[\\/]+$/, '').split(/[\\/]/).pop() ?? ''
-    if (base.startsWith('.claude-') && isInside(home, a.configDir, IS_WIN)) wanted.push(a.configDir)
+    if (base.startsWith(PROVIDERS[providerOf(a)].dirPrefix) && isInside(home, a.configDir, IS_WIN)) wanted.push(a.configDir)
   }
   for (const dir of wanted) {
     if (existsSync(dir)) continue
@@ -404,13 +406,17 @@ const PATH_BODY_RE = IS_WIN
 const ACCOUNT_DIR_RE = IS_WIN
   ? /\$env:CLAUDE_CONFIG_DIR\s*=\s*(['"])(.*?)\1/i
   : /(?:export\s+)?CLAUDE_CONFIG_DIR=(['"]?)(.*?)\1(?:\s|;|$)/
+const CODEX_DIR_RE = IS_WIN
+  ? /\$env:CODEX_HOME\s*=\s*(['"])(.*?)/i
+  : /(?:export\s+)?CODEX_HOME=(['"]?)(.*?)(?:\s|;|$)/
+const CODEX_EXEC_RE = IS_WIN ? /&\s*(['"]?)codex(?:\.exe)?\s*(?:\$args|@args)/i : /codex/
 const ACCOUNT_EXEC_RE = IS_WIN
   ? /&\s*(['"]?)claude(?:\.exe)?\1\s*(?:\$args|@args)/i
   : /\bclaude\b/
 
 export function parseProfiles(files: string[]): ShortcutsImportResult {
   const paths = new Map<string, { name: string; path: string }>()
-  const accounts = new Map<string, { name: string; configDir: string }>()
+  const accounts = new Map<string, AccountShortcut>()
   let skipped = 0
 
   let found = 0
@@ -447,14 +453,19 @@ export function parseProfiles(files: string[]): ShortcutsImportResult {
         continue
       }
 
-      const dirMatch = ACCOUNT_DIR_RE.exec(body)
-      if (dirMatch && ACCOUNT_EXEC_RE.test(body)) {
+      const claudeDir = ACCOUNT_DIR_RE.exec(body)
+      const codexDir = CODEX_DIR_RE.exec(body)
+      const dirMatch =
+        claudeDir && ACCOUNT_EXEC_RE.test(body) ? claudeDir : codexDir && CODEX_EXEC_RE.test(body) ? codexDir : null
+      if (dirMatch) {
         const expanded = expandVars(dirMatch[2])
         if (expanded === null) {
           skipped++
         } else {
           paths.delete(key)
-          accounts.set(key, { name, configDir: expanded })
+          const entry: AccountShortcut = { name, configDir: expanded }
+          if (dirMatch === codexDir) entry.provider = 'codex'
+          accounts.set(key, entry)
         }
       }
     }

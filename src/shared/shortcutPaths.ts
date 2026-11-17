@@ -22,9 +22,12 @@ export function projectTarget(root: string, category: string | undefined, name: 
   return category ? joinPath(sep, root, category, name) : joinPath(sep, root, name)
 }
 
-/** `<home>\.claude-<name>` — one Claude config dir per account. */
-export function accountTarget(home: string, name: string, sep: string): string {
-  return joinPath(sep, home, `.claude-${name}`)
+/**
+ * `<home>\.claude-<name>`: one config dir per account. Codex and Antigravity
+ * accounts pass their own prefix (`.codex-`, `.agy-`).
+ */
+export function accountTarget(home: string, name: string, sep: string, prefix = '.claude-'): string {
+  return joinPath(sep, home, `${prefix}${name}`)
 }
 
 /** A category becomes a folder name, so it must be one on every OS. */

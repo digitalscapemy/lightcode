@@ -45,7 +45,14 @@ import { UsageWatcher } from './usageWatcher'
 import { checkTools } from './toolCheck'
 import { systemPageUri } from '../shared/guides'
 import { checkPermissions } from './permissionCheck'
+import { providerOf } from '../shared/accountProviders'
+import type { AccountShortcut } from '../shared/types'
 import { accountUsage } from './accountUsage'
+
+/** The config folders whose Claude usage is watched: Claude accounts only. */
+function claudeDirs(accounts: AccountShortcut[]): string[] {
+  return accounts.filter((a) => providerOf(a) === 'claude').map((a) => a.configDir)
+}
 
 // Keep the pre-rename app name so userData stays %APPDATA%\lightclaude —
 // renaming it would silently abandon existing state.json and shortcuts.json.
@@ -134,7 +141,7 @@ function registerIpc(): void {
   ipcMain.handle(IPC.ShortcutsSave, (_e, cfg: ShortcutsConfig) => {
     const result = saveShortcuts(cfg)
     if (result.ok) {
-      usageWatcher.setConfigRoots(cfg.accounts.map((a) => a.configDir))
+      usageWatcher.setConfigRoots(claudeDirs(cfg.accounts))
     }
     return result
   })
@@ -467,7 +474,7 @@ app.whenReady().then(() => {
   void lcServer.setEnabled(loadLcEnabled())
 
   // Seed usage roots before any pane spawns so restored panes bind everywhere.
-  usageWatcher.setConfigRoots(loadShortcuts().accounts.map((a) => a.configDir))
+  usageWatcher.setConfigRoots(claudeDirs(loadShortcuts().accounts))
   registerIpc()
   createWindow()
   void cleanPasteDir()
